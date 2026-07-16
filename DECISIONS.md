@@ -66,3 +66,17 @@ Decisiones:
 - `duplicate` crea la copia en `PAUSED` (lista para editar sin que el worker la tome); si la fecha original ya pasó, propone `now()+1h`.
 - Tras reintentos con backoff, la siguiente ocurrencia recurrente se calcula desde el último `nextRunAt` (implementación normativa §17.5 tal cual) — puede desplazar la hora hasta +12 min tras una ocurrencia con 2 reintentos.
 - `PATCH` con `scheduledAt` nuevo resetea `nextRunAt`, `attempts` y `lastError`.
+
+## Fase 4 — Media ✔ (foto/video a WhatsApp real pendiente de VPS)
+
+Evidencia (2026-07-16, curl + scripts):
+
+- `POST /media`: PNG ok (201), MP4 4 MB ok, `image/gif` → `MEDIA_TYPE_UNSUPPORTED` (415).
+- `GET /media/:id`: dueño descarga bytes idénticos; otro usuario → `NOT_FOUND`.
+- URL interna firmada: 1er uso → 200 con el archivo; 2do uso → 404 (un solo uso); token manipulado → 404 (HMAC + `timingSafeEqual`).
+- `buildMediaPayload`: PNG (≤3 MB) → base64 **puro** (sin prefijo `data:`, sin saltos de línea); MP4 (>3 MB) → URL interna firmada. `delay: 1800`, `caption`, `mimetype`, `fileName` correctos.
+- **Pendiente VPS**: foto y video programados llegan al WhatsApp destino.
+
+Decisiones:
+- **Bug corregido**: el token firmado (~105 chars) excedía el `maxParamLength` default de Fastify (100) → 414. Se configuró `maxParamLength: 512`.
+- El registro de tokens usados vive en memoria (Map con limpieza cada 60 s) — suficiente para proceso único (§16.5); un reinicio "resucita" tokens no expirados ≤15 min, riesgo aceptado en red interna.
