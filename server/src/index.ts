@@ -7,6 +7,8 @@ import { registerErrorHandler } from "./plugins/error-handler.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerUserRoutes } from "./routes/users.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerInstanceRoutes } from "./routes/instances.js";
+import { registerWebhookRoutes } from "./routes/webhooks.js";
 
 async function main() {
   await prisma.$connect();
@@ -23,6 +25,8 @@ async function main() {
   registerAuthRoutes(app);
   registerUserRoutes(app);
   registerAdminRoutes(app);
+  registerInstanceRoutes(app);
+  registerWebhookRoutes(app);
 
   await app.listen({ host: "0.0.0.0", port: config.PORT });
 }

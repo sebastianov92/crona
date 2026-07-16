@@ -1,11 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import { AppError } from "../lib/errors.js";
+import { EvolutionError } from "../services/evolution.js";
 
 export function registerErrorHandler(app: FastifyInstance) {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {
       return reply.status(err.statusCode).send({ error: { code: err.code, message: err.message } });
+    }
+    if (err instanceof EvolutionError) {
+      return reply
+        .status(502)
+        .send({ error: { code: "EVOLUTION_UNREACHABLE", message: `Evolution API devolvió un error (HTTP ${err.status}).` } });
     }
     if (err instanceof ZodError) {
       const detail = err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(" · ");

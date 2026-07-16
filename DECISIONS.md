@@ -31,3 +31,22 @@ Evidencia (2026-07-16, curl contra server local):
 Decisiones:
 - Se añadió el código de error `INTERNAL_ERROR` (500 genérico) al catálogo de §15 — la lista del SPEC no cubría errores internos.
 - `POST /auth/logout` recibe `{ refreshToken }` en el body y lo revoca (idempotente); no requiere access token (el refresh es la credencial).
+
+**Actualización**: se levantó una **Evolution API v2.3.7 real** en local (contenedor `evolution-dev`, puerto 8081) → `POST /admin/settings/test` devuelve `{"ok":true,"version":"2.3.7"}`. ✔ criterio de Fase 1 cumplido contra Evolution real.
+
+## Fase 2 — Instancias ✔ (vinculación con teléfono real pendiente del usuario)
+
+Evidencia (2026-07-16, contra Evolution v2.3.7 real en local):
+
+- `POST /instances {"name":"Personal"}` → crea `u2rce-personal` en Evolution con webhook interno configurado; devuelve `qrBase64` (PNG data-URI de 13 KB, QR real de WhatsApp).
+- `GET /instances/:id/qr` → re-solicita QR vía `/instance/connect` (base64 + code manejados).
+- `GET /instances/:id/status` → consulta `connectionState` en vivo → `CONNECTING` y sincroniza el campo local.
+- Webhooks reales recibidos y guardados en `WebhookEventRaw`: `qrcode.updated` y `connection.update` (Evolution → `http://host.docker.internal:3000/webhooks/evolution/{secret}`).
+- Aislamiento multiusuario: user2 pidiendo la instancia de admin → `NOT_FOUND`.
+- `POST /instances/:id/sync` sin WhatsApp vinculado → error controlado `EVOLUTION_UNREACHABLE` (timeout de findContacts en instancia no conectada). **Pendiente usuario**: escanear QR con teléfono real y verificar que `/instances/:id/recipients` lista contactos y grupos.
+
+Decisiones:
+- La respuesta de `/instance/create` varía entre 2.x: `hash` puede ser string u objeto `{apikey}` — se manejan ambos.
+- `res.code` de `/instance/connect` es el string crudo del QR (`2@…`), NO un pairing code; `pairingCode` solo se toma de `qrcode.pairingCode`/`pairingCode`.
+- Errores de Evolution (`EvolutionError`) se mapean a 502 `EVOLUTION_UNREACHABLE` en el error handler global.
+- En dev local, `INTERNAL_URL=http://host.docker.internal:3000` para que el contenedor de Evolution alcance CatchApp; en VPS es `http://catchapp:3000` (red Docker compartida).
