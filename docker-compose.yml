@@ -1,0 +1,28 @@
+services:
+  catchapp:
+    build: ./server
+    container_name: catchapp
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data/media:/data/media
+    networks: [evolution-net]
+    # Opción A (recomendada): expuesto solo vía reverse proxy (caddy).
+    # Opción B (solo HTTP, sin dominio): descomentar y quitar el servicio caddy.
+    # ports: ["3000:3000"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    networks: [evolution-net]
+
+networks:
+  evolution-net:
+    external: true          # ⚠️ nombre real de la red del compose de Evolution (`docker network ls`)
+
+volumes:
+  caddy_data:

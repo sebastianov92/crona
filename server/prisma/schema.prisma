@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum InstanceStatus {
+  CREATED
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+}
+
+enum RecipientKind {
+  CONTACT
+  GROUP
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum Recurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum LogStatus {
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String // argon2id
+  name          String
+  role          Role     @default(USER)
+  ntfyTopic     String? // topic personal, ej. "catchapp-sebastian-x7k2"
+  ntfyToken     String? // opcional si el server ntfy usa auth
+  notifyOnSent  Boolean  @default(false) // notificar también envíos exitosos
+  createdAt     DateTime @default(now())
+  instances     Instance[]
+  messages      ScheduledMessage[]
+  media         Media[]
+  refreshTokens RefreshToken[]
+}
+
+model Invite {
+  id          String   @id @default(uuid())
+  code        String   @unique // 8 chars aleatorios
+  createdById String
+  usedById    String?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique // sha256 del token
+  expiresAt DateTime
+  revokedAt DateTime?
+}
+
+// Singleton (id = 1). Config global editable solo por ADMIN desde la app.
+model ServerSettings {
+  id                       Int      @id @default(1)
+  evolutionBaseUrl         String // ej. http://evolution-api:8080 (red interna)
+  evolutionGlobalApiKeyEnc String // cifrada AES-256-GCM
+  ntfyBaseUrl              String   @default("https://ntfy.sh")
+  updatedAt                DateTime @updatedAt
+}
+
+model Instance {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String // nombre visible: "Personal", "Negocio"
+  instanceName    String         @unique // nombre en Evolution: "u{shortid}-personal"
+  tokenEnc        String // apikey/hash de la instancia, cifrada
+  phoneNumber     String? // se llena al conectar
+  profilePicUrl   String?
+  status          InstanceStatus @default(CREATED)
+  lastConnectedAt DateTime?
+  createdAt       DateTime       @default(now())
+  recipients      Recipient[]
+  messages        ScheduledMessage[]
+}
+
+// Cache local de contactos y grupos de WhatsApp (se sincroniza bajo demanda)
+model Recipient {
+  id          String        @id @default(uuid())
+  instanceId  String
+  instance    Instance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  jid         String // "5939XXXXXXXX@s.whatsapp.net" | "1203...@g.us"
+  displayName String
+  pictureUrl  String?
+  kind        RecipientKind
+  phoneNumber String? // solo contactos
+  syncedAt    DateTime      @default(now())
+
+  @@unique([instanceId, jid])
+  @@index([instanceId, kind])
+}
+
+model Media {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String // relativo a MEDIA_DIR
+  createdAt   DateTime @default(now())
+}
+
+model ScheduledMessage {
+  id                  String         @id @default(uuid())
+  userId              String
+  user                User           @relation(fields: [userId], references: [id])
+  instanceId          String
+  instance            Instance       @relation(fields: [instanceId], references: [id])
+  // snapshot del destinatario (por si luego cambia el cache)
+  recipientJid        String
+  recipientName       String
+  recipientKind       RecipientKind
+  recipientPictureUrl String?
+  // contenido
+  type                MessageType
+  body                String? // texto del mensaje o caption del media
+  mediaId             String?
+  // programación
+  timezone            String         @default("America/Guayaquil")
+  scheduledAt         DateTime // primera ejecución (UTC)
+  recurrence          Recurrence     @default(NONE)
+  recurrenceDays      Int[]          @default([]) // 1=lun … 7=dom (ISO), solo WEEKLY
+  recurrenceUntil     DateTime?
+  nextRunAt           DateTime // = scheduledAt al crear; el worker la recalcula
+  status              ScheduleStatus @default(ACTIVE)
+  attempts            Int            @default(0) // de la ocurrencia actual
+  lastError           String?
+  claimedAt           DateTime? // claim del worker (§17); NULL cuando no está en proceso
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  logs                MessageLog[]
+
+  @@index([status, nextRunAt])
+  @@index([userId, status])
+}
+
+// Una fila por cada envío real ejecutado (historial). Estados actualizados por webhooks.
+model MessageLog {
+  id                 String           @id @default(uuid())
+  scheduledMessageId String
+  scheduledMessage   ScheduledMessage @relation(fields: [scheduledMessageId], references: [id], onDelete: Cascade)
+  runAt              DateTime
+  status             LogStatus
+  evolutionMessageId String? // response.key.id — clave para matchear webhooks
+  remoteJid          String
+  error              String?
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  readAt             DateTime?
+  createdAt          DateTime         @default(now())
+
+  @@index([evolutionMessageId])
+}
+
+// Opcional (debug): guardar webhooks crudos los primeros días; job de limpieza a 7 días.
+model WebhookEventRaw {
+  id           String   @id @default(uuid())
+  instanceName String
+  event        String
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
