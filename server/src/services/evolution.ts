@@ -55,6 +55,8 @@ export const evolution = {
     evoFetch(`/message/sendMedia/${n}`, { method: "POST", body, apikey: k, timeoutMs: 180_000 }),
   findContacts: (n: string, k: string) =>
     evoFetch(`/chat/findContacts/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
+  findChats: (n: string, k: string) =>
+    evoFetch(`/chat/findChats/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
   fetchAllGroups: (n: string, k: string) =>
     evoFetch(`/group/fetchAllGroups/${n}?getParticipants=false`, { apikey: k }),
 

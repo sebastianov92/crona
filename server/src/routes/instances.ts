@@ -133,24 +133,40 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     const inst = await ownInstance(req.userId, id);
     const key = instanceKey(inst);
 
-    // Contactos: findContacts mezcla contactos, grupos y participantes (@lid) → filtrar (SPEC §5.4)
+    // Contactos: findContacts mezcla contactos, grupos y participantes (@lid) → filtrar (SPEC §5.4).
+    // En 2.3.x `id` es un cuid interno y el JID viene en `remoteJid`; en otras 2.x el JID viene en `id`.
     const rawContacts: any[] = (await evolution.findContacts(inst.instanceName, key)) ?? [];
+    const pickJid = (c: any): string => {
+      const rj = typeof c?.remoteJid === "string" && c.remoteJid.includes("@") ? c.remoteJid : "";
+      const id = typeof c?.id === "string" && c.id.includes("@") ? c.id : "";
+      return rj || id;
+    };
     const contacts = rawContacts
       .map((c) => ({
-        jid: (c?.id ?? c?.remoteJid ?? "") as string,
+        jid: pickJid(c),
         name: (c?.pushName ?? c?.name ?? "") as string,
         pictureUrl: (c?.profilePicUrl ?? null) as string | null,
       }))
       .filter((c) => c.jid.endsWith("@s.whatsapp.net") && c.name.trim().length > 0);
 
-    const rawGroups: any[] = (await evolution.fetchAllGroups(inst.instanceName, key)) ?? [];
-    const groups = rawGroups
-      .map((g) => ({
+    const rawGroups: any[] = (await evolution.fetchAllGroups(inst.instanceName, key).catch(() => [])) ?? [];
+    // Fallback: en 2.3.7 groupFetchAllParticipating suele devolver [] — los grupos con actividad
+    // reciente sí aparecen como chats (@g.us) en findChats, con nombre en pushName/name.
+    const rawChats: any[] =
+      rawGroups.length > 0 ? [] : ((await evolution.findChats(inst.instanceName, key).catch(() => [])) ?? []);
+    const groups = [
+      ...rawGroups.map((g) => ({
         jid: (g?.id ?? "") as string,
         name: (g?.subject ?? "") as string,
         pictureUrl: (g?.pictureUrl ?? null) as string | null,
-      }))
-      // Bug conocido: grupos sin subject → descartarlos del picker (SPEC §5.4)
+      })),
+      ...rawChats.map((c) => ({
+        jid: pickJid(c),
+        name: (c?.pushName ?? c?.name ?? "") as string,
+        pictureUrl: (c?.profilePicUrl ?? null) as string | null,
+      })),
+    ]
+      // Bug conocido: grupos sin subject/nombre → descartarlos del picker (SPEC §5.4)
       .filter((g) => g.jid.endsWith("@g.us") && g.name.trim().length > 0);
 
     await prisma.$transaction([
