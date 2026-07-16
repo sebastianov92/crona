@@ -1,0 +1,68 @@
+import SwiftUI
+
+struct ServerSetupView: View {
+    @Environment(SessionStore.self) private var session
+    @State private var urlText = ""
+    @State private var checking = false
+    @State private var error: String?
+
+    private var isHTTP: Bool { urlText.lowercased().hasPrefix("http://") }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "paperplane.circle.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(Theme.accent)
+            Text("CatchApp").font(.largeTitle.bold())
+            Text("Dirección de tu servidor CatchApp")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("https://catchapp.midominio.com", text: $urlText)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                if isHTTP {
+                    Label("Conexión sin cifrar (http). Úsala solo si confías en la red o estás en una VPN.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                if let error {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
+            .frame(maxWidth: 420)
+
+            Button {
+                Task { await connect() }
+            } label: {
+                if checking { ProgressView().controlSize(.small) }
+                else { Text("Conectar").frame(maxWidth: 200) }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(urlText.isEmpty || checking)
+
+            Spacer()
+        }
+        .padding()
+    }
+
+    private func connect() async {
+        error = nil
+        var text = urlText.trimmingCharacters(in: .whitespaces)
+        if !text.hasPrefix("http") { text = "https://\(text)" }
+        guard let url = URL(string: text) else { error = "La URL no es válida."; return }
+        checking = true
+        defer { checking = false }
+        do {
+            try await session.setServer(url: url)
+        } catch {
+            self.error = "No se pudo conectar: \((error as? APIError)?.errorDescription ?? error.localizedDescription)"
+        }
+    }
+}

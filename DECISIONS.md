@@ -90,3 +90,17 @@ Evidencia (2026-07-16):
 - ntfy verificado contra **mock local**: mensaje forzado a 3er fallo → el worker publicó `{"topic":"catchapp-seb-test01","title":"Mensaje no enviado","message":"No se envió tu mensaje a WS Test: INSTANCIA_DESCONECTADA","priority":4,"tags":["x"]}` y el mensaje quedó `FAILED / attempts=3`.
 - Los eventos `instance.updated` (webhook CONNECTION_UPDATE), `qr.updated` (QRCODE_UPDATED) y `log.updated` (acks) ya emiten broadcast desde la Fase 2/3.
 - **Pendiente usuario**: probar push real en iPhone con la app ntfy suscrita al topic.
+
+## Fase 6 — App SwiftUI núcleo ✔ (flujo E2E contra servidor real pendiente del usuario)
+
+Evidencia (2026-07-16):
+
+- `xcodegen generate` crea el proyecto sin warnings.
+- **macOS**: `xcodebuild -destination 'platform=macOS' build` → BUILD SUCCEEDED.
+- **iOS**: `xcodebuild -sdk iphonesimulator26.5 -arch arm64 build` → BUILD SUCCEEDED (la plataforma iOS no está instalada como *destino* en este Xcode — el usuario debe descargarla en Xcode → Settings → Components para correr en su iPhone; el código compila limpio contra el SDK).
+- Implementado: Onboarding (URL + warning http + /health), Login/Registro con invitación, Instancias (crear, QR en vivo por WS + polling de estado cada 4 s, sync, eliminar), Programados (chips Todos/Contactos/Grupos/Recurrentes, búsqueda, banner de desconexión), Compose (instancia → picker destinatario → editor con burbuja + adjunto → ScheduleSheet con chips rápidos y recurrencia → confirmación; sube media antes de crear con ProgressView), Detalle (logs, pausar/reanudar, editar, cancelar, duplicar, eliminar), Historial, Ajustes (perfil, ntfy con generador de topic, panel admin Evolution + test, usuarios/invitaciones), MenuBarExtra macOS.
+
+Decisiones:
+- El QR usa WS (`qr.updated`) para refrescar en vivo + polling de `/instances/:id/status` cada 4 s como respaldo para detectar la conexión.
+- `timezone` del mensaje se toma de `TimeZone.current.identifier` del dispositivo (no hardcoded a Guayaquil).
+- Videos en iOS se importan con `FileRepresentation` (`Transferable`) a archivo temporal y `mimeType video/quicktime`, según §18.2.

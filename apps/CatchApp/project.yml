@@ -1,0 +1,26 @@
+name: CatchApp
+options:
+  bundleIdPrefix: com.sebastian
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+targets:
+  CatchApp:
+    type: application
+    supportedDestinations: [iOS, macOS]
+    sources: [Sources]
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: CatchApp
+        NSAppTransportSecurity:            # servidor puede ser http:// (SPEC §2)
+          NSAllowsArbitraryLoads: true
+        UILaunchScreen: {}
+        LSApplicationCategoryType: public.app-category.productivity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sebastian.catchapp
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: Automatic
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Sources/macOS.entitlements
+        # DEVELOPMENT_TEAM se elige en Xcode → Signing (Personal Team). NO agregar más entitlements: firma gratuita.
