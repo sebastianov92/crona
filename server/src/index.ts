@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import { mkdir } from "node:fs/promises";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
@@ -13,6 +14,7 @@ import { registerInstanceRoutes } from "./routes/instances.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerMessageRoutes } from "./routes/messages.js";
 import { registerMediaRoutes } from "./routes/media.js";
+import { registerWsRoutes } from "./routes/ws.js";
 import * as scheduler from "./services/scheduler.js";
 
 async function main() {
@@ -27,6 +29,7 @@ async function main() {
   await app.register(helmet);
   await app.register(rateLimit, { global: false }); // solo rutas /auth/* lo activan vía config
   await app.register(multipart, { limits: { fileSize: 64 * 1024 * 1024 } });
+  await app.register(websocket);
 
   registerErrorHandler(app);
 
@@ -39,6 +42,7 @@ async function main() {
   registerWebhookRoutes(app);
   registerMessageRoutes(app);
   registerMediaRoutes(app);
+  registerWsRoutes(app);
 
   await app.listen({ host: "0.0.0.0", port: config.PORT });
   scheduler.start(); // tick inmediato + setInterval 30 s

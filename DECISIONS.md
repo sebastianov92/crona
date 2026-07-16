@@ -80,3 +80,13 @@ Evidencia (2026-07-16, curl + scripts):
 Decisiones:
 - **Bug corregido**: el token firmado (~105 chars) excedía el `maxParamLength` default de Fastify (100) → 414. Se configuró `maxParamLength: 512`.
 - El registro de tokens usados vive en memoria (Map con limpieza cada 60 s) — suficiente para proceso único (§16.5); un reinicio "resucita" tokens no expirados ≤15 min, riesgo aceptado en red interna.
+
+## Fase 5 — ntfy + WebSocket ✔ (push a iPhone real pendiente de setup ntfy del usuario)
+
+Evidencia (2026-07-16):
+
+- `GET /ws?token=…`: token válido conecta; token inválido cierra con **4401**.
+- Broadcast en vivo: al crear un mensaje por REST, el WS del mismo usuario recibió `{"type":"message.updated","payload":{…body:"evento ws"}}`.
+- ntfy verificado contra **mock local**: mensaje forzado a 3er fallo → el worker publicó `{"topic":"catchapp-seb-test01","title":"Mensaje no enviado","message":"No se envió tu mensaje a WS Test: INSTANCIA_DESCONECTADA","priority":4,"tags":["x"]}` y el mensaje quedó `FAILED / attempts=3`.
+- Los eventos `instance.updated` (webhook CONNECTION_UPDATE), `qr.updated` (QRCODE_UPDATED) y `log.updated` (acks) ya emiten broadcast desde la Fase 2/3.
+- **Pendiente usuario**: probar push real en iPhone con la app ntfy suscrita al topic.
