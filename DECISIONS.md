@@ -104,3 +104,19 @@ Decisiones:
 - El QR usa WS (`qr.updated`) para refrescar en vivo + polling de `/instances/:id/status` cada 4 s como respaldo para detectar la conexión.
 - `timezone` del mensaje se toma de `TimeZone.current.identifier` del dispositivo (no hardcoded a Guayaquil).
 - Videos en iOS se importan con `FileRepresentation` (`Transferable`) a archivo temporal y `mimeType video/quicktime`, según §18.2.
+
+## Fase 7 — Pulido ✔
+
+- Notificaciones locales macOS (`UNUserNotificationCenter`, permitido sin cuenta paga): enviado / fallido / desconexión, disparadas por los eventos del WebSocket.
+- "Nuevo mensaje" desde la MenuBarExtra abre el Compose en la ventana principal.
+- Job de limpieza de `WebhookEventRaw` a 7 días (diario, en el mismo proceso).
+- Filtros/búsqueda, estados vacíos y banner de instancia desconectada ya venían de la Fase 6.
+- README completo: runbook del VPS (§19), opciones de despliegue A/B con upgrades TLS, build de las apps con XcodeGen + firma Personal Team, setup ntfy, notas de operación.
+- Verificación final: `tsc` limpio, macOS BUILD SUCCEEDED, iOS (SDK simulador) BUILD SUCCEEDED, `/health` ok.
+
+## Pendientes que requieren al usuario (no bloqueantes)
+
+1. Desplegar en el VPS y correr `POST /admin/settings/test` contra su Evolution real.
+2. Escanear el QR con su teléfono → verificar sync de contactos/grupos y envío real de texto/foto/video (criterios ✔ de Fases 2–4).
+3. Instalar la plataforma iOS en Xcode (Settings → Components) para correr en el iPhone (el código ya compila contra el SDK).
+4. Configurar ntfy en el iPhone y probar un push real.

@@ -10,7 +10,12 @@ struct CatchAppApp: App {
             RootView()
                 .environment(session)
                 .tint(Theme.accent)
-                .task { await session.bootstrap() }
+                .task {
+                    await session.bootstrap()
+                    #if os(macOS)
+                    LocalNotifications.setup()
+                    #endif
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, session.phase == .ready {
                         Task { await session.refreshAll() }   // re-sync al volver a primer plano (§9.5)

@@ -193,7 +193,16 @@ export async function tick(): Promise<void> {
   }
 }
 
+async function cleanupRawWebhooks() {
+  // WebhookEventRaw es solo para calibrar el mapeo — limpieza a 7 días (SPEC §4)
+  await prisma.webhookEventRaw
+    .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 3600 * 1000) } } })
+    .catch((err) => console.warn("webhook cleanup failed", err));
+}
+
 export function start() {
   void tick(); // ejecución inmediata al arrancar
   setInterval(() => void tick(), TICK_MS).unref();
+  void cleanupRawWebhooks();
+  setInterval(() => void cleanupRawWebhooks(), 24 * 3600 * 1000).unref();
 }
