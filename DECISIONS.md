@@ -50,3 +50,19 @@ Decisiones:
 - `res.code` de `/instance/connect` es el string crudo del QR (`2@…`), NO un pairing code; `pairingCode` solo se toma de `qrcode.pairingCode`/`pairingCode`.
 - Errores de Evolution (`EvolutionError`) se mapean a 502 `EVOLUTION_UNREACHABLE` en el error handler global.
 - En dev local, `INTERNAL_URL=http://host.docker.internal:3000` para que el contenedor de Evolution alcance CatchApp; en VPS es `http://catchapp:3000` (red Docker compartida).
+
+## Fase 3 — Mensajes de texto programados ✔ (entrega real a WhatsApp pendiente de VPS)
+
+Evidencia (2026-07-16, curl + Postgres local):
+
+- CRUD completo verificado: crear (+90 s), listar `upcoming`, `PATCH` (body + pausa), `duplicate` (copia PAUSED), `cancel`, `DELETE` (solo terminales), y `PATCH` sobre inexistente → `NOT_FOUND`.
+- Validaciones: fecha pasada, media sin `mediaId`, `WEEKLY` sin días → `VALIDATION_ERROR` con mensajes en español.
+- Worker verificado: mensaje forzado a `nextRunAt=now()` → en el siguiente tick fue reclamado (`FOR UPDATE SKIP LOCKED` + `claimedAt`), la instancia estaba desconectada → `attempts=1`, `lastError=INSTANCIA_DESCONECTADA`, `nextRunAt=+2 min` (backoff), claim liberado.
+- Recurrencia (Luxon, zona del mensaje): DAILY conserva la hora local; WEEKLY `[1,5]` desde jueves → viernes; MONTHLY 31 ene → 28 feb (clamp). Script de verificación ejecutado.
+- **Pendiente VPS**: texto programado a +2 min llega al WhatsApp destino y su log pasa a DELIVERED (requiere instancia vinculada).
+
+Decisiones:
+- Cuando la instancia está desconectada NO se crea `MessageLog` por intento (no hubo envío real, fiel al pseudocódigo de §7); el detalle queda en `lastError` y el fallo definitivo notifica por ntfy.
+- `duplicate` crea la copia en `PAUSED` (lista para editar sin que el worker la tome); si la fecha original ya pasó, propone `now()+1h`.
+- Tras reintentos con backoff, la siguiente ocurrencia recurrente se calcula desde el último `nextRunAt` (implementación normativa §17.5 tal cual) — puede desplazar la hora hasta +12 min tras una ocurrencia con 2 reintentos.
+- `PATCH` con `scheduledAt` nuevo resetea `nextRunAt`, `attempts` y `lastError`.

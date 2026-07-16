@@ -9,9 +9,12 @@ import { registerUserRoutes } from "./routes/users.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerInstanceRoutes } from "./routes/instances.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
+import { registerMessageRoutes } from "./routes/messages.js";
+import * as scheduler from "./services/scheduler.js";
 
 async function main() {
   await prisma.$connect();
+  await scheduler.recoverOnBoot(); // logs SENDING → FAILED "INTERRUMPIDO", claims liberados (§17.6)
 
   const app = Fastify({ logger: true });
 
@@ -27,8 +30,10 @@ async function main() {
   registerAdminRoutes(app);
   registerInstanceRoutes(app);
   registerWebhookRoutes(app);
+  registerMessageRoutes(app);
 
   await app.listen({ host: "0.0.0.0", port: config.PORT });
+  scheduler.start(); // tick inmediato + setInterval 30 s
 }
 
 main().catch((err) => {
