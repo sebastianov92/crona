@@ -114,6 +114,13 @@ Decisiones:
 - README completo: runbook del VPS (§19), opciones de despliegue A/B con upgrades TLS, build de las apps con XcodeGen + firma Personal Team, setup ntfy, notas de operación.
 - Verificación final: `tsc` limpio, macOS BUILD SUCCEEDED, iOS (SDK simulador) BUILD SUCCEEDED, `/health` ok.
 
+## Post-release — Pruebas con WhatsApp real (2026-07-16)
+
+El usuario vinculó su número real escaneando el QR desde la app macOS (✔ criterio Fase 2: instancia CONNECTED). El sync inicial devolvió 0/0 — dos causas encontradas con el payload real:
+
+1. **Contactos (bug de CatchApp, corregido)**: en Evolution 2.3.x `findContacts` devuelve `id` = cuid interno de su DB y el JID va en `remoteJid`. El mapeo tomaba `id` primero → el filtro `@s.whatsapp.net` descartaba todo. Fix: `pickJid()` prefiere `remoteJid` y solo acepta valores con `@`. Resultado: **618 contactos sincronizados**.
+2. **Grupos (limitación de Evolution 2.3.7)**: `GET /group/fetchAllGroups` devuelve `[]` siempre (el `groupFetchAllParticipating` de Baileys falla silenciosamente; probado con restart de instancia y con la imagen `latest` — misma versión 2.3.7). Workaround: fallback que toma los chats `@g.us` de `POST /chat/findChats` (nombre en `pushName`). Limitación honesta: solo aparecen grupos **con actividad desde la vinculación** (syncFullHistory=false) — el usuario debe mandar/recibir un mensaje en el grupo y re-sincronizar.
+
 ## Pendientes que requieren al usuario (no bloqueantes)
 
 1. Desplegar en el VPS y correr `POST /admin/settings/test` contra su Evolution real.
