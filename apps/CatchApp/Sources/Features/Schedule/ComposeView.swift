@@ -252,7 +252,10 @@ struct ComposeView: View {
     #endif
 
     private func loadFile(_ url: URL) {
-        guard url.startAccessingSecurityScopedResource() else { return }
+        guard url.startAccessingSecurityScopedResource() else {
+            error = "Sin permiso para leer el archivo seleccionado."
+            return
+        }
         defer { url.stopAccessingSecurityScopedResource() }
         do {
             let data = try Data(contentsOf: url)
