@@ -188,11 +188,15 @@ extension APIClient {
 
     // Instancias
     func instances() async throws -> Paginated<Instance> { try await request("GET", "/instances") }
-    func createInstance(name: String) async throws -> CreateInstanceResponse {
-        struct B: Encodable { let name: String }
-        return try await request("POST", "/instances", body: B(name: name))
+    func createInstance(name: String, phoneNumber: String? = nil) async throws -> CreateInstanceResponse {
+        struct B: Encodable { let name: String; let phoneNumber: String? }
+        return try await request("POST", "/instances", body: B(name: name, phoneNumber: phoneNumber))
     }
-    func instanceQR(id: String) async throws -> QRResponse { try await request("GET", "/instances/\(id)/qr") }
+    func instanceQR(id: String, number: String? = nil) async throws -> QRResponse {
+        var q: [URLQueryItem] = []
+        if let number { q.append(.init(name: "number", value: number)) }
+        return try await request("GET", "/instances/\(id)/qr", query: q)
+    }
     func instanceStatus(id: String) async throws -> Instance { try await request("GET", "/instances/\(id)/status") }
     func syncInstance(id: String) async throws -> SyncResult { try await request("POST", "/instances/\(id)/sync") }
     func deleteInstance(id: String) async throws -> OkResponse { try await request("DELETE", "/instances/\(id)") }

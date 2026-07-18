@@ -45,7 +45,11 @@ export const evolution = {
   version: async () => evoFetch("/", { apikey: await GLOBAL() }),
   createInstance: async (body: unknown) =>
     evoFetch("/instance/create", { method: "POST", body, apikey: await GLOBAL() }),
-  connect: async (n: string) => evoFetch(`/instance/connect/${n}`, { apikey: await GLOBAL() }),
+  // number (dígitos con código de país): pide un pairing code en vez de solo QR
+  connect: async (n: string, number?: string) =>
+    evoFetch(`/instance/connect/${n}${number ? `?number=${encodeURIComponent(number)}` : ""}`, {
+      apikey: await GLOBAL(),
+    }),
   state: async (n: string) => evoFetch(`/instance/connectionState/${n}`, { apikey: await GLOBAL() }),
   logout: async (n: string) => evoFetch(`/instance/logout/${n}`, { method: "DELETE", apikey: await GLOBAL() }),
   remove: async (n: string) => evoFetch(`/instance/delete/${n}`, { method: "DELETE", apikey: await GLOBAL() }),

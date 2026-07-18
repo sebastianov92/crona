@@ -70,7 +70,11 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     return { items: items.map(instanceDTO), nextCursor: null };
   });
 
-  const CreateBody = z.object({ name: z.string().min(1).max(40) });
+  const CreateBody = z.object({
+    name: z.string().min(1).max(40),
+    // dígitos con código de país, SIN "+": si viene, Evolution devuelve pairingCode además del QR
+    phoneNumber: z.string().regex(/^\d{8,15}$/).optional(),
+  });
 
   app.post("/instances", { preHandler: authenticate }, async (req, reply) => {
     const body = CreateBody.parse(req.body);
@@ -78,6 +82,7 @@ export function registerInstanceRoutes(app: FastifyInstance) {
 
     const res = await evolution.createInstance({
       instanceName,
+      ...(body.phoneNumber ? { number: body.phoneNumber } : {}),
       qrcode: true,
       integration: "WHATSAPP-BAILEYS",
       rejectCall: false,
@@ -110,8 +115,10 @@ export function registerInstanceRoutes(app: FastifyInstance) {
 
   app.get("/instances/:id/qr", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
+    const Query = z.object({ number: z.string().regex(/^\d{8,15}$/).optional() });
+    const q = Query.parse(req.query);
     const inst = await ownInstance(req.userId, id);
-    const res = await evolution.connect(inst.instanceName);
+    const res = await evolution.connect(inst.instanceName, q.number);
     return extractQr(res);
   });
 
@@ -246,7 +253,11 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     } catch {
       // si Evolution no la conoce, igual borramos localmente
     }
-    await prisma.instance.delete({ where: { id: inst.id } });
+    // ScheduledMessage → Instance no tiene onDelete: borrar mensajes primero (logs caen en cascada)
+    await prisma.$transaction([
+      prisma.scheduledMessage.deleteMany({ where: { instanceId: inst.id } }),
+      prisma.instance.delete({ where: { id: inst.id } }),
+    ]);
     return { ok: true };
   });
 }

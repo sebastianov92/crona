@@ -34,6 +34,21 @@ struct InstanceListView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                     }
+                    Button {
+                        confirmDelete = inst
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Eliminar instancia")
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) { confirmDelete = inst } label: {
+                        Label("Eliminar", systemImage: "trash")
+                    }
                 }
                 .contextMenu {
                     Button("Ver QR") { qrInstance = inst }
@@ -56,14 +71,19 @@ struct InstanceListView: View {
         }
         .sheet(isPresented: $showCreate) { CreateInstanceView() }
         .sheet(item: $qrInstance) { inst in QRLinkView(instance: inst) }
-        .confirmationDialog("¿Eliminar esta instancia?", isPresented: .init(
-            get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }
-        )) {
+        .confirmationDialog(
+            "Se desconecta el número de WhatsApp y se borran sus mensajes programados. ¿Eliminar?",
+            isPresented: .init(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+            titleVisibility: .visible
+        ) {
             Button("Eliminar \(confirmDelete?.name ?? "")", role: .destructive) {
                 if let inst = confirmDelete {
                     Task {
-                        _ = try? await APIClient.shared.deleteInstance(id: inst.id)
-                        await session.refreshInstances()
+                        do {
+                            _ = try await APIClient.shared.deleteInstance(id: inst.id)
+                            await session.refreshInstances()
+                            await session.refreshMessages()
+                        } catch { session.report(error) }
                     }
                 }
             }
@@ -102,21 +122,45 @@ struct CreateInstanceView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var phone = ""
     @State private var busy = false
     @State private var error: String?
     @State private var created: CreateInstanceResponse?
+
+    private var cleanPhone: String { phone.filter(\.isNumber) }
 
     var body: some View {
         NavigationStack {
             Group {
                 if let created {
-                    QRLinkView(instance: created.instance, initialQR: created.qrBase64)
+                    QRLinkView(instance: created.instance,
+                               initialQR: created.qrBase64,
+                               initialPairingCode: created.pairingCode,
+                               prefillNumber: cleanPhone)
                 } else {
                     Form {
                         Section {
                             TextField("Nombre (ej. Personal, Negocio)", text: $name)
                         } footer: {
-                            Text("Se creará una instancia nueva en Evolution y verás el QR para escanear con WhatsApp.")
+                            #if os(iOS)
+                            Text("Como estás en el mismo teléfono, la vinculación se hace con un código que escribes en WhatsApp (no puedes escanear tu propio QR).")
+                            #else
+                            Text("Verás un QR para escanear con WhatsApp; también podrás usar un código si no puedes escanear.")
+                            #endif
+                        }
+                        Section {
+                            TextField("Número a vincular (ej. 593999999999)", text: $phone)
+                                #if os(iOS)
+                                .keyboardType(.numberPad)
+                                #endif
+                        } header: {
+                            #if os(iOS)
+                            Text("Número de WhatsApp")
+                            #else
+                            Text("Número (opcional, para vincular por código)")
+                            #endif
+                        } footer: {
+                            Text("Con código de país y sin +. Si lo pones, se genera un código de emparejamiento.")
                         }
                         if let error { Section { Text(error).foregroundStyle(.red) } }
                     }
@@ -144,8 +188,18 @@ struct CreateInstanceView: View {
     private func create() async {
         error = nil; busy = true
         defer { busy = false }
+        #if os(iOS)
+        guard cleanPhone.count >= 8 else {
+            error = "Pon el número de WhatsApp a vincular (con código de país)."
+            busy = false
+            return
+        }
+        #endif
         do {
-            created = try await APIClient.shared.createInstance(name: name)
+            created = try await APIClient.shared.createInstance(
+                name: name,
+                phoneNumber: cleanPhone.count >= 8 ? cleanPhone : nil
+            )
             await session.refreshInstances()
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
