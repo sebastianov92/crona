@@ -61,16 +61,24 @@ struct ComposeView: View {
                     Button {
                         showPicker = true
                     } label: {
-                        if let recipient {
-                            HStack(spacing: 12) {
-                                AvatarView(name: recipient.displayName, pictureUrl: recipient.pictureUrl, size: 40)
-                                Text(recipient.displayName)
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                        Group {
+                            if let recipient {
+                                HStack(spacing: 12) {
+                                    AvatarView(name: recipient.displayName, pictureUrl: recipient.pictureUrl, size: 40)
+                                    Text(recipient.displayName)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                                }
+                            } else {
+                                HStack {
+                                    Label("Elegir contacto o grupo", systemImage: "person.crop.circle.badge.plus")
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
-                        } else {
-                            Label("Elegir contacto o grupo", systemImage: "person.crop.circle.badge.plus")
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())   // toda la fila clickeable, no solo texto/icono
                     }
                     .buttonStyle(.plain)
                 }
@@ -95,22 +103,25 @@ struct ComposeView: View {
                     }
 
                     HStack(alignment: .bottom, spacing: 8) {
-                        Button {
-                            #if os(macOS)
-                            showFileImporter = true
-                            #else
-                            showFileImporter = false
-                            #endif
-                        } label: {
-                            Image(systemName: "paperclip").font(.title3)
+                        #if os(iOS)
+                        PhotosPicker(selection: $photoItem, matching: .any(of: [.images, .videos])) {
+                            Image(systemName: "paperclip")
+                                .font(.title3)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        #if os(iOS)
-                        .overlay {
-                            PhotosPicker(selection: $photoItem, matching: .any(of: [.images, .videos])) {
-                                Color.clear
-                            }
+                        #else
+                        Button {
+                            showFileImporter = true
+                        } label: {
+                            Image(systemName: "paperclip")
+                                .font(.title3)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .help("Adjuntar foto, video o PDF")
                         #endif
 
                         TextField("Escribe un mensaje", text: $text, axis: .vertical)
@@ -136,7 +147,10 @@ struct ComposeView: View {
                                 .font(.caption)
                                 .foregroundStyle(Theme.accent)
                             }
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

@@ -16,14 +16,14 @@ struct ScheduleSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Chips rápidos") {
+                Section {
                     HStack(spacing: 8) {
-                        quickChip("En 1 hora", Date().addingTimeInterval(3600))
-                        quickChip("Esta noche 8:00 PM", tonight8PM())
-                        quickChip("Mañana 9:00 AM", tomorrow9AM())
+                        quickChip("En 1 hora", icon: "clock", Date().addingTimeInterval(3600))
+                        quickChip("Hoy 8 PM", icon: "moon", tonight8PM())
+                        quickChip("Mañana 9 AM", icon: "sunrise", tomorrow9AM())
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                    .listRowBackground(Color.clear)
                 }
 
                 Section("Elegir fecha…") {
@@ -84,8 +84,29 @@ struct ScheduleSheet: View {
         #endif
     }
 
-    private func quickChip(_ label: String, _ date: Date) -> some View {
-        Button(label) { config.date = date }
+    /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
+    private func quickChip(_ label: String, icon: String, _ date: Date) -> some View {
+        let selected = abs(config.date.timeIntervalSince(date)) < 60
+        return Button {
+            config.date = date
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.subheadline)
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(selected ? Theme.accent.opacity(0.22) : Color.gray.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(selected ? Theme.accent : Color.gray.opacity(0.25), lineWidth: 1))
+            .foregroundStyle(selected ? Theme.accent : .primary)
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 
     private func tonight8PM() -> Date {

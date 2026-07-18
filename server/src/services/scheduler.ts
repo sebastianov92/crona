@@ -7,7 +7,7 @@ import { nextOccurrence } from "./recurrence.js";
 import { ntfyPublish } from "./ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
-import { buildMediaPayload } from "./media.js";
+import { buildMediaPayload, deleteMediaFile } from "./media.js";
 
 const TICK_MS = 30_000;
 const MAX_ATTEMPTS = 3;
@@ -193,6 +193,36 @@ export async function tick(): Promise<void> {
   }
 }
 
+// Ciclo de vida de media: los archivos suben ANTES de crear el mensaje. Se borran cuando
+// ya no los necesita ningún mensaje: huérfanos (nunca adjuntados) a las 24 h; los usados,
+// 7 días después de que todos sus mensajes terminen (COMPLETED/CANCELLED/FAILED) — margen
+// para duplicar un mensaje reciente sin perder el adjunto.
+async function cleanupMedia() {
+  try {
+    const media = await prisma.media.findMany();
+    const now = Date.now();
+    for (const m of media) {
+      const refs = await prisma.scheduledMessage.findMany({
+        where: { mediaId: m.id },
+        select: { status: true, updatedAt: true },
+      });
+      let remove = false;
+      if (refs.length === 0) {
+        remove = m.createdAt.getTime() < now - 24 * 3600_000;
+      } else if (!refs.some((r) => r.status === "ACTIVE" || r.status === "PAUSED")) {
+        const newest = Math.max(...refs.map((r) => r.updatedAt.getTime()));
+        remove = newest < now - 7 * 24 * 3600_000;
+      }
+      if (remove) {
+        await deleteMediaFile(m);
+        await prisma.media.delete({ where: { id: m.id } });
+      }
+    }
+  } catch (err) {
+    console.warn("media cleanup failed", err);
+  }
+}
+
 async function cleanupRawWebhooks() {
   // WebhookEventRaw es solo para calibrar el mapeo — limpieza a 7 días (SPEC §4)
   await prisma.webhookEventRaw
@@ -204,5 +234,9 @@ export function start() {
   void tick(); // ejecución inmediata al arrancar
   setInterval(() => void tick(), TICK_MS).unref();
   void cleanupRawWebhooks();
-  setInterval(() => void cleanupRawWebhooks(), 24 * 3600 * 1000).unref();
+  void cleanupMedia();
+  setInterval(() => {
+    void cleanupRawWebhooks();
+    void cleanupMedia();
+  }, 24 * 3600 * 1000).unref();
 }
