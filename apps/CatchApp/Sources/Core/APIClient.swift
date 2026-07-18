@@ -61,18 +61,31 @@ actor APIClient {
         return try Self.decoder.decode(T.self, from: data)
     }
 
+    // Single-flight: si varios requests reciben 401 a la vez, solo UNO rota el refresh token
+    // (el backend revoca el usado — un segundo refresh concurrente mataría la sesión).
+    private var refreshTask: Task<Void, Error>?
+
     private func refreshSession() async throws {
-        guard let rt = Keychain.get("refreshToken") else { throw APIError.http(401) }
-        struct Body: Encodable { let refreshToken: String }
-        struct Resp: Decodable { let accessToken: String; let refreshToken: String }
-        let r: Resp = try await request("POST", "/auth/refresh", body: Body(refreshToken: rt), retryOn401: false)
-        Keychain.set(r.refreshToken, for: "refreshToken")
-        accessToken = r.accessToken
+        if let refreshTask {
+            try await refreshTask.value
+            return
+        }
+        let task = Task {
+            defer { self.refreshTask = nil }
+            guard let rt = Keychain.get("refreshToken") else { throw APIError.http(401) }
+            struct Body: Encodable { let refreshToken: String }
+            struct Resp: Decodable { let accessToken: String; let refreshToken: String }
+            let r: Resp = try await self.request("POST", "/auth/refresh", body: Body(refreshToken: rt), retryOn401: false)
+            Keychain.set(r.refreshToken, for: "refreshToken")
+            self.accessToken = r.accessToken
+        }
+        refreshTask = task
+        try await task.value
     }
 
     // MARK: - Subida multipart (POST /media)
 
-    func uploadMedia(data: Data, fileName: String, mimeType: String) async throws -> MediaUpload {
+    func uploadMedia(data: Data, fileName: String, mimeType: String, retryOn401: Bool = true) async throws -> MediaUpload {
         guard let baseURL else { throw APIError.notConfigured }
         let boundary = "catchapp-\(UUID().uuidString)"
         var req = URLRequest(url: baseURL.appending(path: "/media"))
@@ -89,6 +102,10 @@ actor APIClient {
 
         let (respData, resp) = try await URLSession.shared.upload(for: req, from: form)
         let status = (resp as! HTTPURLResponse).statusCode
+        if status == 401, retryOn401 {
+            try await refreshSession()
+            return try await uploadMedia(data: data, fileName: fileName, mimeType: mimeType, retryOn401: false)
+        }
         guard (200..<300).contains(status) else {
             if let env = try? Self.decoder.decode(ErrorEnvelope.self, from: respData) {
                 throw APIError.server(code: env.error.code, message: env.error.message)
@@ -99,12 +116,17 @@ actor APIClient {
     }
 
     /// Descarga autenticada de un media (preview).
-    func mediaData(id: String) async throws -> Data {
+    func mediaData(id: String, retryOn401: Bool = true) async throws -> Data {
         guard let baseURL else { throw APIError.notConfigured }
         var req = URLRequest(url: baseURL.appending(path: "/media/\(id)"))
         if let accessToken { req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization") }
         let (data, resp) = try await URLSession.shared.data(for: req)
-        guard (200..<300).contains((resp as! HTTPURLResponse).statusCode) else { throw APIError.http((resp as! HTTPURLResponse).statusCode) }
+        let status = (resp as! HTTPURLResponse).statusCode
+        if status == 401, retryOn401 {
+            try await refreshSession()
+            return try await mediaData(id: id, retryOn401: false)
+        }
+        guard (200..<300).contains(status) else { throw APIError.http(status) }
         return data
     }
 }
