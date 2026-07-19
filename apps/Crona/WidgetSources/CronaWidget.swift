@@ -35,10 +35,11 @@ struct Provider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
         let items = loadSnapshot()
-        // refrescar cuando pase el próximo envío (o en 30 min si no hay nada)
-        let next = items.first.map { max($0.date.addingTimeInterval(60), .now.addingTimeInterval(60)) }
-            ?? .now.addingTimeInterval(1800)
-        completion(Timeline(entries: [Entry(date: .now, items: items)], policy: .after(next)))
+        // auto-refresh cada ≤5 min: no dependemos solo del reload que empuja la app
+        // (los procesos de widget pueden quedar vivos con timelines viejos)
+        let nextSend = items.first.map { max($0.date.addingTimeInterval(60), .now.addingTimeInterval(60)) }
+        let refresh = min(nextSend ?? .distantFuture, .now.addingTimeInterval(300))
+        completion(Timeline(entries: [Entry(date: .now, items: items)], policy: .after(refresh)))
     }
 }
 
