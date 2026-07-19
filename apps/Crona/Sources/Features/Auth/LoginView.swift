@@ -11,10 +11,10 @@ struct LoginView: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Image("CronaIcon")
+            Image("CronaLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 120)
+                .frame(maxWidth: 340)
             Text("Inicia sesión").font(.title.bold())
 
             VStack(spacing: 12) {

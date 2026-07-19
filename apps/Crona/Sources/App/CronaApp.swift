@@ -37,6 +37,7 @@ struct RootView: View {
     var body: some View {
         Group {
             switch session.phase {
+            case .loading: SplashView()
             case .needsServer: ServerSetupView()
             case .needsLogin: LoginView()
             case .ready: MainView()
@@ -50,6 +51,19 @@ struct RootView: View {
         } message: {
             Text(session.toastError ?? "")
         }
+    }
+}
+
+struct SplashView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image("CronaLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 300)
+            ProgressView()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

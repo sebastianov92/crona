@@ -4,9 +4,9 @@ import Observation
 /// Fuente de verdad = servidor (SPEC §9.5). Cache en memoria, sin DB local en v1.
 @Observable @MainActor
 final class SessionStore {
-    enum Phase { case needsServer, needsLogin, ready }
+    enum Phase { case loading, needsServer, needsLogin, ready }
 
-    var phase: Phase = .needsServer
+    var phase: Phase = .loading   // splash hasta saber si hay sesión válida (evita flash del login)
     var serverURL: URL?
     var user: User?
     var instances: [Instance] = []
