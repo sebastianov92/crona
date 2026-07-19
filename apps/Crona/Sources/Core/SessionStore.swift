@@ -11,7 +11,9 @@ final class SessionStore {
     var user: User?
     var instances: [Instance] = []
     var activeInstanceId: String?
-    var upcoming: [ScheduledMessage] = []
+    var upcoming: [ScheduledMessage] = [] {
+        didSet { WidgetBridge.publish(upcoming: upcoming) }
+    }
     var history: [HistoryItem] = []
     var lastQR: (instanceId: String, qrBase64: String)?
     var toastError: String?

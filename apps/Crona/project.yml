@@ -9,6 +9,9 @@ targets:
     type: application
     supportedDestinations: [iOS, macOS]
     sources: [Sources]
+    dependencies:
+      - target: CronaWidget
+        embed: true
     info:
       path: Sources/Info.plist
       properties:
@@ -24,4 +27,27 @@ targets:
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: Automatic
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Sources/macOS.entitlements
-        # DEVELOPMENT_TEAM se elige en Xcode → Signing (Personal Team). NO agregar más entitlements: firma gratuita.
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Sources/iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Sources/iOS.entitlements
+        # DEVELOPMENT_TEAM se elige en Xcode → Signing (Personal Team).
+        # App Groups es de las capabilities permitidas con Personal Team (necesaria para el widget).
+
+  CronaWidget:
+    type: app-extension
+    supportedDestinations: [iOS, macOS]
+    sources: [WidgetSources]
+    info:
+      path: WidgetSources/Info.plist
+      properties:
+        CFBundleDisplayName: Crona
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sebastian.crona.widget
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": WidgetSources/macOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": WidgetSources/iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": WidgetSources/iOS.entitlements
