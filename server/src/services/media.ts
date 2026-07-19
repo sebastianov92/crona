@@ -97,7 +97,7 @@ export async function buildMediaPayload(msg: ScheduledMessage): Promise<Record<s
     number: msg.recipientJid, // regla §5.2: jid guardado tal cual
     mediatype: spec.mediatype,
     mimetype: media.mimeType,
-    caption: msg.body ?? "",
+    caption: (msg.body ?? "").replaceAll("{nombre}", msg.recipientName),
     media: mediaField,
     fileName: media.fileName,
     delay: 1800,

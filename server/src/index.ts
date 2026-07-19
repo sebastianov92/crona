@@ -15,6 +15,7 @@ import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerMessageRoutes } from "./routes/messages.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerWsRoutes } from "./routes/ws.js";
+import { registerAutoReplyRoutes } from "./routes/autoreplies.js";
 import * as scheduler from "./services/scheduler.js";
 
 async function main() {
@@ -43,6 +44,7 @@ async function main() {
   registerMessageRoutes(app);
   registerMediaRoutes(app);
   registerWsRoutes(app);
+  registerAutoReplyRoutes(app);
 
   await app.listen({ host: "0.0.0.0", port: config.PORT });
   scheduler.start(); // tick inmediato + setInterval 30 s

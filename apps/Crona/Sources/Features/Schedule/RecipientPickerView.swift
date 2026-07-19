@@ -5,11 +5,13 @@ struct RecipientPickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     let instanceId: String
-    let onPick: (Recipient) -> Void
+    var multiSelect: Bool = false
+    let onPick: ([Recipient]) -> Void
 
     @State private var kind: RecipientKind = .CONTACT
     @State private var search = ""
     @State private var items: [Recipient] = []
+    @State private var selected: [Recipient] = []
     @State private var loading = false
     @State private var syncing = false
     @State private var searchTask: Task<Void, Never>?
@@ -34,8 +36,7 @@ struct RecipientPickerView: View {
                     }
                     ForEach(items) { r in
                         Button {
-                            onPick(r)
-                            dismiss()
+                            tap(r)
                         } label: {
                             HStack(spacing: 12) {
                                 AvatarView(name: r.displayName, pictureUrl: r.pictureUrl, size: 40)
@@ -45,7 +46,14 @@ struct RecipientPickerView: View {
                                         Text(phone).font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
+                                Spacer()
+                                if multiSelect {
+                                    Image(systemName: isSelected(r) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(isSelected(r) ? Theme.accent : .secondary)
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())   // toda la fila clickeable
                         }
                         .buttonStyle(.plain)
                     }
@@ -57,6 +65,15 @@ struct RecipientPickerView: View {
             .searchable(text: $search, prompt: "Buscar")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                if multiSelect {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Listo (\(selected.count))") {
+                            onPick(selected)
+                            dismiss()
+                        }
+                        .disabled(selected.isEmpty)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task { await sync() }
@@ -79,6 +96,20 @@ struct RecipientPickerView: View {
         #if os(macOS)
         .frame(minWidth: 440, minHeight: 520)
         #endif
+    }
+
+    private func isSelected(_ r: Recipient) -> Bool {
+        selected.contains { $0.jid == r.jid }
+    }
+
+    private func tap(_ r: Recipient) {
+        if multiSelect {
+            if let i = selected.firstIndex(where: { $0.jid == r.jid }) { selected.remove(at: i) }
+            else { selected.append(r) }
+        } else {
+            onPick([r])
+            dismiss()
+        }
     }
 
     private func load() async {

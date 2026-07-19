@@ -95,7 +95,7 @@ export function registerInstanceRoutes(app: FastifyInstance) {
         url: `${config.INTERNAL_URL}/webhooks/evolution/${config.WEBHOOK_SECRET}`,
         byEvents: false,
         base64: false,
-        events: ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPDATE", "SEND_MESSAGE"],
+        events: ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPDATE", "MESSAGES_UPSERT", "SEND_MESSAGE"],
       },
     });
 

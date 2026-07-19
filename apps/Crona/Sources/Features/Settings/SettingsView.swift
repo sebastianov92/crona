@@ -16,6 +16,31 @@ struct SettingsView: View {
 
                 Section("WhatsApp") {
                     NavigationLink("Instancias") { InstanceListView() }
+                    NavigationLink("Respuestas automáticas") { AutoRepliesView() }
+                }
+
+                Section("Envíos") {
+                    if session.upcoming.contains(where: { $0.status == .ACTIVE }) {
+                        Button {
+                            Task {
+                                _ = try? await APIClient.shared.pauseAll(true)
+                                await session.refreshMessages()
+                            }
+                        } label: {
+                            Label("Pausar todos los envíos", systemImage: "pause.circle")
+                        }
+                    } else if session.upcoming.contains(where: { $0.status == .PAUSED }) {
+                        Button {
+                            Task {
+                                _ = try? await APIClient.shared.pauseAll(false)
+                                await session.refreshMessages()
+                            }
+                        } label: {
+                            Label("Reanudar todos los envíos", systemImage: "play.circle")
+                        }
+                    } else {
+                        Text("Sin mensajes pendientes.").foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Notificaciones") {

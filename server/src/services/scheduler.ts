@@ -8,6 +8,7 @@ import { ntfyPublish } from "./ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
 import { buildMediaPayload, deleteMediaFile } from "./media.js";
+import { cleanupAutoReplyHits } from "./autoreply.js";
 
 const TICK_MS = 30_000;
 const MAX_ATTEMPTS = 3;
@@ -132,6 +133,11 @@ async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAIL
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
+// Variables en el texto: {nombre} → nombre del destinatario (útil con múltiples destinatarios)
+export function renderVariables(text: string, msg: { recipientName: string }): string {
+  return text.replaceAll("{nombre}", msg.recipientName);
+}
+
 async function sendOne(msg: FullMessage): Promise<void> {
   const state = await evolution.cachedState(msg.instance.instanceName).catch(() => "close");
   if (state !== "open") {
@@ -147,7 +153,7 @@ async function sendOne(msg: FullMessage): Promise<void> {
       msg.type === "TEXT"
         ? await evolution.sendText(msg.instance.instanceName, key, {
             number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
-            text: msg.body ?? "",
+            text: renderVariables(msg.body ?? "", msg),
             delay: 1800,
           })
         : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(msg));
@@ -235,8 +241,10 @@ export function start() {
   setInterval(() => void tick(), TICK_MS).unref();
   void cleanupRawWebhooks();
   void cleanupMedia();
+  void cleanupAutoReplyHits();
   setInterval(() => {
     void cleanupRawWebhooks();
     void cleanupMedia();
+    void cleanupAutoReplyHits();
   }, 24 * 3600 * 1000).unref();
 }

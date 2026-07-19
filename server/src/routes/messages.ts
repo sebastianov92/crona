@@ -11,7 +11,7 @@ import { tick } from "../services/scheduler.js";
 
 const MIN_LEAD_MS = 60_000; // scheduledAt mínimo now()+60s
 
-const RecurrenceEnum = z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]);
+const RecurrenceEnum = z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
 
 const CreateBody = z.object({
   instanceId: z.string().uuid(),
@@ -190,6 +190,22 @@ export function registerMessageRoutes(app: FastifyInstance) {
     });
     broadcast(req.userId, "message.updated", messageDTO(updated));
     return messageDTO(updated);
+  });
+
+  // Pausar todo / reanudar todo (modo vacaciones)
+  app.post("/messages/pause-all", { preHandler: authenticate }, async (req) => {
+    const Body = z.object({ paused: z.boolean() });
+    const { paused } = Body.parse(req.body);
+    const result = paused
+      ? await prisma.scheduledMessage.updateMany({
+          where: { userId: req.userId, status: "ACTIVE" },
+          data: { status: "PAUSED", claimedAt: null },
+        })
+      : await prisma.scheduledMessage.updateMany({
+          where: { userId: req.userId, status: "PAUSED" },
+          data: { status: "ACTIVE" },
+        });
+    return { ok: true, changed: result.count };
   });
 
   // Enviar ahora (ACTIVE/PAUSED) o reintentar (FAILED): programa para ya y dispara un tick

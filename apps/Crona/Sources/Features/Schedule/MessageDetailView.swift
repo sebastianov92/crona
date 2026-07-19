@@ -48,6 +48,9 @@ struct MessageDetailView: View {
 
                     Section("Programación") {
                         LabeledContent("Envío", value: scheduleLabel(msg.nextRunAt))
+                        if msg.timezone != TimeZone.current.identifier {
+                            LabeledContent("Zona horaria", value: timezoneLabel(msg.timezone))
+                        }
                         if msg.recurrence != .NONE {
                             LabeledContent("Repite", value: recurrenceText(msg))
                             if let until = msg.recurrenceUntil {
@@ -141,6 +144,7 @@ struct MessageDetailView: View {
         case .NONE: return ""
         case .DAILY: return "Todos los días"
         case .MONTHLY: return "Mensual"
+        case .YEARLY: return "Cada año"
         case .WEEKLY:
             let names = ["", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
             return "Semanal · " + msg.recurrenceDays.sorted().map { names[$0] }.joined(separator: ", ")
@@ -228,6 +232,7 @@ struct EditMessageView: View {
                         Text("Todos los días").tag(Recurrence.DAILY)
                         Text("Semanal").tag(Recurrence.WEEKLY)
                         Text("Mensual").tag(Recurrence.MONTHLY)
+                        Text("Cada año (cumpleaños)").tag(Recurrence.YEARLY)
                     }
                 }
                 if let error { Section { Text(error).foregroundStyle(.red) } }

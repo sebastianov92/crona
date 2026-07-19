@@ -6,7 +6,8 @@ enum Role: String, Codable, CaseIterable { case ADMIN, USER }
 enum InstanceStatus: String, Codable, CaseIterable { case CREATED, CONNECTING, CONNECTED, DISCONNECTED }
 enum RecipientKind: String, Codable, CaseIterable { case CONTACT, GROUP }
 enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT }
-enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTHLY }
+enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
+enum AutoReplyAction: String, Codable, CaseIterable { case REPLY, NOTIFY }
 enum ScheduleStatus: String, Codable, CaseIterable { case ACTIVE, PAUSED, COMPLETED, CANCELLED, FAILED }
 enum LogStatus: String, Codable, CaseIterable { case SENDING, SENT, DELIVERED, READ, FAILED }
 
@@ -159,6 +160,32 @@ struct OkResponse: Codable, Hashable {
 struct HealthResponse: Codable, Hashable {
     let ok: Bool
     let service: String
+}
+
+struct AutoReply: Identifiable, Codable, Hashable {
+    let id: String
+    let instanceId: String
+    var action: AutoReplyAction
+    var keyword: String?
+    var replyText: String?
+    var activeFromHour: Int?
+    var activeToHour: Int?
+    var timezone: String
+    var cooldownMinutes: Int
+    var enabled: Bool
+    let createdAt: Date
+}
+
+struct AutoReplyBody: Codable {
+    var instanceId: String
+    var action: AutoReplyAction
+    var keyword: String?
+    var replyText: String?
+    var activeFromHour: Int?
+    var activeToHour: Int?
+    var timezone: String
+    var cooldownMinutes: Int
+    var enabled: Bool
 }
 
 // MARK: - Cuerpos de request

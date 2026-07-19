@@ -36,6 +36,12 @@ enum Recurrence {
   DAILY
   WEEKLY
   MONTHLY
+  YEARLY
+}
+
+enum AutoReplyAction {
+  REPLY
+  NOTIFY
 }
 
 enum ScheduleStatus {
@@ -68,6 +74,7 @@ model User {
   messages      ScheduledMessage[]
   media         Media[]
   refreshTokens RefreshToken[]
+  autoReplies   AutoReply[]
 }
 
 model Invite {
@@ -111,6 +118,36 @@ model Instance {
   createdAt       DateTime       @default(now())
   recipients      Recipient[]
   messages        ScheduledMessage[]
+  autoReplies     AutoReply[]
+}
+
+// Regla de respuesta automática a mensajes entrantes (webhook MESSAGES_UPSERT)
+model AutoReply {
+  id              String          @id @default(uuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId      String
+  instance        Instance        @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  action          AutoReplyAction @default(REPLY)
+  keyword         String? // null = cualquier mensaje entrante
+  replyText       String? // requerido si action = REPLY
+  activeFromHour  Int? // 0-23 en `timezone`; null = siempre activa
+  activeToHour    Int?
+  timezone        String          @default("America/Guayaquil")
+  cooldownMinutes Int             @default(60) // 1 respuesta por contacto por ventana (anti-spam/anti-ban)
+  enabled         Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  hits            AutoReplyHit[]
+}
+
+model AutoReplyHit {
+  id          String    @id @default(uuid())
+  autoReplyId String
+  autoReply   AutoReply @relation(fields: [autoReplyId], references: [id], onDelete: Cascade)
+  jid         String
+  createdAt   DateTime  @default(now())
+
+  @@index([autoReplyId, jid, createdAt])
 }
 
 // Cache local de contactos y grupos de WhatsApp (se sincroniza bajo demanda)

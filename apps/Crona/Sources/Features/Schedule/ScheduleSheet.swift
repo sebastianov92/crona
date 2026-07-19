@@ -5,6 +5,31 @@ struct ScheduleConfig: Equatable {
     var recurrence: Recurrence = .NONE
     var recurrenceDays: Set<Int> = []
     var until: Date? = nil
+    var timezone: String = TimeZone.current.identifier
+}
+
+// Zonas comunes + la del dispositivo (lista completa sería inmanejable en un Picker)
+let commonTimezones: [String] = {
+    var zones = [
+        TimeZone.current.identifier,
+        "America/Guayaquil", "America/Bogota", "America/Lima", "America/Mexico_City",
+        "America/New_York", "America/Chicago", "America/Los_Angeles",
+        "America/Santiago", "America/Argentina/Buenos_Aires", "America/Sao_Paulo", "America/Caracas",
+        "Europe/Madrid", "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Rome",
+        "Asia/Tokyo", "Asia/Shanghai", "Asia/Dubai", "Australia/Sydney",
+    ]
+    var seen = Set<String>()
+    zones = zones.filter { seen.insert($0).inserted }
+    return zones
+}()
+
+func timezoneLabel(_ id: String) -> String {
+    guard let tz = TimeZone(identifier: id) else { return id }
+    let city = id.split(separator: "/").last.map { $0.replacingOccurrences(of: "_", with: " ") } ?? id
+    let hours = tz.secondsFromGMT() / 3600
+    let mins = abs(tz.secondsFromGMT() % 3600) / 60
+    let offset = mins == 0 ? String(format: "%+d", hours) : String(format: "%+d:%02d", hours, mins)
+    return "\(city) (GMT\(offset))"
 }
 
 struct ScheduleSheet: View {
@@ -33,12 +58,23 @@ struct ScheduleSheet: View {
                         #endif
                 }
 
+                Section {
+                    Picker("Zona horaria", selection: $config.timezone) {
+                        ForEach(tzOptions, id: \.self) { Text(timezoneLabel($0)).tag($0) }
+                    }
+                } footer: {
+                    if config.timezone != TimeZone.current.identifier {
+                        Text("La hora elegida se interpreta en esa zona (ej. \"9:00 AM hora de \(timezoneLabel(config.timezone))\").")
+                    }
+                }
+
                 Section("Repetir") {
                     Picker("Recurrencia", selection: $config.recurrence) {
                         Text("No se repite").tag(Recurrence.NONE)
                         Text("Todos los días").tag(Recurrence.DAILY)
                         Text("Semanal").tag(Recurrence.WEEKLY)
                         Text("Mensual").tag(Recurrence.MONTHLY)
+                        Text("Cada año (cumpleaños)").tag(Recurrence.YEARLY)
                     }
 
                     if config.recurrence == .WEEKLY {
@@ -85,6 +121,10 @@ struct ScheduleSheet: View {
     }
 
     /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
+    private var tzOptions: [String] {
+        commonTimezones.contains(config.timezone) ? commonTimezones : [config.timezone] + commonTimezones
+    }
+
     private func quickChip(_ label: String, icon: String, _ date: Date) -> some View {
         let selected = abs(config.date.timeIntervalSince(date)) < 60
         return Button {

@@ -22,7 +22,7 @@ struct ComposeView: View {
     var prefill: ScheduledMessage? = nil
 
     @State private var instanceId: String?
-    @State private var recipient: Recipient?
+    @State private var recipients: [Recipient] = []
     @State private var text = ""
     @State private var attachment: Attachment?
     @State private var schedule = ScheduleConfig()
@@ -40,7 +40,7 @@ struct ComposeView: View {
     @State private var showFileImporter = false
 
     private var canSubmit: Bool {
-        recipient != nil && instanceId != nil && !sending &&
+        !recipients.isEmpty && instanceId != nil && !sending &&
         (attachment != nil || !text.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
@@ -57,25 +57,28 @@ struct ComposeView: View {
                     }
                 }
 
-                Section("Destinatario") {
+                Section("Destinatarios") {
+                    ForEach(recipients, id: \.jid) { r in
+                        HStack(spacing: 12) {
+                            AvatarView(name: r.displayName, pictureUrl: r.pictureUrl, size: 36)
+                            Text(r.displayName)
+                            Spacer()
+                            Button {
+                                recipients.removeAll { $0.jid == r.jid }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                     Button {
                         showPicker = true
                     } label: {
-                        Group {
-                            if let recipient {
-                                HStack(spacing: 12) {
-                                    AvatarView(name: recipient.displayName, pictureUrl: recipient.pictureUrl, size: 40)
-                                    Text(recipient.displayName)
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                                }
-                            } else {
-                                HStack {
-                                    Label("Elegir contacto o grupo", systemImage: "person.crop.circle.badge.plus")
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
+                        HStack {
+                            Label(recipients.isEmpty ? "Elegir contactos o grupos" : "Agregar más",
+                                  systemImage: "person.crop.circle.badge.plus")
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())   // toda la fila clickeable, no solo texto/icono
@@ -130,6 +133,11 @@ struct ComposeView: View {
                             .padding(8)
                             .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
                     }
+                    if recipients.count > 1 {
+                        Text("Tip: {nombre} se reemplaza por el nombre de cada destinatario.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Envío") {
@@ -182,7 +190,11 @@ struct ComposeView: View {
             .sheet(isPresented: $showPicker) {
                 // instanceId puede estar nil si las instancias aún no cargaron al abrir la app
                 if let iid = instanceId ?? session.activeInstance?.id {
-                    RecipientPickerView(instanceId: iid) { recipient = $0 }
+                    RecipientPickerView(instanceId: iid, multiSelect: true) { picked in
+                        for r in picked where !recipients.contains(where: { $0.jid == r.jid }) {
+                            recipients.append(r)
+                        }
+                    }
                 } else {
                     VStack(spacing: 14) {
                         ProgressView()
@@ -222,6 +234,7 @@ struct ComposeView: View {
         case .DAILY: return "Todos los días"
         case .WEEKLY: return "Semanal"
         case .MONTHLY: return "Mensual"
+        case .YEARLY: return "Cada año"
         }
     }
 
@@ -232,15 +245,18 @@ struct ComposeView: View {
         let hf = DateFormatter()
         hf.locale = Locale(identifier: "es")
         hf.dateFormat = "h:mm a"
-        return "Se enviará a \(recipient?.displayName ?? "") el \(df.string(from: schedule.date)) a las \(hf.string(from: schedule.date))."
+        let who = recipients.count == 1
+            ? (recipients.first?.displayName ?? "")
+            : "\(recipients.count) destinatarios"
+        return "Se enviará a \(who) el \(df.string(from: schedule.date)) a las \(hf.string(from: schedule.date))."
     }
 
     private func applyPrefill() {
         instanceId = instanceId ?? session.activeInstance?.id
         guard let p = prefill else { return }
         instanceId = p.instanceId
-        recipient = Recipient(id: p.recipientJid, jid: p.recipientJid, displayName: p.recipientName,
-                              pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)
+        recipients = [Recipient(id: p.recipientJid, jid: p.recipientJid, displayName: p.recipientName,
+                                pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)]
         text = p.body ?? ""
         schedule.date = max(p.scheduledAt, Date().addingTimeInterval(3600))
         schedule.recurrence = p.recurrence
@@ -285,37 +301,39 @@ struct ComposeView: View {
     }
 
     private func submit() async {
-        guard let instanceId, let recipient else { return }
+        guard let instanceId, !recipients.isEmpty else { return }
         error = nil; sending = true
         defer { sending = false }
         do {
             var mediaId: String?
             if let attachment {
                 uploading = true
+                // un solo upload, compartido por todos los mensajes
                 mediaId = try await APIClient.shared.uploadMedia(
                     data: attachment.data, fileName: attachment.fileName, mimeType: attachment.mimeType
                 ).mediaId
                 uploading = false
             }
-            let body = CreateMessageBody(
-                instanceId: instanceId,
-                recipient: RecipientInput(jid: recipient.jid, name: recipient.displayName,
-                                          kind: recipient.kind, pictureUrl: recipient.pictureUrl),
-                type: attachment?.messageType ?? .TEXT,
-                body: text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text,
-                mediaId: mediaId,
-                scheduledAt: schedule.date,
-                timezone: TimeZone.current.identifier,
-                recurrence: schedule.recurrence,
-                recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
-                recurrenceUntil: schedule.until
-            )
-            let created = try await APIClient.shared.createMessage(body)
-            // update optimista: el WS también lo traerá
-            if !session.upcoming.contains(where: { $0.id == created.id }) {
-                session.upcoming.append(created)
-                session.upcoming.sort { $0.nextRunAt < $1.nextRunAt }
+            for r in recipients {
+                let body = CreateMessageBody(
+                    instanceId: instanceId,
+                    recipient: RecipientInput(jid: r.jid, name: r.displayName,
+                                              kind: r.kind, pictureUrl: r.pictureUrl),
+                    type: attachment?.messageType ?? .TEXT,
+                    body: text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text,
+                    mediaId: mediaId,
+                    scheduledAt: schedule.date,
+                    timezone: schedule.timezone,
+                    recurrence: schedule.recurrence,
+                    recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
+                    recurrenceUntil: schedule.until
+                )
+                let created = try await APIClient.shared.createMessage(body)
+                if !session.upcoming.contains(where: { $0.id == created.id }) {
+                    session.upcoming.append(created)
+                }
             }
+            session.upcoming.sort { $0.nextRunAt < $1.nextRunAt }
             dismiss()
         } catch {
             uploading = false

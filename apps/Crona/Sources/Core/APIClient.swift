@@ -232,6 +232,20 @@ extension APIClient {
         try await request("PATCH", "/messages/\(id)", body: body)
     }
     func sendNow(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/send-now") }
+    func pauseAll(_ paused: Bool) async throws -> OkResponse {
+        struct B: Encodable { let paused: Bool }
+        return try await request("POST", "/messages/pause-all", body: B(paused: paused))
+    }
+
+    // Respuestas automáticas
+    func autoReplies() async throws -> Paginated<AutoReply> { try await request("GET", "/autoreplies") }
+    func createAutoReply(_ body: AutoReplyBody) async throws -> AutoReply { try await request("POST", "/autoreplies", body: body) }
+    func patchAutoReply(id: String, _ body: AutoReplyBody) async throws -> AutoReply { try await request("PATCH", "/autoreplies/\(id)", body: body) }
+    func setAutoReplyEnabled(id: String, enabled: Bool) async throws -> AutoReply {
+        struct B: Encodable { let enabled: Bool }
+        return try await request("PATCH", "/autoreplies/\(id)", body: B(enabled: enabled))
+    }
+    func deleteAutoReply(id: String) async throws -> OkResponse { try await request("DELETE", "/autoreplies/\(id)") }
     func cancelMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/cancel") }
     func duplicateMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/duplicate") }
     func deleteMessage(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/\(id)") }

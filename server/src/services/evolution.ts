@@ -63,6 +63,13 @@ export const evolution = {
     evoFetch(`/chat/findChats/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
   fetchAllGroups: (n: string, k: string) =>
     evoFetch(`/group/fetchAllGroups/${n}?getParticipants=false`, { apikey: k }),
+  // Reconfigura el webhook de una instancia existente (p. ej. para suscribir MESSAGES_UPSERT)
+  setWebhook: async (n: string, url: string, events: string[]) =>
+    evoFetch(`/webhook/set/${n}`, {
+      method: "POST",
+      body: { webhook: { enabled: true, url, byEvents: false, base64: false, events } },
+      apikey: await GLOBAL(),
+    }),
 
   /** Estado de conexión ("open" | "connecting" | "close"), con cache de 60 s. */
   async cachedState(instanceName: string): Promise<string> {

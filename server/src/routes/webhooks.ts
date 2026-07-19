@@ -5,6 +5,7 @@ import { evolution } from "../services/evolution.js";
 import { ntfyPublish } from "../services/ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { instanceDTO } from "./instances.js";
+import { handleIncomingMessage } from "../services/autoreply.js";
 
 // Payloads varían levemente entre 2.x → handler tolerante (SPEC §13.10)
 const normEvent = (e: string) => e.toLowerCase().replace(/_/g, ".");
@@ -118,6 +119,9 @@ export function registerWebhookRoutes(app: FastifyInstance) {
           break;
         case "messages.update":
           await handleMessagesUpdate(body?.data);
+          break;
+        case "messages.upsert":
+          await handleIncomingMessage(instanceName, body?.data);
           break;
         case "send.message":
           await handleSendMessage(body?.data);
