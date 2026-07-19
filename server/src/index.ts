@@ -33,7 +33,7 @@ async function main() {
 
   registerErrorHandler(app);
 
-  app.get("/health", async () => ({ ok: true, service: "catchapp", ts: new Date().toISOString() }));
+  app.get("/health", async () => ({ ok: true, service: "crona", ts: new Date().toISOString() }));
 
   registerAuthRoutes(app);
   registerUserRoutes(app);

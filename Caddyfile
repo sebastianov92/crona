@@ -1,3 +1,3 @@
-catchapp.TUDOMINIO.com {
-    reverse_proxy catchapp:3000
+crona.TUDOMINIO.com {
+    reverse_proxy crona:3000
 }

@@ -7,7 +7,7 @@ const Env = z.object({
   WEBHOOK_SECRET: z.string().min(16),
   MEDIA_DIR: z.string().default("/data/media"),
   PUBLIC_URL: z.string().min(1),
-  INTERNAL_URL: z.string().default("http://catchapp:3000"),
+  INTERNAL_URL: z.string().default("http://crona:3000"),
   PORT: z.coerce.number().default(3000),
 });
 

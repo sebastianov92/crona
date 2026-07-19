@@ -1,5 +1,5 @@
 {
-  "name": "catchapp-server",
+  "name": "crona-server",
   "private": true,
   "type": "module",
   "scripts": {

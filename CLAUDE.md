@@ -1,4 +1,4 @@
-# CLAUDE.md — Reglas de trabajo para CatchApp
+# CLAUDE.md — Reglas de trabajo para Crona
 
 - Lee SPEC.md COMPLETO antes de tocar código. Las decisiones de SPEC §2 son finales: no propongas alternativas.
 - Trabaja FASE POR FASE (SPEC §11). No avances de fase sin cumplir su criterio ✔; pega la evidencia (output de curl o captura) en DECISIONS.md.
@@ -9,7 +9,7 @@
 - Backend dev:      cd server && npm run dev
 - Migraciones:      cd server && npx prisma migrate dev --name <nombre>
 - Build backend:    cd server && npm run build
-- Proyecto Xcode:   cd apps/CatchApp && xcodegen generate
+- Proyecto Xcode:   cd apps/Crona && xcodegen generate
 
 ## Estilo
 - Server: TypeScript strict, ESM, sin `any` (salvo payloads crudos de Evolution), zod en todos los bodies.

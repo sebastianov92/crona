@@ -1,9 +1,9 @@
-# CatchApp
+# Crona
 
 Sistema para **programar mensajes de WhatsApp** (texto, fotos, videos y PDF) que se envían automáticamente en una fecha y hora futuras, hacia contactos o grupos, usando tu instalación existente de **Evolution API v2** en tu VPS.
 
-- **CatchApp Server** (Node 20 + Fastify + Prisma + PostgreSQL): única fuente de verdad. Guarda los mensajes, ejecuta el scheduler, recibe webhooks de Evolution y notifica por ntfy. Los mensajes se envían aunque ninguna app esté abierta.
-- **CatchApp para iOS y macOS** (SwiftUI multiplataforma): clientes delgados. Mac ↔ iPhone se sincronizan solos porque ambos hablan con el mismo servidor (REST + WebSocket).
+- **Crona Server** (Node 20 + Fastify + Prisma + PostgreSQL): única fuente de verdad. Guarda los mensajes, ejecuta el scheduler, recibe webhooks de Evolution y notifica por ntfy. Los mensajes se envían aunque ninguna app esté abierta.
+- **Crona para iOS y macOS** (SwiftUI multiplataforma): clientes delgados. Mac ↔ iPhone se sincronizan solos porque ambos hablan con el mismo servidor (REST + WebSocket).
 - **Evolution API v2**: ya instalada en tu VPS; no se modifica.
 
 Ver [SPEC.md](SPEC.md) para la especificación completa y [DECISIONS.md](DECISIONS.md) para las decisiones de implementación y la evidencia de cada fase.
@@ -14,10 +14,10 @@ Ver [SPEC.md](SPEC.md) para la especificación completa y [DECISIONS.md](DECISIO
 
 ### 1.1 Base de datos
 
-Crea la base `catchapp` en el Postgres existente de Evolution:
+Crea la base `crona` en el Postgres existente de Evolution:
 
 ```bash
-docker exec -it <contenedor_postgres> psql -U <usuario> -c "CREATE DATABASE catchapp;"
+docker exec -it <contenedor_postgres> psql -U <usuario> -c "CREATE DATABASE crona;"
 ```
 
 ### 1.2 Red de Docker
@@ -41,31 +41,31 @@ Edita `.env`:
 
 | Variable | Valor |
 |---|---|
-| `DATABASE_URL` | `postgresql://user:pass@<servicio_postgres>:5432/catchapp` |
-| `PUBLIC_URL` | `https://catchapp.TUDOMINIO.com` (Opción A) o `http://IP_DEL_VPS:3000` (Opción B) |
-| `INTERNAL_URL` | `http://catchapp:3000` (no cambiar: red interna de Docker) |
+| `DATABASE_URL` | `postgresql://user:pass@<servicio_postgres>:5432/crona` |
+| `PUBLIC_URL` | `https://crona.TUDOMINIO.com` (Opción A) o `http://IP_DEL_VPS:3000` (Opción B) |
+| `INTERNAL_URL` | `http://crona:3000` (no cambiar: red interna de Docker) |
 
 ### 1.4 Levantar
 
 ```bash
-docker compose up -d --build && docker compose logs -f catchapp
+docker compose up -d --build && docker compose logs -f crona
 ```
 
 Las migraciones corren solas en el arranque del contenedor.
 
 **Opción A — con dominio y TLS (recomendada)**: incluye el servicio `caddy` del compose y edita `Caddyfile` con tu dominio. TLS automático.
 
-**Opción B — solo HTTP (sin dominio)**: elimina el servicio `caddy` y descomenta `ports: ["3000:3000"]` en `catchapp`. Las apps se conectan a `http://IP_DEL_VPS:3000`.
+**Opción B — solo HTTP (sin dominio)**: elimina el servicio `caddy` y descomenta `ports: ["3000:3000"]` en `crona`. Las apps se conectan a `http://IP_DEL_VPS:3000`.
 
 > ⚠️ Con HTTP los JWT y el contenido viajan en claro por internet. Aceptable para arrancar; tres upgrades posibles:
 > 1. **Caddy + dominio** — TLS automático, 3 líneas (Opción A).
-> 2. **Cloudflare Tunnel** apuntando a `catchapp:3000` — sin abrir puertos.
+> 2. **Cloudflare Tunnel** apuntando a `crona:3000` — sin abrir puertos.
 > 3. **Tailscale** — VPS + dispositivos en un tailnet, conectarse por la IP privada.
 
 ### 1.5 Registrar al admin y configurar Evolution
 
 ```bash
-URL=https://catchapp.TUDOMINIO.com   # o http://IP:3000
+URL=https://crona.TUDOMINIO.com   # o http://IP:3000
 
 # Primer usuario registrado = ADMIN (sin invitación)
 curl -s -X POST $URL/auth/register -H "Content-Type: application/json" \
@@ -89,7 +89,7 @@ Requisitos: Xcode + [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
 brew install xcodegen
-cd apps/CatchApp && xcodegen generate && open CatchApp.xcodeproj
+cd apps/Crona && xcodegen generate && open Crona.xcodeproj
 ```
 
 En Xcode:
@@ -102,14 +102,14 @@ En Xcode:
 >
 > ⚠️ No agregues capabilities/entitlements (Push, iCloud, App Groups): el build falla al firmar con Personal Team. Las notificaciones del iPhone llegan por **ntfy**, no por APNs.
 
-Primera vez en la app: ingresa la URL de tu servidor CatchApp (acepta `http://` con advertencia) → crea tu cuenta o inicia sesión → vincula tu número escaneando el QR.
+Primera vez en la app: ingresa la URL de tu servidor Crona (acepta `http://` con advertencia) → crea tu cuenta o inicia sesión → vincula tu número escaneando el QR.
 
 ---
 
 ## 3. Notificaciones push (ntfy)
 
 1. Instala **ntfy** desde el App Store en el iPhone.
-2. En CatchApp → Ajustes → Notificaciones: genera tu topic (ej. `catchapp-seb-a8k2x1`) y guárdalo.
+2. En Crona → Ajustes → Notificaciones: genera tu topic (ej. `crona-seb-a8k2x1`) y guárdalo.
 3. En la app ntfy: suscríbete a ese topic.
 
 Recibirás push cuando un mensaje **falle** (3 intentos) o tu WhatsApp **se desconecte**; activa "Notificar también envíos exitosos" si quieres confirmación de cada envío. El topic funciona como secreto — no lo compartas.
@@ -144,7 +144,7 @@ npm run dev                # API + worker en :3000
 | `cd server && npm run dev` | Backend en modo watch |
 | `cd server && npx prisma migrate dev --name <nombre>` | Nueva migración |
 | `cd server && npm run build` | Compilar TypeScript |
-| `cd apps/CatchApp && xcodegen generate` | Regenerar proyecto Xcode |
+| `cd apps/Crona && xcodegen generate` | Regenerar proyecto Xcode |
 
 ---
 
@@ -154,5 +154,5 @@ npm run dev                # API + worker en :3000
 - **Reintentos**: fallo 1 → +2 min, fallo 2 → +10 min, fallo 3 → notificación ntfy y estado FAILED (o salta a la siguiente ocurrencia si es recurrente).
 - **Idempotencia**: claim con `FOR UPDATE SKIP LOCKED`; tras un crash a mitad de envío el log queda `FAILED / INTERRUMPIDO` para revisión manual — nunca se duplica un mensaje.
 - **"Leído"** depende de la privacidad del destinatario; en **grupos** espera ver hasta "entregado".
-- **Anti-ban**: delay de 1.8 s por mensaje + jitter entre mensajes del mismo tick. CatchApp es para uso personal; no programes ráfagas masivas (Baileys es no-oficial y WhatsApp puede banear).
+- **Anti-ban**: delay de 1.8 s por mensaje + jitter entre mensajes del mismo tick. Crona es para uso personal; no programes ráfagas masivas (Baileys es no-oficial y WhatsApp puede banear).
 - Los webhooks crudos (`WebhookEventRaw`, para depurar el mapeo) se limpian automáticamente a los 7 días.

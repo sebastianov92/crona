@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct CatchAppApp: App {
+struct CronaApp: App {
     @State private var session = SessionStore()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -23,7 +23,7 @@ struct CatchAppApp: App {
                 }
         }
         #if os(macOS)
-        MenuBarExtra("CatchApp", systemImage: "paperplane.circle") {
+        MenuBarExtra("Crona", systemImage: "paperplane.circle") {
             MenuBarView()
                 .environment(session)
         }

@@ -53,7 +53,7 @@ struct NtfySettingsView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Topic (ej. catchapp-seb-a8k2x1)", text: $topic)
+                TextField("Topic (ej. crona-seb-a8k2x1)", text: $topic)
                     .autocorrectionDisabled()
                 SecureField("Token (solo si tu servidor ntfy usa auth)", text: $token)
                 Toggle("Notificar también envíos exitosos", isOn: $notifyOnSent)
@@ -73,7 +73,7 @@ struct NtfySettingsView: View {
                         let name = (session.user?.name ?? "user")
                             .lowercased()
                             .components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
-                        topic = "catchapp-\(name.prefix(10))-\(suffix)"
+                        topic = "crona-\(name.prefix(10))-\(suffix)"
                     }
                 }
                 if saved { Label("Guardado", systemImage: "checkmark").foregroundStyle(Theme.accent) }

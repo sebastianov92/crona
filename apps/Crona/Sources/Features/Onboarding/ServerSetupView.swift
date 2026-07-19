@@ -11,11 +11,12 @@ struct ServerSetupView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "paperplane.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Theme.accent)
-            Text("CatchApp").font(.largeTitle.bold())
-            Text("Dirección de tu servidor CatchApp")
+            Image("CronaIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 140)
+            Text("Crona").font(.largeTitle.bold())
+            Text("Dirección de tu servidor Crona")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 8) {

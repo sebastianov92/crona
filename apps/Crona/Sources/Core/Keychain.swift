@@ -2,7 +2,7 @@ import Security
 import Foundation
 
 enum Keychain {
-    private static let service = "com.sebastian.catchapp"
+    private static let service = "com.sebastian.crona"
 
     static func set(_ value: String, for key: String) {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,

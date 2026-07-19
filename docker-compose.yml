@@ -1,7 +1,7 @@
 services:
-  catchapp:
+  crona:
     build: ./server
-    container_name: catchapp
+    container_name: crona
     restart: unless-stopped
     env_file: .env
     volumes:
