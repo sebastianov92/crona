@@ -11,11 +11,10 @@ struct ServerSetupView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image("CronaIcon")
+            Image("CronaLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 140)
-            Text("Crona").font(.largeTitle.bold())
+                .frame(maxWidth: 360)
             Text("Dirección de tu servidor Crona")
                 .font(.headline)
 

@@ -1,5 +1,12 @@
 {
-  "images" : [ { "filename" : "crona-logo.svg", "idiom" : "universal" } ],
+  "images" : [
+    { "filename" : "crona-logo.svg", "idiom" : "universal" },
+    {
+      "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+      "filename" : "crona-logo-white.svg",
+      "idiom" : "universal"
+    }
+  ],
   "info" : { "author" : "xcode", "version" : 1 },
   "properties" : { "preserves-vector-representation" : true }
 }
