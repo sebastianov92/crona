@@ -182,33 +182,13 @@ struct AdminUsersView: View {
         Form {
             Section("Usuarios") {
                 ForEach(users) { u in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(u.name)
-                            Text(u.email).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(u.role == .ADMIN ? "Admin" : "Usuario")
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(u.role == .ADMIN ? Theme.accent.opacity(0.2) : Color.gray.opacity(0.15), in: Capsule())
-                        if u.id != session.user?.id {
-                            Menu {
-                                Button(u.role == .ADMIN ? "Quitar rol admin" : "Hacer admin") {
-                                    Task { await change(u, role: u.role == .ADMIN ? .USER : .ADMIN) }
-                                }
-                                Button("Resetear contraseña") { resetUser = u; newPassword = "" }
-                                Divider()
-                                Button("Eliminar usuario", role: .destructive) { deleteUser = u }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .frame(width: 28, height: 28)
-                                    .contentShape(Rectangle())
-                            }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
-                        }
-                    }
+                    AdminUserRow(
+                        user: u,
+                        isSelf: u.id == session.user?.id,
+                        onToggleRole: { Task { await change(u, role: u.role == .ADMIN ? .USER : .ADMIN) } },
+                        onResetPassword: { resetUser = u; newPassword = "" },
+                        onDelete: { deleteUser = u }
+                    )
                 }
             }
             Section("Invitaciones") {
@@ -268,5 +248,46 @@ struct AdminUsersView: View {
             _ = try await APIClient.shared.patchUser(id: u.id, role: role, password: password)
             await load()
         } catch { session.report(error) }
+    }
+}
+
+struct AdminUserRow: View {
+    let user: User
+    let isSelf: Bool
+    let onToggleRole: () -> Void
+    let onResetPassword: () -> Void
+    let onDelete: () -> Void
+
+    private var badgeColor: Color {
+        user.role == .ADMIN ? Theme.accent.opacity(0.2) : Color.gray.opacity(0.15)
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(user.name)
+                Text(user.email).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(user.role == .ADMIN ? "Admin" : "Usuario")
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(badgeColor, in: Capsule())
+            if !isSelf {
+                Menu {
+                    Button(user.role == .ADMIN ? "Quitar rol admin" : "Hacer admin", action: onToggleRole)
+                    Button("Resetear contraseña", action: onResetPassword)
+                    Divider()
+                    Button("Eliminar usuario", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+        }
     }
 }
