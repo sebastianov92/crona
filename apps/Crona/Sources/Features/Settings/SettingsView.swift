@@ -180,30 +180,8 @@ struct AdminUsersView: View {
 
     var body: some View {
         Form {
-            Section("Usuarios") {
-                ForEach(users) { u in
-                    AdminUserRow(
-                        user: u,
-                        isSelf: u.id == session.user?.id,
-                        onToggleRole: { Task { await change(u, role: u.role == .ADMIN ? .USER : .ADMIN) } },
-                        onResetPassword: { resetUser = u; newPassword = "" },
-                        onDelete: { deleteUser = u }
-                    )
-                }
-            }
-            Section("Invitaciones") {
-                Button("Crear código de invitación") {
-                    Task { invite = try? await APIClient.shared.createInvite() }
-                }
-                if let invite {
-                    LabeledContent("Código") {
-                        Text(invite.code).font(.system(.body, design: .monospaced)).textSelection(.enabled)
-                    }
-                    LabeledContent("Expira", value: invite.expiresAt.formatted(date: .abbreviated, time: .shortened))
-                }
-            } footer: {
-                Text("Los usuarios nuevos se registran desde la app con este código (expira en 7 días).")
-            }
+            usersSection
+            invitesSection
         }
         .formStyle(.grouped)
         .navigationTitle("Usuarios")
@@ -236,6 +214,46 @@ struct AdminUsersView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var usersSection: some View {
+        Section("Usuarios") {
+            ForEach(users) { u in row(u) }
+        }
+    }
+
+    private func row(_ u: User) -> AdminUserRow {
+        AdminUserRow(
+            user: u,
+            isSelf: u.id == session.user?.id,
+            onToggleRole: {
+                let newRole: Role = u.role == .ADMIN ? .USER : .ADMIN
+                Task { await change(u, role: newRole) }
+            },
+            onResetPassword: {
+                resetUser = u
+                newPassword = ""
+            },
+            onDelete: { deleteUser = u }
+        )
+    }
+
+    private var invitesSection: some View {
+        Section {
+            Button("Crear código de invitación") {
+                Task { invite = try? await APIClient.shared.createInvite() }
+            }
+            if let invite {
+                LabeledContent("Código") {
+                    Text(invite.code).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                }
+                LabeledContent("Expira", value: invite.expiresAt.formatted(date: .abbreviated, time: .shortened))
+            }
+        } header: {
+            Text("Invitaciones")
+        } footer: {
+            Text("Los usuarios nuevos se registran desde la app con este código (expira en 7 días).")
         }
     }
 
