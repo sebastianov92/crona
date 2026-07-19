@@ -10,7 +10,7 @@ struct SnapshotItem: Codable, Identifiable {
 }
 
 func loadSnapshot() -> [SnapshotItem] {
-    guard let defaults = UserDefaults(suiteName: "group.com.sebastian.crona"),
+    guard let defaults = UserDefaults(suiteName: "group.com.sebastian.crona.LV837U84N9"),
           let data = defaults.data(forKey: "upcomingSnapshot"),
           let items = try? JSONDecoder().decode([SnapshotItem].self, from: data) else { return [] }
     return items.filter { $0.date > .now.addingTimeInterval(-60) }.sorted { $0.date < $1.date }

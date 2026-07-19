@@ -26,6 +26,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: LV837U84N9   # Personal Team — fijo aquí para que xcodegen no lo pierda
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Sources/macOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Sources/iOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Sources/iOS.entitlements
@@ -47,6 +48,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.sebastian.crona.widget
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: LV837U84N9
         SKIP_INSTALL: true
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": WidgetSources/macOS.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": WidgetSources/iOS.entitlements

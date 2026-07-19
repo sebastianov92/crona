@@ -4,7 +4,7 @@ import WidgetKit
 /// Puente app → widget: snapshot de próximos envíos en el App Group.
 /// El widget NO hace red ni toca el Keychain — solo lee este JSON.
 enum WidgetBridge {
-    static let suiteName = "group.com.sebastian.crona"
+    static let suiteName = "group.com.sebastian.crona.LV837U84N9"
     static let key = "upcomingSnapshot"
 
     struct Item: Codable {
