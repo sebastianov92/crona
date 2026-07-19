@@ -184,6 +184,11 @@ extension APIClient {
     }
     func testAdminSettings() async throws -> SettingsTestResult { try await request("POST", "/admin/settings/test") }
     func adminUsers() async throws -> Paginated<User> { try await request("GET", "/admin/users") }
+    func patchUser(id: String, role: Role? = nil, password: String? = nil, name: String? = nil) async throws -> User {
+        struct B: Encodable { let role: Role?; let password: String?; let name: String? }
+        return try await request("PATCH", "/admin/users/\(id)", body: B(role: role, password: password, name: name))
+    }
+    func deleteUser(id: String) async throws -> OkResponse { try await request("DELETE", "/admin/users/\(id)") }
     func createInvite() async throws -> InviteResponse { try await request("POST", "/admin/invites") }
 
     // Instancias

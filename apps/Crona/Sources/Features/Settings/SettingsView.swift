@@ -174,13 +174,40 @@ struct AdminUsersView: View {
     @Environment(SessionStore.self) private var session
     @State private var users: [User] = []
     @State private var invite: InviteResponse?
+    @State private var resetUser: User?
+    @State private var newPassword = ""
+    @State private var deleteUser: User?
 
     var body: some View {
         Form {
             Section("Usuarios") {
                 ForEach(users) { u in
-                    LabeledContent(u.name) {
-                        Text(u.role == .ADMIN ? "Admin" : u.email).font(.caption)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(u.name)
+                            Text(u.email).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(u.role == .ADMIN ? "Admin" : "Usuario")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(u.role == .ADMIN ? Theme.accent.opacity(0.2) : Color.gray.opacity(0.15), in: Capsule())
+                        if u.id != session.user?.id {
+                            Menu {
+                                Button(u.role == .ADMIN ? "Quitar rol admin" : "Hacer admin") {
+                                    Task { await change(u, role: u.role == .ADMIN ? .USER : .ADMIN) }
+                                }
+                                Button("Resetear contraseña") { resetUser = u; newPassword = "" }
+                                Divider()
+                                Button("Eliminar usuario", role: .destructive) { deleteUser = u }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .frame(width: 28, height: 28)
+                                    .contentShape(Rectangle())
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                        }
                     }
                 }
             }
@@ -194,10 +221,52 @@ struct AdminUsersView: View {
                     }
                     LabeledContent("Expira", value: invite.expiresAt.formatted(date: .abbreviated, time: .shortened))
                 }
+            } footer: {
+                Text("Los usuarios nuevos se registran desde la app con este código (expira en 7 días).")
             }
         }
         .formStyle(.grouped)
         .navigationTitle("Usuarios")
-        .task { users = (try? await APIClient.shared.adminUsers().items) ?? [] }
+        .task { await load() }
+        .alert("Nueva contraseña para \(resetUser?.name ?? "")", isPresented: .init(
+            get: { resetUser != nil }, set: { if !$0 { resetUser = nil } }
+        )) {
+            SecureField("Mínimo 8 caracteres", text: $newPassword)
+            Button("Cancelar", role: .cancel) {}
+            Button("Guardar") {
+                if let u = resetUser, newPassword.count >= 8 {
+                    Task { await change(u, password: newPassword) }
+                }
+            }
+        } message: {
+            Text("Se cerrarán sus sesiones activas.")
+        }
+        .confirmationDialog(
+            "Se elimina el usuario, sus instancias de WhatsApp y todos sus mensajes. Irreversible.",
+            isPresented: .init(get: { deleteUser != nil }, set: { if !$0 { deleteUser = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar \(deleteUser?.name ?? "")", role: .destructive) {
+                if let u = deleteUser {
+                    Task {
+                        do {
+                            _ = try await APIClient.shared.deleteUser(id: u.id)
+                            await load()
+                        } catch { session.report(error) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func load() async {
+        users = (try? await APIClient.shared.adminUsers().items) ?? []
+    }
+
+    private func change(_ u: User, role: Role? = nil, password: String? = nil) async {
+        do {
+            _ = try await APIClient.shared.patchUser(id: u.id, role: role, password: password)
+            await load()
+        } catch { session.report(error) }
     }
 }
