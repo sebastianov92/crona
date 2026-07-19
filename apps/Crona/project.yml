@@ -4,6 +4,16 @@ options:
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
+schemes:
+  Crona:
+    build:
+      targets:
+        Crona: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   Crona:
     type: application
