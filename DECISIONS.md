@@ -127,3 +127,9 @@ El usuario vinculó su número real escaneando el QR desde la app macOS (✔ cri
 2. Escanear el QR con su teléfono → verificar sync de contactos/grupos y envío real de texto/foto/video (criterios ✔ de Fases 2–4).
 3. Instalar la plataforma iOS en Xcode (Settings → Components) para correr en el iPhone (el código ya compila contra el SDK).
 4. Configurar ntfy en el iPhone y probar un push real.
+
+## Post-release — Features extra (2026-07-19)
+
+- **Enviar ahora / Reintentar**: `POST /messages/:id/send-now` (válido en ACTIVE/PAUSED/FAILED) reprograma a `now()`, resetea intentos y dispara un tick inmediato. Verificado E2E: mensaje para +2h enviado en <10 s, log SENT con id real de Evolution. Botones en el detalle ("Enviar ahora" con confirmación; "Reintentar" en fallidos).
+- **Preview de media**: `HistoryItem` ahora incluye `mediaId` (campo aditivo a §15). La app muestra la imagen en el detalle (cache en memoria) y miniatura en filas del historial. Video/PDF muestran placeholder con icono.
+- **Widget iOS/macOS** ("Próximos envíos", small/medium): extensión WidgetKit `CronaWidget` que lee un snapshot JSON del App Group `group.com.sebastian.crona` publicado por la app en cada refresh — el widget no hace red ni toca el Keychain. **Desviación del SPEC §9.1** (prohibía App Groups): App Groups sí está permitido con Personal Team gratuito (a diferencia de aps-environment); si la firma fallara en el equipo del usuario, el fallback es quitar el target CronaWidget y las claves application-groups de los entitlements y regenerar con xcodegen.
