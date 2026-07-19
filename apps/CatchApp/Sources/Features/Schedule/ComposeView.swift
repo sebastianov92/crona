@@ -180,8 +180,19 @@ struct ComposeView: View {
                 Button("Cancelar", role: .cancel) {}
             }
             .sheet(isPresented: $showPicker) {
-                if let instanceId {
-                    RecipientPickerView(instanceId: instanceId) { recipient = $0 }
+                // instanceId puede estar nil si las instancias aún no cargaron al abrir la app
+                if let iid = instanceId ?? session.activeInstance?.id {
+                    RecipientPickerView(instanceId: iid) { recipient = $0 }
+                } else {
+                    VStack(spacing: 14) {
+                        ProgressView()
+                        Text("Cargando tus instancias…").foregroundStyle(.secondary)
+                    }
+                    .padding(48)
+                    .task {
+                        await session.refreshInstances()
+                        instanceId = session.activeInstance?.id
+                    }
                 }
             }
             .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
@@ -196,6 +207,9 @@ struct ComposeView: View {
                 if case .success(let url) = result { loadFile(url) }
             }
             .onAppear { applyPrefill() }
+            .onChange(of: session.instances) { _, _ in
+                if instanceId == nil { instanceId = session.activeInstance?.id }
+            }
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 560)

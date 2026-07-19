@@ -37,6 +37,11 @@ struct ServerSetupView: View {
                 }
             }
             .frame(maxWidth: 420)
+            .onAppear {
+                // servidor guardado que no respondió al arrancar: prellenar y mostrar el motivo
+                if urlText.isEmpty, let saved = session.serverURL?.absoluteString { urlText = saved }
+                if error == nil { error = session.serverError }
+            }
 
             Button {
                 Task { await connect() }
@@ -54,6 +59,7 @@ struct ServerSetupView: View {
 
     private func connect() async {
         error = nil
+        session.serverError = nil
         var text = urlText.trimmingCharacters(in: .whitespaces)
         if !text.hasPrefix("http") { text = "https://\(text)" }
         guard let url = URL(string: text) else { error = "La URL no es válida."; return }

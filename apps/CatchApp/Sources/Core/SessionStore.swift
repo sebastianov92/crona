@@ -15,6 +15,7 @@ final class SessionStore {
     var history: [HistoryItem] = []
     var lastQR: (instanceId: String, qrBase64: String)?
     var toastError: String?
+    var serverError: String?   // error de conexión mostrado en ServerSetupView
 
     private var accessToken: String?
     private let ws = WebSocketClient()
@@ -35,6 +36,15 @@ final class SessionStore {
         }
         serverURL = url
         await APIClient.shared.configure(baseURL: url)
+        // verificar servidor ANTES de mandar al login: si no responde, volver a la pantalla de servidor
+        do {
+            _ = try await APIClient.shared.health()
+            serverError = nil
+        } catch {
+            serverError = "No se pudo conectar al servidor. Revisa la dirección o que esté encendido."
+            phase = .needsServer
+            return
+        }
         guard Keychain.get("refreshToken") != nil else { phase = .needsLogin; return }
         do {
             // fuerza refresh: el access de una sesión anterior ya no vive en memoria
