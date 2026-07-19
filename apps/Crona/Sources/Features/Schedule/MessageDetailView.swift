@@ -10,6 +10,7 @@ struct MessageDetailView: View {
     @State private var busy = false
     @State private var showEdit = false
     @State private var confirmCancel = false
+    @State private var confirmSendNow = false
 
     private var msg: ScheduledMessage? { detail?.message }
     private var editable: Bool {
@@ -37,9 +38,8 @@ struct MessageDetailView: View {
                     }
 
                     Section("Mensaje") {
-                        if msg.type != .TEXT {
-                            Label(messagePreview(type: msg.type, body: nil), systemImage: "paperclip")
-                                .foregroundStyle(.secondary)
+                        if let mediaId = msg.mediaId {
+                            MediaPreviewView(mediaId: mediaId, type: msg.type)
                         }
                         if let body = msg.body, !body.isEmpty {
                             Text(body)
@@ -80,6 +80,20 @@ struct MessageDetailView: View {
                     }
 
                     Section {
+                        if msg.status == .ACTIVE || msg.status == .PAUSED {
+                            Button {
+                                confirmSendNow = true
+                            } label: {
+                                Label("Enviar ahora", systemImage: "paperplane.fill")
+                            }
+                        }
+                        if msg.status == .FAILED {
+                            Button {
+                                Task { await sendNow() }
+                            } label: {
+                                Label("Reintentar", systemImage: "arrow.clockwise")
+                            }
+                        }
                         if editable {
                             Button(msg.status == .PAUSED ? "Reanudar" : "Pausar") {
                                 Task { await toggle() }
@@ -113,6 +127,12 @@ struct MessageDetailView: View {
         .confirmationDialog("¿Cancelar este envío?", isPresented: $confirmCancel) {
             Button("Cancelar envío", role: .destructive) { Task { await cancel() } }
         }
+        .confirmationDialog(
+            "Se enviará a \(msg?.recipientName ?? "") en los próximos segundos.",
+            isPresented: $confirmSendNow, titleVisibility: .visible
+        ) {
+            Button("Enviar ahora") { Task { await sendNow() } }
+        }
         .disabled(busy)
     }
 
@@ -137,6 +157,16 @@ struct MessageDetailView: View {
         busy = true; defer { busy = false }
         do {
             _ = try await APIClient.shared.patchMessage(id: msg.id, PatchMessageBody(status: msg.status == .PAUSED ? .ACTIVE : .PAUSED))
+            await load()
+            await session.refreshMessages()
+        } catch { session.report(error) }
+    }
+
+    private func sendNow() async {
+        guard let msg else { return }
+        busy = true; defer { busy = false }
+        do {
+            _ = try await APIClient.shared.sendNow(id: msg.id)
             await load()
             await session.refreshMessages()
         } catch { session.report(error) }

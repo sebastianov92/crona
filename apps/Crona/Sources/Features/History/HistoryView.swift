@@ -33,6 +33,9 @@ struct HistoryView: View {
                                 .lineLimit(1)
                         }
                         Spacer()
+                        if item.type == .IMAGE, let mediaId = item.mediaId {
+                            MediaThumbView(mediaId: mediaId)
+                        }
                         VStack(alignment: .trailing, spacing: 4) {
                             Text(scheduleLabel(item.runAt)).font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 3) {

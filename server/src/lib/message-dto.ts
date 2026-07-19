@@ -47,5 +47,6 @@ export const historyItemDTO = (l: MessageLog & { scheduledMessage: ScheduledMess
   recipientPictureUrl: l.scheduledMessage.recipientPictureUrl,
   type: l.scheduledMessage.type,
   body: l.scheduledMessage.body,
+  mediaId: l.scheduledMessage.mediaId,
   error: l.error,
 });

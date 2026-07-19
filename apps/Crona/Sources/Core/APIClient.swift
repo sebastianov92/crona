@@ -231,6 +231,7 @@ extension APIClient {
     func patchMessage(id: String, _ body: PatchMessageBody) async throws -> ScheduledMessage {
         try await request("PATCH", "/messages/\(id)", body: body)
     }
+    func sendNow(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/send-now") }
     func cancelMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/cancel") }
     func duplicateMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/duplicate") }
     func deleteMessage(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/\(id)") }

@@ -7,6 +7,7 @@ import { errors } from "../lib/errors.js";
 import { messageDTO, logDTO, historyItemDTO } from "../lib/message-dto.js";
 import { encodeCursor, decodeCursor } from "../lib/pagination.js";
 import { broadcast } from "../ws/hub.js";
+import { tick } from "../services/scheduler.js";
 
 const MIN_LEAD_MS = 60_000; // scheduledAt mínimo now()+60s
 
@@ -188,6 +189,20 @@ export function registerMessageRoutes(app: FastifyInstance) {
       },
     });
     broadcast(req.userId, "message.updated", messageDTO(updated));
+    return messageDTO(updated);
+  });
+
+  // Enviar ahora (ACTIVE/PAUSED) o reintentar (FAILED): programa para ya y dispara un tick
+  app.post("/messages/:id/send-now", { preHandler: authenticate }, async (req) => {
+    const { id } = req.params as { id: string };
+    const msg = await ownMessage(req.userId, id);
+    if (!["ACTIVE", "PAUSED", "FAILED"].includes(msg.status)) throw errors.messageNotEditable();
+    const updated = await prisma.scheduledMessage.update({
+      where: { id: msg.id },
+      data: { status: "ACTIVE", nextRunAt: new Date(), attempts: 0, lastError: null, claimedAt: null },
+    });
+    broadcast(req.userId, "message.updated", messageDTO(updated));
+    setImmediate(() => void tick()); // sin esperar los 30 s del intervalo
     return messageDTO(updated);
   });
 

@@ -122,6 +122,7 @@ struct HistoryItem: Identifiable, Codable, Hashable {
     let recipientPictureUrl: String?
     let type: MessageType
     let body: String?
+    let mediaId: String?
     let error: String?
 }
 
