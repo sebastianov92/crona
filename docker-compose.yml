@@ -1,8 +1,11 @@
-# Crona TODO-EN-UNO: Postgres + Evolution API v2 + Crona Server (autocontenido).
+# Crona TODO-EN-UNO: Postgres + Evolution API v2 + Crona Server.
 # Compatible con paneles tipo Hostinger: pega la URL del repo y define las 5 variables
 # de entorno de abajo en el panel (o usa `cp .env.full.example .env` por SSH).
 # Variante para engancharse a una Evolution YA instalada: docker-compose.evolution-existente.yml
-# Las apps se conectan a http://IP_DEL_VPS:3000
+# Requiere un Traefik externo con certresolver "mytlschallenge" en la red `n8n_default`
+# (ver /docker/n8n/docker-compose.yml en el VPS) y las vars CRONA_DOMAIN + PUBLIC_URL en .env.
+# Si no hay Traefik disponible, comentar `networks`/`labels` de crona y volver a exponer
+# `ports: ["3000:3000"]` para acceso directo por IP.
 
 services:
   postgres:
@@ -78,8 +81,21 @@ services:
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
     volumes:
       - crona_media:/data/media
-    ports:
-      - "3000:3000"
+    networks:
+      - default
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crona.rule=Host(`${CRONA_DOMAIN}`)"
+      - "traefik.http.routers.crona.entrypoints=websecure"
+      - "traefik.http.routers.crona.tls=true"
+      - "traefik.http.routers.crona.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.crona.loadbalancer.server.port=3000"
+
+networks:
+  traefik_net:
+    name: n8n_default
+    external: true
 
 volumes:
   pg_data:
