@@ -9,8 +9,14 @@ struct SnapshotItem: Codable, Identifiable {
     var id: String { "\(name)-\(date.timeIntervalSince1970)" }
 }
 
+#if os(macOS)
+let appGroupSuite = "LV837U84N9.group.com.sebastian.crona"
+#else
+let appGroupSuite = "group.com.sebastian.crona.LV837U84N9"
+#endif
+
 func loadSnapshot() -> [SnapshotItem] {
-    guard let defaults = UserDefaults(suiteName: "group.com.sebastian.crona.LV837U84N9"),
+    guard let defaults = UserDefaults(suiteName: appGroupSuite),
           let data = defaults.data(forKey: "upcomingSnapshot"),
           let items = try? JSONDecoder().decode([SnapshotItem].self, from: data) else { return [] }
     return items.filter { $0.date > .now.addingTimeInterval(-60) }.sorted { $0.date < $1.date }
