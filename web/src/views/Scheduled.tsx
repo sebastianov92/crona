@@ -3,6 +3,7 @@ import { api, ApiError, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
 import type { MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
+import { IconCheckCircle, IconCircle, IconPaperclip, IconPlus, IconRefresh, IconRepeat, IconReply } from "../icons";
 
 const FILTERS = [
   { id: "all", label: "Todos" },
@@ -44,7 +45,7 @@ export default function Scheduled() {
     <div className="page">
       <h1 className="pagetitle">Programados</h1>
       {disconnected && <div className="banner">Tu WhatsApp está desconectado — los envíos fallarán. Re-escanea el QR en Ajustes → Instancias.</div>}
-      <input className="field" placeholder="🔍 Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+      <input className="field" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
       <div className="chips">
         {FILTERS.map((f) => (
           <button key={f.id} className={`chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
@@ -63,8 +64,8 @@ export default function Scheduled() {
             </div>
             <div className="right">
               <div className="time">
-                {m.isAutoReply && "↩︎ "}
-                {m.recurrence !== "NONE" && "🔁 "}
+                {m.isAutoReply && <IconReply size={12} />}
+                {m.recurrence !== "NONE" && <IconRepeat size={12} />}
                 {scheduleLabel(m.nextRunAt)}
               </div>
               <div className="state">{statusLabel[m.status]}</div>
@@ -72,7 +73,7 @@ export default function Scheduled() {
           </button>
         ))}
       </div>
-      <button className="fab" onClick={() => setCompose(true)}>＋</button>
+      <button className="fab" onClick={() => setCompose(true)}><IconPlus size={26} /></button>
       {compose && <ComposeSheet onClose={() => setCompose(false)} />}
       {selected && <DetailSheet id={selected.id} onClose={() => setSelected(null)} />}
     </div>
@@ -165,7 +166,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           </div>
         ))}
         <button className="row" onClick={() => setShowPicker(true)}>
-          <div className="main" style={{ color: "var(--accent)" }}>＋ {recipients.length ? "Agregar más" : "Elegir contactos o grupos"}</div>
+          <div className="main" style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 6 }}><IconPlus size={15} /> {recipients.length ? "Agregar más" : "Elegir contactos o grupos"}</div>
         </button>
       </div>
 
@@ -176,7 +177,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       <label className="label">Adjunto (foto, video o PDF)</label>
       {file ? (
         <div className="kv">
-          <span>📎 {file.name}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><IconPaperclip size={14} /> {file.name}</span>
           <button className="btn small secondary" onClick={() => setFile(null)}>Quitar</button>
         </div>
       ) : (
@@ -281,7 +282,7 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
               }
             }}
           >
-            {syncing ? <span className="spin dark" /> : "🔄"}
+            {syncing ? <span className="spin dark" /> : <IconRefresh size={16} />}
           </button>
         )
       }
@@ -290,9 +291,9 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
         <button className={kind === "CONTACT" ? "active" : ""} onClick={() => setKind("CONTACT")}>Contactos</button>
         <button className={kind === "GROUP" ? "active" : ""} onClick={() => setKind("GROUP")}>Grupos</button>
       </div>
-      <input className="field" placeholder="🔍 Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
+      <input className="field" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
       <div className="card">
-        {items.length === 0 && <div className="empty">Sin resultados. Prueba 🔄 para sincronizar.</div>}
+        {items.length === 0 && <div className="empty">Sin resultados. Usa el botón de sincronizar (arriba a la derecha).</div>}
         {items.map((r) => {
           const on = selected.some((x) => x.jid === r.jid);
           return (
@@ -302,7 +303,7 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
                 <div className="name" style={{ fontSize: 14 }}>{r.displayName}</div>
                 {r.phoneNumber && <div className="sub">{r.phoneNumber}</div>}
               </div>
-              <span style={{ color: on ? "var(--accent)" : "var(--text2)", fontSize: 20 }}>{on ? "●" : "○"}</span>
+              <span style={{ color: on ? "var(--accent)" : "var(--text2)", display: "flex" }}>{on ? <IconCheckCircle size={20} /> : <IconCircle size={20} />}</span>
             </button>
           );
         })}

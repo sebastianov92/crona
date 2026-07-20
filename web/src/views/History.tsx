@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useApp } from "../App";
 import { Avatar, logLabel, messagePreview, scheduleLabel, useAsync } from "../lib";
 import type { HistoryItem, Paginated } from "../types";
+import { IconTrash } from "../icons";
 
 export default function History() {
   const { toast } = useApp();
@@ -29,7 +30,7 @@ export default function History() {
   return (
     <div className="page">
       <h1 className="pagetitle">Historial</h1>
-      <input className="field" placeholder="🔍 Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
+      <input className="field" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
       <div className="card">
         {items.length === 0 && <div className="empty">Aún no hay envíos en el historial.</div>}
         {items.map((i) => (
@@ -47,7 +48,7 @@ export default function History() {
                 {logLabel[i.status]}
               </div>
             </div>
-            <button className="btn small danger" title="Borrar" onClick={() => remove(i)}>🗑</button>
+            <button className="btn small danger" title="Borrar" onClick={() => remove(i)}><IconTrash size={15} /></button>
           </div>
         ))}
       </div>

@@ -4,6 +4,7 @@ import type { Instance, ScheduledMessage, User, Paginated } from "./types";
 import Scheduled from "./views/Scheduled";
 import History from "./views/History";
 import Settings from "./views/Settings";
+import { IconClock, IconGear, IconHistory } from "./icons";
 
 export interface AppState {
   user: User;
@@ -215,9 +216,9 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
   };
 
   const tabs = [
-    { id: "scheduled" as const, label: "Programados", icon: "🕐" },
-    { id: "history" as const, label: "Historial", icon: "🕘" },
-    { id: "settings" as const, label: "Ajustes", icon: "⚙️" },
+    { id: "scheduled" as const, label: "Programados", Icon: IconClock },
+    { id: "history" as const, label: "Historial", Icon: IconHistory },
+    { id: "settings" as const, label: "Ajustes", Icon: IconGear },
   ];
 
   return (
@@ -229,7 +230,7 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
           </div>
           {tabs.map((t) => (
             <button key={t.id} className={`navbtn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-              <span>{t.icon}</span> {t.label}
+              <t.Icon size={18} /> {t.label}
             </button>
           ))}
         </nav>
@@ -241,7 +242,7 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
         <nav className="tabbar">
           {tabs.map((t) => (
             <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
-              <span className="icon">{t.icon}</span>
+              <t.Icon size={22} />
               {t.label}
             </button>
           ))}

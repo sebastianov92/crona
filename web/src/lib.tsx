@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { mediaBlobURL } from "./api";
+import { IconPaperclip } from "./icons";
 import type { LogStatus, MessageType, Recurrence, ScheduleStatus } from "./types";
 
 export function Avatar({ name, url, size = 44 }: { name: string; url?: string | null; size?: number }) {
@@ -41,7 +42,12 @@ export function MediaImg({ mediaId, type }: { mediaId: string; type: MessageType
   useEffect(() => {
     if (type === "IMAGE") mediaBlobURL(mediaId).then(setUrl);
   }, [mediaId, type]);
-  if (type !== "IMAGE") return <div className="hint">📎 {type === "VIDEO" ? "Video adjunto" : "Documento adjunto"}</div>;
+  if (type !== "IMAGE")
+    return (
+      <div className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <IconPaperclip size={14} /> {type === "VIDEO" ? "Video adjunto" : "Documento adjunto"}
+      </div>
+    );
   return url ? <img className="mediathumb" src={url} alt="adjunto" /> : <div className="hint">Cargando adjunto…</div>;
 }
 
@@ -60,9 +66,9 @@ export function scheduleLabel(iso: string): string {
 }
 
 export function messagePreview(type: MessageType, body: string | null): string {
-  const icons: Record<MessageType, string> = { TEXT: "", IMAGE: "📷 Foto", VIDEO: "🎥 Video", DOCUMENT: "📄 Documento" };
+  const labels: Record<MessageType, string> = { TEXT: "", IMAGE: "Foto", VIDEO: "Video", DOCUMENT: "Documento" };
   if (type === "TEXT") return body ?? "";
-  return body ? `${icons[type]} · ${body}` : icons[type];
+  return body ? `${labels[type]} · ${body}` : labels[type];
 }
 
 export const statusLabel: Record<ScheduleStatus, string> = {

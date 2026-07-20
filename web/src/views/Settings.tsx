@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import { useApp, useTheme } from "../App";
 import { Avatar, DayDots, Sheet, Toggle, dayNames, useAsync } from "../lib";
 import type { AdminSettings, AutoReply, Instance, Paginated, User } from "../types";
+import { IconCheckCircle, IconChevron, IconPause, IconPlay, IconPlus, IconTrash } from "../icons";
 
 export default function Settings() {
   const { user, instances, upcoming, refreshMessages, logout, toast } = useApp();
@@ -45,35 +46,35 @@ export default function Settings() {
       <label className="label">WhatsApp</label>
       <div className="card">
         <button className="row" onClick={() => setView("instances")}>
-          <div className="main">Instancias ({instances.length})</div>›
+          <div className="main">Instancias ({instances.length})</div><IconChevron size={16} />
         </button>
         <button className="row" onClick={() => setView("autoreplies")}>
-          <div className="main">Respuestas automáticas</div>›
+          <div className="main">Respuestas automáticas</div><IconChevron size={16} />
         </button>
       </div>
 
       <label className="label">Envíos</label>
       <div className="card">
         {anyActive && (
-          <button className="row" onClick={() => pauseAll(true)}><div className="main">⏸ Pausar todos los envíos</div></button>
+          <button className="row" onClick={() => pauseAll(true)}><div className="main" style={{ display: "flex", alignItems: "center", gap: 8 }}><IconPause size={16} /> Pausar todos los envíos</div></button>
         )}
         {!anyActive && anyPaused && (
-          <button className="row" onClick={() => pauseAll(false)}><div className="main">▶️ Reanudar todos los envíos</div></button>
+          <button className="row" onClick={() => pauseAll(false)}><div className="main" style={{ display: "flex", alignItems: "center", gap: 8 }}><IconPlay size={16} /> Reanudar todos los envíos</div></button>
         )}
         {!anyActive && !anyPaused && <div className="row" style={{ cursor: "default", color: "var(--text2)" }}>Sin mensajes pendientes.</div>}
       </div>
 
       <label className="label">Notificaciones</label>
       <div className="card">
-        <button className="row" onClick={() => setView("ntfy")}><div className="main">Notificaciones (ntfy)</div>›</button>
+        <button className="row" onClick={() => setView("ntfy")}><div className="main">Notificaciones (ntfy)</div><IconChevron size={16} /></button>
       </div>
 
       {user.role === "ADMIN" && (
         <>
           <label className="label">Administración</label>
           <div className="card">
-            <button className="row" onClick={() => setView("admin")}><div className="main">Servidor Evolution</div>›</button>
-            <button className="row" onClick={() => setView("users")}><div className="main">Usuarios e invitaciones</div>›</button>
+            <button className="row" onClick={() => setView("admin")}><div className="main">Servidor Evolution</div><IconChevron size={16} /></button>
+            <button className="row" onClick={() => setView("users")}><div className="main">Usuarios e invitaciones</div><IconChevron size={16} /></button>
           </div>
         </>
       )}
@@ -96,7 +97,7 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
   const [linking, setLinking] = useState(false);
 
   return (
-    <Sheet title="Instancias" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}>＋ Vincular</button>}>
+    <Sheet title="Instancias" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}><IconPlus size={14} /> Vincular</button>}>
       <div className="card">
         {instances.length === 0 && <div className="empty">Vincula tu número de WhatsApp para empezar.</div>}
         {instances.map((i) => (
@@ -121,7 +122,7 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
                 }
               }}
             >
-              🗑
+              <IconTrash size={15} />
             </button>
           </div>
         ))}
@@ -188,7 +189,7 @@ function LinkWizard({ onClose }: { onClose: () => void }) {
     <Sheet title={connected ? "¡Vinculado!" : "Vincular número"} onClose={onClose}>
       {connected ? (
         <div className="center" style={{ minHeight: 200 }}>
-          <div style={{ fontSize: 64 }}>✅</div>
+          <div style={{ color: "var(--accent)" }}><IconCheckCircle size={72} /></div>
           <p>WhatsApp vinculado. Ya puedes programar mensajes.</p>
           <button className="btn" style={{ marginTop: 14 }} onClick={onClose}>Listo</button>
         </div>
@@ -247,7 +248,7 @@ function AutoRepliesSheet({ onClose }: { onClose: () => void }) {
   const { instances, toast } = useApp();
 
   return (
-    <Sheet title="Respuestas automáticas" onClose={onClose} actions={<button className="btn small" onClick={() => setEditing("new")}>＋</button>}>
+    <Sheet title="Respuestas automáticas" onClose={onClose} actions={<button className="btn small" onClick={() => setEditing("new")}><IconPlus size={16} /></button>}>
       <div className="card">
         {(rules?.items ?? []).length === 0 && <div className="empty">Sin reglas. Crea una para responder solo o recibir avisos.</div>}
         {(rules?.items ?? []).map((r) => (
@@ -279,7 +280,7 @@ function AutoRepliesSheet({ onClose }: { onClose: () => void }) {
                 reload();
               }}
             >
-              🗑
+              <IconTrash size={15} />
             </button>
           </div>
         ))}
@@ -495,9 +496,9 @@ function AdminSheet({ onClose }: { onClose: () => void }) {
           onClick={async () => {
             try {
               const r = await api<{ ok: boolean; version: string }>("POST", "/admin/settings/test");
-              setTest(r.ok ? `✅ Evolution v${r.version}` : `❌ Versión ${r.version}`);
+              setTest(r.ok ? `Conectado — Evolution v${r.version}` : `Versión no soportada: ${r.version}`);
             } catch (e) {
-              setTest(`❌ ${e instanceof ApiError ? e.message : "sin conexión"}`);
+              setTest(`Error: ${e instanceof ApiError ? e.message : "sin conexión"}`);
             }
           }}
         >
@@ -543,7 +544,7 @@ function UsersSheet({ onClose }: { onClose: () => void }) {
                     reload();
                   }}
                 >
-                  🗑
+                  <IconTrash size={15} />
                 </button>
               </>
             )}
