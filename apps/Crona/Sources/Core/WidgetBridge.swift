@@ -4,13 +4,9 @@ import WidgetKit
 /// Puente app → widget: snapshot de próximos envíos en el App Group.
 /// El widget NO hace red ni toca el Keychain — solo lee este JSON.
 enum WidgetBridge {
-    // macOS exige prefijo de Team ID (sin él, macOS 15+ pregunta "access data from other apps"
-    // en cada arranque); iOS exige prefijo "group.". Formatos distintos por plataforma.
-    #if os(macOS)
-    static let suiteName = "938LM5GW29.group.com.sebastian.crona"
-    #else
+    // Formato "group.…" en ambas plataformas: es el único que el portal de Apple registra,
+    // y autorizado vía provisioning profile no dispara el prompt de macOS 15.
     static let suiteName = "group.com.sebastian.crona.938LM5GW29"
-    #endif
     static let key = "upcomingSnapshot"
 
     struct Item: Codable {
