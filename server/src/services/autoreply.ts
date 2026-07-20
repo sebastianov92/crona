@@ -47,6 +47,8 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
     if (rule.contactJid && rule.contactJid !== jid) continue; // regla para un contacto específico
     if (rule.keyword && !text.toLowerCase().includes(rule.keyword.toLowerCase())) continue;
     if (!inWindow(rule.activeFromHour, rule.activeToHour, rule.timezone)) continue;
+    // días activos (ISO 1=lun … 7=dom, en la zona de la regla); vacío = todos
+    if (rule.activeDays.length > 0 && !rule.activeDays.includes(DateTime.now().setZone(rule.timezone).weekday)) continue;
 
     // cooldown por contacto: máx. 1 disparo por regla+jid por ventana
     const since = new Date(Date.now() - rule.cooldownMinutes * 60_000);

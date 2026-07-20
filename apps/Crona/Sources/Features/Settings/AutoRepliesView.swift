@@ -59,6 +59,8 @@ struct AutoRepliesView: View {
     }
 }
 
+private let daysShort = ["", "lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+
 struct AutoReplyRow: View {
     let rule: AutoReply
     var instanceName: String? = nil
@@ -83,6 +85,11 @@ struct AutoReplyRow: View {
                     .lineLimit(1)
                 if let from = rule.activeFromHour, let to = rule.activeToHour {
                     Text("Activa de \(from):00 a \(to):00")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if !rule.activeDays.isEmpty {
+                    Text("Días: " + rule.activeDays.sorted().map { daysShort[$0] }.joined(separator: ", "))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -113,6 +120,10 @@ struct AutoReplyEditView: View {
     @State private var limitHours = false
     @State private var fromHour = 22
     @State private var toHour = 7
+    @State private var limitDays = false
+    @State private var selectedDays: Set<Int> = []
+
+    private static let dayNames = [(1, "L"), (2, "M"), (3, "X"), (4, "J"), (5, "V"), (6, "S"), (7, "D")]
     @State private var cooldown = 60
     @State private var busy = false
     @State private var error: String?
@@ -195,6 +206,24 @@ struct AutoReplyEditView: View {
                         Picker("Desde", selection: $fromHour) { ForEach(0..<24, id: \.self) { Text("\($0):00").tag($0) } }
                         Picker("Hasta", selection: $toHour) { ForEach(0..<24, id: \.self) { Text("\($0):00").tag($0) } }
                     }
+                    Toggle("Solo ciertos días", isOn: $limitDays)
+                    if limitDays {
+                        HStack(spacing: 6) {
+                            ForEach(Self.dayNames, id: \.0) { (num, label) in
+                                Button {
+                                    if selectedDays.contains(num) { selectedDays.remove(num) }
+                                    else { selectedDays.insert(num) }
+                                } label: {
+                                    Text(label)
+                                        .font(.subheadline.bold())
+                                        .frame(width: 32, height: 32)
+                                        .background(selectedDays.contains(num) ? Theme.accent : Color.gray.opacity(0.15), in: Circle())
+                                        .foregroundStyle(selectedDays.contains(num) ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     Picker("Máx. 1 vez por contacto cada", selection: $cooldown) {
                         Text("15 min").tag(15)
                         Text("1 hora").tag(60)
@@ -246,6 +275,8 @@ struct AutoReplyEditView: View {
         limitHours = rule.activeFromHour != nil
         fromHour = rule.activeFromHour ?? 22
         toHour = rule.activeToHour ?? 7
+        limitDays = !rule.activeDays.isEmpty
+        selectedDays = Set(rule.activeDays)
         cooldown = rule.cooldownMinutes
     }
 
@@ -264,6 +295,7 @@ struct AutoReplyEditView: View {
             replyText: action == .REPLY ? replyText : nil,
             activeFromHour: limitHours ? fromHour : nil,
             activeToHour: limitHours ? toHour : nil,
+            activeDays: limitDays ? selectedDays.sorted() : [],
             timezone: TimeZone.current.identifier,
             cooldownMinutes: cooldown,
             enabled: rule?.enabled ?? true

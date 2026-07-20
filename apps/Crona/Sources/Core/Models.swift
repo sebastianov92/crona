@@ -174,6 +174,7 @@ struct AutoReply: Identifiable, Codable, Hashable {
     var replyText: String?
     var activeFromHour: Int?
     var activeToHour: Int?
+    var activeDays: [Int]
     var timezone: String
     var cooldownMinutes: Int
     var enabled: Bool
@@ -189,6 +190,7 @@ struct AutoReplyBody: Codable {
     var replyText: String?
     var activeFromHour: Int?
     var activeToHour: Int?
+    var activeDays: [Int] = []
     var timezone: String
     var cooldownMinutes: Int
     var enabled: Bool
