@@ -16,7 +16,6 @@ Si tu VPS **no** tiene Evolution todavía, este compose levanta Postgres + Evolu
 
 ```bash
 git clone https://github.com/sebastianov92/crona.git && cd crona
-echo TU_TOKEN | docker login ghcr.io -u sebastianov92 --password-stdin
 
 cp .env.full.example .env
 openssl rand -hex 16   # → POSTGRES_PASSWORD
@@ -75,12 +74,9 @@ Edita `.env`:
 
 ### 1.4 Levantar
 
-**Con imagen precompilada (rápido, recomendado)** — GitHub Actions publica la imagen en cada push a `main`:
+**Con imagen precompilada (rápido, recomendado)** — GitHub Actions publica la imagen pública en cada push a `main`:
 
 ```bash
-# una sola vez: autenticarse en ghcr (token clásico con scope read:packages en github.com/settings/tokens)
-echo TU_TOKEN | docker login ghcr.io -u sebastianov92 --password-stdin
-
 docker compose pull && docker compose up -d && docker compose logs -f crona
 ```
 
