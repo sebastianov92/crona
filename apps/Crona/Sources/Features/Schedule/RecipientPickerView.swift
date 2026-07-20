@@ -60,27 +60,36 @@ struct RecipientPickerView: View {
                 }
                 .listStyle(.plain)
                 .overlay { if loading { ProgressView() } }
+
+                if multiSelect {
+                    Button {
+                        onPick(selected)
+                        dismiss()
+                    } label: {
+                        Text(selected.isEmpty ? "Listo" : "Listo (\(selected.count))")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(selected.isEmpty ? Color.gray.opacity(0.3) : Theme.accent, in: Capsule())
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selected.isEmpty)
+                    .padding(16)
+                }
             }
             .navigationTitle("Destinatario")
             .searchable(text: $search, prompt: "Buscar")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                if multiSelect {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Listo (\(selected.count))") {
-                            onPick(selected)
-                            dismiss()
-                        }
-                        .disabled(selected.isEmpty)
-                    }
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task { await sync() }
                     } label: {
                         if syncing { ProgressView().controlSize(.small) }
-                        else { Label("Sincronizar contactos", systemImage: "arrow.triangle.2.circlepath") }
+                        else { Image(systemName: "arrow.triangle.2.circlepath") }
                     }
+                    .help("Sincronizar contactos")
                     .disabled(syncing)
                 }
             }
