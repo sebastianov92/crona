@@ -6,7 +6,7 @@ import WidgetKit
 enum WidgetBridge {
     // Formato "group.…" en ambas plataformas: es el único que el portal de Apple registra,
     // y autorizado vía provisioning profile no dispara el prompt de macOS 15.
-    static let suiteName = "group.com.sebastian.crona.938LM5GW29"
+    static let suiteName = "group.com.sebastianov.crona"
     static let key = "upcomingSnapshot"
 
     struct Item: Codable {

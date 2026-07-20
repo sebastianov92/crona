@@ -9,7 +9,7 @@ struct SnapshotItem: Codable, Identifiable {
     var id: String { "\(name)-\(date.timeIntervalSince1970)" }
 }
 
-let appGroupSuite = "group.com.sebastian.crona.938LM5GW29"
+let appGroupSuite = "group.com.sebastianov.crona"
 
 func loadSnapshot() -> [SnapshotItem] {
     guard let defaults = UserDefaults(suiteName: appGroupSuite),
