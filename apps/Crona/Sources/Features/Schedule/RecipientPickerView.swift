@@ -24,6 +24,25 @@ struct RecipientPickerView: View {
                     Text("Grupos").tag(RecipientKind.GROUP)
                 }
                 .pickerStyle(.segmented)
+                .padding([.horizontal, .top])
+
+                // buscador propio: el de .searchable colapsa la barra y esconde Cancelar/Listo
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Buscar", text: $search)
+                        .textFieldStyle(.plain)
+                        .autocorrectionDisabled()
+                    if !search.isEmpty {
+                        Button {
+                            search = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(10)
+                .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 .padding()
 
                 List {
@@ -62,7 +81,6 @@ struct RecipientPickerView: View {
                 .overlay { if loading { ProgressView() } }
             }
             .navigationTitle("Destinatario")
-            .searchable(text: $search, prompt: "Buscar")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 // un solo botón que se transforma: 🔄 sin selección → "Listo (N)" con selección
