@@ -7,9 +7,9 @@ enum WidgetBridge {
     // macOS exige prefijo de Team ID (sin él, macOS 15+ pregunta "access data from other apps"
     // en cada arranque); iOS exige prefijo "group.". Formatos distintos por plataforma.
     #if os(macOS)
-    static let suiteName = "LV837U84N9.group.com.sebastian.crona"
+    static let suiteName = "938LM5GW29.group.com.sebastian.crona"
     #else
-    static let suiteName = "group.com.sebastian.crona.LV837U84N9"
+    static let suiteName = "group.com.sebastian.crona.938LM5GW29"
     #endif
     static let key = "upcomingSnapshot"
 

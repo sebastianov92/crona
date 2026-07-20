@@ -10,9 +10,9 @@ struct SnapshotItem: Codable, Identifiable {
 }
 
 #if os(macOS)
-let appGroupSuite = "LV837U84N9.group.com.sebastian.crona"
+let appGroupSuite = "938LM5GW29.group.com.sebastian.crona"
 #else
-let appGroupSuite = "group.com.sebastian.crona.LV837U84N9"
+let appGroupSuite = "group.com.sebastian.crona.938LM5GW29"
 #endif
 
 func loadSnapshot() -> [SnapshotItem] {
