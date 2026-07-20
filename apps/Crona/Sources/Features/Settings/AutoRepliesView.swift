@@ -195,7 +195,7 @@ struct AutoReplyEditView: View {
                     if action == .REPLY {
                         TextField("Texto de respuesta", text: $replyText, axis: .vertical)
                             .lineLimit(2...5)
-                        Text("Variables disponibles: {nombre} → nombre de quien escribe.")
+                        Text("Variables: {nombre} · {primer_nombre} (de quien escribe) · {fecha} · {dia}.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }

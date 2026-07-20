@@ -133,7 +133,7 @@ struct ComposeView: View {
                             .padding(8)
                             .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
                     }
-                    Text("Variables disponibles: {nombre} → nombre del destinatario.")
+                    Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

@@ -9,6 +9,7 @@ import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
 import { buildMediaPayload, deleteMediaFile } from "./media.js";
 import { cleanupAutoReplyHits } from "./autoreply.js";
+import { renderVariables } from "../lib/variables.js";
 
 const TICK_MS = 30_000;
 const MAX_ATTEMPTS = 3;
@@ -155,11 +156,6 @@ async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAIL
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
-
-// Variables en el texto: {nombre} → nombre del destinatario (útil con múltiples destinatarios)
-export function renderVariables(text: string, msg: { recipientName: string }): string {
-  return text.replaceAll("{nombre}", msg.recipientName);
-}
 
 async function sendOne(msg: FullMessage): Promise<void> {
   const state = await evolution.cachedState(msg.instance.instanceName).catch(() => "close");

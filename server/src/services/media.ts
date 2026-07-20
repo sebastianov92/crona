@@ -6,6 +6,7 @@ import type { Media, ScheduledMessage } from "@prisma/client";
 import { prisma } from "../db.js";
 import { config } from "../config.js";
 import { errors } from "../lib/errors.js";
+import { renderVariables } from "../lib/variables.js";
 
 // Límites por tipo (SPEC §15): imagen ≤16 MB · video/pdf ≤64 MB
 const LIMITS: Record<string, { maxBytes: number; ext: string; mediatype: "image" | "video" | "document" }> = {
@@ -97,7 +98,7 @@ export async function buildMediaPayload(msg: ScheduledMessage): Promise<Record<s
     number: msg.recipientJid, // regla §5.2: jid guardado tal cual
     mediatype: spec.mediatype,
     mimetype: media.mimeType,
-    caption: (msg.body ?? "").replaceAll("{nombre}", msg.recipientName),
+    caption: renderVariables(msg.body ?? "", msg),
     media: mediaField,
     fileName: media.fileName,
     delay: 1800,
