@@ -35,12 +35,26 @@ struct CronaApp: App {
 enum Appearance: String, CaseIterable {
     case system, light, dark
 
-    var colorScheme: ColorScheme? {
+    // preferredColorScheme(nil) NO restaura "sistema" tras forzar un modo — usar APIs nativas
+    func apply() {
+        #if os(macOS)
         switch self {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
         }
+        #else
+        let style: UIUserInterfaceStyle = switch self {
+        case .system: .unspecified
+        case .light: .light
+        case .dark: .dark
+        }
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                window.overrideUserInterfaceStyle = style
+            }
+        }
+        #endif
     }
 
     var label: String {
@@ -65,7 +79,8 @@ struct RootView: View {
             case .ready: MainView()
             }
         }
-        .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
+        .onAppear { Appearance(rawValue: appearance)?.apply() }
+        .onChange(of: appearance) { _, new in Appearance(rawValue: new)?.apply() }
         .alert("Error", isPresented: .init(
             get: { session.toastError != nil },
             set: { if !$0 { session.toastError = nil } }
