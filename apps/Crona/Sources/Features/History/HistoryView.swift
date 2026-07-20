@@ -53,6 +53,7 @@ struct HistoryView: View {
                         } label: {
                             Label("Borrar", systemImage: "trash")
                         }
+                        .tint(.red)   // el tint verde global de la app pisa el rojo del rol destructivo
                     }
                 }
             }

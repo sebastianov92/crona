@@ -49,6 +49,7 @@ struct InstanceListView: View {
                     Button(role: .destructive) { confirmDelete = inst } label: {
                         Label("Eliminar", systemImage: "trash")
                     }
+                    .tint(.red)
                 }
                 .contextMenu {
                     Button("Ver QR") { qrInstance = inst }

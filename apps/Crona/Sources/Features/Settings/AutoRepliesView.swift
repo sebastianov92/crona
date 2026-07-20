@@ -31,7 +31,7 @@ struct AutoRepliesView: View {
                                 _ = try? await APIClient.shared.deleteAutoReply(id: rule.id)
                                 await load()
                             }
-                        } label: { Label("Eliminar", systemImage: "trash") }
+                        } label: { Label("Eliminar", systemImage: "trash") }.tint(.red)
                     }
                 }
             } footer: {
