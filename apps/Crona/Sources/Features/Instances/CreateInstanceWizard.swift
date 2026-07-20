@@ -1,32 +1,7 @@
 import SwiftUI
 
 // Flujo de vinculación estilo asistente: número → consentimiento → código de emparejamiento.
-
-struct CountryCode: Identifiable, Hashable {
-    let flag: String
-    let name: String
-    let code: String
-    var id: String { code + name }
-}
-
-let countryCodes: [CountryCode] = [
-    .init(flag: "🇪🇨", name: "Ecuador", code: "593"),
-    .init(flag: "🇺🇸", name: "EE. UU. / Canadá", code: "1"),
-    .init(flag: "🇲🇽", name: "México", code: "52"),
-    .init(flag: "🇨🇴", name: "Colombia", code: "57"),
-    .init(flag: "🇵🇪", name: "Perú", code: "51"),
-    .init(flag: "🇦🇷", name: "Argentina", code: "54"),
-    .init(flag: "🇨🇱", name: "Chile", code: "56"),
-    .init(flag: "🇻🇪", name: "Venezuela", code: "58"),
-    .init(flag: "🇧🇷", name: "Brasil", code: "55"),
-    .init(flag: "🇪🇸", name: "España", code: "34"),
-    .init(flag: "🇧🇴", name: "Bolivia", code: "591"),
-    .init(flag: "🇺🇾", name: "Uruguay", code: "598"),
-    .init(flag: "🇵🇾", name: "Paraguay", code: "595"),
-    .init(flag: "🇵🇦", name: "Panamá", code: "507"),
-    .init(flag: "🇬🇹", name: "Guatemala", code: "502"),
-    .init(flag: "🇩🇴", name: "Rep. Dominicana", code: "1809"),
-]
+// (países y prefijos en CountryPicker.swift)
 
 struct CreateInstanceView: View {
     enum Step { case number, consent, code, connected }
@@ -35,9 +10,10 @@ struct CreateInstanceView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var step: Step = .number
-    @State private var country = countryCodes[0]
+    @State private var country = countryFor("EC")
     @State private var number = ""
-    @State private var accepted = true
+    @State private var accepted = false
+    @State private var showCountryPicker = false
     @State private var busy = false
     @State private var error: String?
     @State private var created: CreateInstanceResponse?
@@ -82,6 +58,9 @@ struct CreateInstanceView: View {
             }
         }
         .onDisappear { pollTask?.cancel() }
+        .sheet(isPresented: $showCountryPicker) {
+            CountryPickerSheet(selection: $country)
+        }
         #if os(macOS)
         .frame(minWidth: 520, minHeight: 620)
         #endif
@@ -92,23 +71,17 @@ struct CreateInstanceView: View {
     private var iconsHeader: some View {
         HStack(spacing: 18) {
             Spacer()
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(red: 0.145, green: 0.827, blue: 0.400))
-                .frame(width: 76, height: 76)
-                .overlay {
-                    Image(systemName: "phone.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.white)
-                }
+            Image("WizardWhatsApp")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
             Image(systemName: "arrow.left.arrow.right")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-            Image("CronaIcon")
+            Image("WizardCrona")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 76, height: 76)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18))
-                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.gray.opacity(0.2)))
+                .frame(width: 80, height: 80)
             Spacer()
         }
         .padding(.top, 12)
@@ -126,10 +99,8 @@ struct CreateInstanceView: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
             HStack(spacing: 10) {
-                Menu {
-                    ForEach(countryCodes) { c in
-                        Button("\(c.flag) \(c.name) (+\(c.code))") { country = c }
-                    }
+                Button {
+                    showCountryPicker = true
                 } label: {
                     HStack(spacing: 6) {
                         Text(country.flag)
@@ -138,8 +109,9 @@ struct CreateInstanceView: View {
                     .padding(.horizontal, 14)
                     .frame(height: 48)
                     .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                    .contentShape(Rectangle())
                 }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.plain)
                 .fixedSize()
 
                 TextField("Tu número aquí", text: $number)
