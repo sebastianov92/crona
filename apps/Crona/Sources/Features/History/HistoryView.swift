@@ -47,6 +47,13 @@ struct HistoryView: View {
                         }
                     }
                     .padding(.vertical, 2)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task { await delete(item) }
+                        } label: {
+                            Label("Borrar", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .listStyle(.plain)
@@ -54,6 +61,16 @@ struct HistoryView: View {
             .searchable(text: $search, prompt: "Buscar")
             .refreshable { await session.refreshHistory() }
             .task { await session.refreshHistory() }
+        }
+    }
+
+    private func delete(_ item: HistoryItem) async {
+        session.history.removeAll { $0.id == item.id }   // optimista
+        do {
+            _ = try await APIClient.shared.deleteLog(id: item.id)
+        } catch {
+            session.report(error)
+            await session.refreshHistory()
         }
     }
 }

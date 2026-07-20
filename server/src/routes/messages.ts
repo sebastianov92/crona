@@ -270,6 +270,17 @@ export function registerMessageRoutes(app: FastifyInstance) {
     return reply.status(201).send(messageDTO(copy));
   });
 
+  // borrar un item del historial (log individual)
+  app.delete("/messages/logs/:id", { preHandler: authenticate }, async (req) => {
+    const { id } = req.params as { id: string };
+    const log = await prisma.messageLog.findFirst({
+      where: { id, scheduledMessage: { userId: req.userId } },
+    });
+    if (!log) throw errors.notFound("El registro");
+    await prisma.messageLog.delete({ where: { id } });
+    return { ok: true };
+  });
+
   app.delete("/messages/:id", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
     const msg = await ownMessage(req.userId, id);

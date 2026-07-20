@@ -249,4 +249,5 @@ extension APIClient {
     func cancelMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/cancel") }
     func duplicateMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/duplicate") }
     func deleteMessage(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/\(id)") }
+    func deleteLog(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/logs/\(id)") }
 }
