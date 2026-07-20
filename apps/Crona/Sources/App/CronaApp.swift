@@ -31,8 +31,30 @@ struct CronaApp: App {
     }
 }
 
+// Apariencia elegida en Ajustes: "system" | "light" | "dark"
+enum Appearance: String, CaseIterable {
+    case system, light, dark
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: return "Sistema"
+        case .light: return "Claro"
+        case .dark: return "Oscuro"
+        }
+    }
+}
+
 struct RootView: View {
     @Environment(SessionStore.self) private var session
+    @AppStorage("appearance") private var appearance = Appearance.system.rawValue
 
     var body: some View {
         Group {
@@ -43,6 +65,7 @@ struct RootView: View {
             case .ready: MainView()
             }
         }
+        .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
         .alert("Error", isPresented: .init(
             get: { session.toastError != nil },
             set: { if !$0 { session.toastError = nil } }

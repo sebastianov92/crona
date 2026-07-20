@@ -2,10 +2,20 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(SessionStore.self) private var session
+    @AppStorage("appearance") private var appearance = Appearance.system.rawValue
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("Apariencia") {
+                    Picker("Tema", selection: $appearance) {
+                        ForEach(Appearance.allCases, id: \.rawValue) { a in
+                            Text(a.label).tag(a.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 if let user = session.user {
                     Section("Cuenta") {
                         LabeledContent("Nombre", value: user.name)
