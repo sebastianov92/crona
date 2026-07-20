@@ -175,3 +175,11 @@ textarea.field { resize: vertical; min-height: 70px; }
   background: var(--panel2); border-radius: 12px; padding: 16px; text-align: center;
 }
 .mediathumb { max-width: 100%; max-height: 240px; border-radius: 10px; display: block; }
+
+.filebtn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 13px; border-radius: 10px; cursor: pointer;
+  border: 1.5px dashed var(--border); color: var(--text2); font-size: 14px;
+  transition: border-color .15s, color .15s;
+}
+.filebtn:hover { border-color: var(--accent); color: var(--accent); }

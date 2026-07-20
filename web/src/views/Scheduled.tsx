@@ -181,7 +181,16 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           <button className="btn small secondary" onClick={() => setFile(null)}>Quitar</button>
         </div>
       ) : (
-        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <label className="filebtn">
+          <IconPaperclip size={16} />
+          Adjuntar archivo
+          <input
+            type="file"
+            hidden
+            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
       )}
 
       <label className="label">Fecha y hora</label>
