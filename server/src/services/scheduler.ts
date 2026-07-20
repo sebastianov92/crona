@@ -50,12 +50,35 @@ export async function claimDue(limit = 10): Promise<string[]> {
   });
 }
 
+// Recurrentes con randomDelay: cada ocurrencia se corre +1..5 min para no enviar
+// siempre a la hora exacta (anti-detección). Antes de calcular la siguiente, se
+// re-ancla a la hora original (scheduledAt) para que el jitter NO se acumule día a día.
+function jitteredNext(msg: FullMessage): Date {
+  let base = msg.nextRunAt;
+  if (msg.randomDelay) {
+    const sched = DateTime.fromJSDate(msg.scheduledAt, { zone: msg.timezone });
+    let cur = DateTime.fromJSDate(msg.nextRunAt, { zone: msg.timezone }).set({
+      hour: sched.hour,
+      minute: sched.minute,
+      second: sched.second,
+    });
+    // si el jitter cruzó medianoche, re-anclar puede saltar ±1 día — corregirlo
+    const diffH = cur.diff(DateTime.fromJSDate(msg.nextRunAt), "hours").hours;
+    if (diffH > 12) cur = cur.minus({ days: 1 });
+    if (diffH < -12) cur = cur.plus({ days: 1 });
+    base = cur.toJSDate();
+  }
+  const next = nextOccurrence({ ...msg, nextRunAt: base } as Parameters<typeof nextOccurrence>[0]);
+  if (!msg.randomDelay) return next;
+  return new Date(next.getTime() + 60_000 + Math.floor(Math.random() * 240_000));
+}
+
 async function onOccurrenceSuccess(msg: FullMessage) {
   let data: Record<string, unknown>;
   if (msg.recurrence === "NONE") {
     data = { status: "COMPLETED", attempts: 0, lastError: null, claimedAt: null };
   } else {
-    const next = nextOccurrence(msg as Parameters<typeof nextOccurrence>[0]);
+    const next = jitteredNext(msg);
     data =
       msg.recurrenceUntil && next > msg.recurrenceUntil
         ? { status: "COMPLETED", attempts: 0, lastError: null, claimedAt: null }
@@ -96,7 +119,7 @@ async function onOccurrenceFailure(msg: FullMessage, errText: string) {
     data = { status: "FAILED", attempts, lastError: errText, claimedAt: null };
   } else {
     // recurrente: registrar la ocurrencia fallida y saltar a la siguiente
-    const next = nextOccurrence(msg as Parameters<typeof nextOccurrence>[0]);
+    const next = jitteredNext(msg);
     data =
       msg.recurrenceUntil && next > msg.recurrenceUntil
         ? { status: "COMPLETED", attempts: 0, lastError: errText, claimedAt: null }

@@ -51,8 +51,14 @@ struct MessageDetailView: View {
                         if msg.timezone != TimeZone.current.identifier {
                             LabeledContent("Zona horaria", value: timezoneLabel(msg.timezone))
                         }
+                        if msg.isAutoReply {
+                            LabeledContent("Origen", value: "Respuesta automática")
+                        }
                         if msg.recurrence != .NONE {
                             LabeledContent("Repite", value: recurrenceText(msg))
+                            if msg.randomDelay {
+                                LabeledContent("Variación", value: "aleatoria +1–5 min")
+                            }
                             if let until = msg.recurrenceUntil {
                                 LabeledContent("Hasta", value: until.formatted(date: .abbreviated, time: .omitted))
                             }

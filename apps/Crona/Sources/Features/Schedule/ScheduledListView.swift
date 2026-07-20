@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ScheduledListView: View {
     enum Filter: String, CaseIterable, Identifiable {
-        case all = "Todos", contacts = "Contactos", groups = "Grupos", recurring = "Recurrentes"
+        case all = "Todos", contacts = "Contactos", groups = "Grupos", recurring = "Recurrentes", auto = "Automáticas"
         var id: String { rawValue }
     }
 
@@ -19,6 +19,7 @@ struct ScheduledListView: View {
             case .contacts: msg.recipientKind == .CONTACT
             case .groups: msg.recipientKind == .GROUP
             case .recurring: msg.recurrence != .NONE
+            case .auto: msg.isAutoReply
             }
         }
         .filter {
@@ -114,6 +115,9 @@ struct MessageRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 4) {
+                    if message.isAutoReply {
+                        Image(systemName: "arrowshape.turn.up.left").font(.caption2)
+                    }
                     if message.recurrence != .NONE {
                         Image(systemName: recurrenceIcon).font(.caption2)
                     }

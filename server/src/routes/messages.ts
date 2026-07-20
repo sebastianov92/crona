@@ -29,6 +29,7 @@ const CreateBody = z.object({
   recurrence: RecurrenceEnum.default("NONE"),
   recurrenceDays: z.array(z.number().int().min(1).max(7)).default([]),
   recurrenceUntil: z.coerce.date().nullable().optional(),
+  randomDelay: z.boolean().default(false),
 });
 
 function validateContent(input: {
@@ -127,6 +128,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         recurrence: body.recurrence,
         recurrenceDays: body.recurrenceDays,
         recurrenceUntil: body.recurrenceUntil ?? null,
+        randomDelay: body.randomDelay,
         nextRunAt: body.scheduledAt,
       },
     });
@@ -152,6 +154,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
     recurrence: RecurrenceEnum.optional(),
     recurrenceDays: z.array(z.number().int().min(1).max(7)).optional(),
     recurrenceUntil: z.coerce.date().nullable().optional(),
+    randomDelay: z.boolean().optional(),
     status: z.enum(["ACTIVE", "PAUSED"]).optional(), // pausar / reanudar
   });
 
@@ -185,6 +188,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         ...(patch.recurrence ? { recurrence: patch.recurrence } : {}),
         ...(patch.recurrenceDays ? { recurrenceDays: patch.recurrenceDays } : {}),
         ...(patch.recurrenceUntil !== undefined ? { recurrenceUntil: patch.recurrenceUntil } : {}),
+        ...(patch.randomDelay !== undefined ? { randomDelay: patch.randomDelay } : {}),
         ...(patch.status ? { status: patch.status } : {}),
       },
     });

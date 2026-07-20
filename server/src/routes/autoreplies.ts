@@ -11,6 +11,8 @@ const autoReplyDTO = (r: AutoReply) => ({
   id: r.id,
   instanceId: r.instanceId,
   action: r.action,
+  contactJid: r.contactJid,
+  contactName: r.contactName,
   keyword: r.keyword,
   replyText: r.replyText,
   activeFromHour: r.activeFromHour,
@@ -24,6 +26,8 @@ const autoReplyDTO = (r: AutoReply) => ({
 const BaseBody = z.object({
   instanceId: z.string().uuid(),
   action: z.enum(["REPLY", "NOTIFY"]).default("REPLY"),
+  contactJid: z.string().min(3).nullable().optional(),
+  contactName: z.string().min(1).nullable().optional(),
   keyword: z.string().min(1).max(100).nullable().optional(),
   replyText: z.string().min(1).max(4096).nullable().optional(),
   activeFromHour: z.number().int().min(0).max(23).nullable().optional(),

@@ -6,6 +6,7 @@ struct ScheduleConfig: Equatable {
     var recurrenceDays: Set<Int> = []
     var until: Date? = nil
     var timezone: String = TimeZone.current.identifier
+    var randomDelay = false
 }
 
 // Zonas comunes + la del dispositivo (lista completa sería inmanejable en un Picker)
@@ -96,6 +97,14 @@ struct ScheduleSheet: View {
                     }
 
                     if config.recurrence != .NONE {
+                        Toggle(isOn: $config.randomDelay) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Variar hora aleatoriamente")
+                                Text("Cada envío se corre entre 1 y 5 min — evita el patrón exacto que detecta WhatsApp.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Toggle("Hasta", isOn: .init(
                             get: { config.until != nil },
                             set: { config.until = $0 ? Calendar.current.date(byAdding: .month, value: 1, to: config.date) : nil }

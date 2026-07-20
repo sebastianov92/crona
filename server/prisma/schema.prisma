@@ -129,6 +129,8 @@ model AutoReply {
   instanceId      String
   instance        Instance        @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   action          AutoReplyAction @default(REPLY)
+  contactJid      String? // null = cualquier contacto; si no, solo dispara con este jid
+  contactName     String?
   keyword         String? // null = cualquier mensaje entrante
   replyText       String? // requerido si action = REPLY
   activeFromHour  Int? // 0-23 en `timezone`; null = siempre activa
@@ -200,6 +202,8 @@ model ScheduledMessage {
   recurrenceUntil     DateTime?
   nextRunAt           DateTime // = scheduledAt al crear; el worker la recalcula
   status              ScheduleStatus @default(ACTIVE)
+  isAutoReply         Boolean        @default(false) // creado por una regla de respuesta automática
+  randomDelay         Boolean        @default(false) // recurrentes: variar cada ocurrencia +1..5 min (anti-detección)
   attempts            Int            @default(0) // de la ocurrencia actual
   lastError           String?
   claimedAt           DateTime? // claim del worker (§17); NULL cuando no está en proceso

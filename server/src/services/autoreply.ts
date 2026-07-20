@@ -44,6 +44,7 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
   });
 
   for (const rule of rules) {
+    if (rule.contactJid && rule.contactJid !== jid) continue; // regla para un contacto específico
     if (rule.keyword && !text.toLowerCase().includes(rule.keyword.toLowerCase())) continue;
     if (!inWindow(rule.activeFromHour, rule.activeToHour, rule.timezone)) continue;
 
@@ -82,6 +83,7 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
         timezone: rule.timezone,
         scheduledAt: runAt,
         nextRunAt: runAt,
+        isAutoReply: true,
       },
     });
     broadcast(instance.userId, "message.updated", messageDTO(msg));

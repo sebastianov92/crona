@@ -60,12 +60,18 @@ struct AutoReplyRow: View {
     let rule: AutoReply
     let onToggle: (Bool) -> Void
 
+    private var ruleTitle: String {
+        let who = rule.contactName.map { "Si \($0)" } ?? "Si alguien"
+        let what = rule.keyword.map { "dice \"\($0)\"" } ?? "escribe"
+        return "\(who) \(what)"
+    }
+
     var body: some View {
         HStack {
             Image(systemName: rule.action == .REPLY ? "arrowshape.turn.up.left.fill" : "bell.badge.fill")
                 .foregroundStyle(rule.enabled ? Theme.accent : .secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(rule.keyword.map { "Si dice \"\($0)\"" } ?? "Cualquier mensaje")
+                Text(ruleTitle)
                     .font(.body)
                 Text(rule.action == .REPLY ? "Responder: \(rule.replyText ?? "")" : "Avisarme por ntfy")
                     .font(.caption)
@@ -91,6 +97,7 @@ struct AutoReplyEditView: View {
     let rule: AutoReply?
 
     @State private var action: AutoReplyAction = .REPLY
+    @State private var contact: Recipient?
     @State private var keyword = ""
     @State private var replyText = ""
     @State private var limitHours = false
@@ -99,12 +106,49 @@ struct AutoReplyEditView: View {
     @State private var cooldown = 60
     @State private var busy = false
     @State private var error: String?
+    @State private var showContactPicker = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Cuando llegue un mensaje") {
-                    TextField("Palabra clave (vacío = cualquier mensaje)", text: $keyword)
+                Section("Cuando escriba") {
+                    Button {
+                        showContactPicker = true
+                    } label: {
+                        HStack {
+                            if let contact {
+                                AvatarView(name: contact.displayName, pictureUrl: contact.pictureUrl, size: 30)
+                                Text(contact.displayName)
+                            } else {
+                                Label("Cualquier contacto", systemImage: "person.2")
+                            }
+                            Spacer()
+                            if contact != nil {
+                                Button {
+                                    contact = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Section {
+                    TextField("ej. precio, cita, hola…", text: $keyword, axis: .vertical)
+                        .lineLimit(1...3)
+                        .padding(8)
+                        .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                } header: {
+                    Text("Palabra clave")
+                } footer: {
+                    Text("Deja vacío para cualquier mensaje.")
                 }
                 Section("Acción") {
                     Picker("Acción", selection: $action) {
@@ -114,6 +158,9 @@ struct AutoReplyEditView: View {
                     if action == .REPLY {
                         TextField("Texto de respuesta", text: $replyText, axis: .vertical)
                             .lineLimit(2...5)
+                        Text("Variables disponibles: {nombre} → nombre de quien escribe.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Section {
@@ -147,6 +194,13 @@ struct AutoReplyEditView: View {
                 }
             }
             .onAppear { applyRule() }
+            .sheet(isPresented: $showContactPicker) {
+                if let iid = rule?.instanceId ?? session.activeInstance?.id {
+                    RecipientPickerView(instanceId: iid) { picked in
+                        contact = picked.first
+                    }
+                }
+            }
         }
         #if os(macOS)
         .frame(minWidth: 440, minHeight: 480)
@@ -156,6 +210,10 @@ struct AutoReplyEditView: View {
     private func applyRule() {
         guard let rule else { return }
         action = rule.action
+        if let jid = rule.contactJid {
+            contact = Recipient(id: jid, jid: jid, displayName: rule.contactName ?? jid,
+                                pictureUrl: nil, kind: .CONTACT, phoneNumber: nil)
+        }
         keyword = rule.keyword ?? ""
         replyText = rule.replyText ?? ""
         limitHours = rule.activeFromHour != nil
@@ -173,6 +231,8 @@ struct AutoReplyEditView: View {
         let body = AutoReplyBody(
             instanceId: instanceId,
             action: action,
+            contactJid: contact?.jid,
+            contactName: contact?.displayName,
             keyword: keyword.trimmingCharacters(in: .whitespaces).isEmpty ? nil : keyword,
             replyText: action == .REPLY ? replyText : nil,
             activeFromHour: limitHours ? fromHour : nil,

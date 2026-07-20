@@ -94,6 +94,8 @@ struct ScheduledMessage: Identifiable, Codable, Hashable {
     var recurrenceUntil: Date?
     var nextRunAt: Date
     var status: ScheduleStatus
+    var isAutoReply: Bool
+    var randomDelay: Bool
     var attempts: Int
     var lastError: String?
     let createdAt: Date
@@ -166,6 +168,8 @@ struct AutoReply: Identifiable, Codable, Hashable {
     let id: String
     let instanceId: String
     var action: AutoReplyAction
+    var contactJid: String?
+    var contactName: String?
     var keyword: String?
     var replyText: String?
     var activeFromHour: Int?
@@ -179,6 +183,8 @@ struct AutoReply: Identifiable, Codable, Hashable {
 struct AutoReplyBody: Codable {
     var instanceId: String
     var action: AutoReplyAction
+    var contactJid: String?
+    var contactName: String?
     var keyword: String?
     var replyText: String?
     var activeFromHour: Int?
@@ -208,6 +214,7 @@ struct CreateMessageBody: Codable, Hashable {
     var recurrence: Recurrence
     var recurrenceDays: [Int]
     var recurrenceUntil: Date?
+    var randomDelay: Bool = false
 }
 
 struct PatchMessageBody: Codable, Hashable {
@@ -218,5 +225,6 @@ struct PatchMessageBody: Codable, Hashable {
     var recurrence: Recurrence?
     var recurrenceDays: [Int]?
     var recurrenceUntil: Date?
+    var randomDelay: Bool?
     var status: ScheduleStatus?
 }

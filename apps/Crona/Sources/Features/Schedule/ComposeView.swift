@@ -133,11 +133,9 @@ struct ComposeView: View {
                             .padding(8)
                             .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
                     }
-                    if recipients.count > 1 {
-                        Text("Tip: {nombre} se reemplaza por el nombre de cada destinatario.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Variables disponibles: {nombre} → nombre del destinatario.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Envío") {
@@ -326,7 +324,8 @@ struct ComposeView: View {
                     timezone: schedule.timezone,
                     recurrence: schedule.recurrence,
                     recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
-                    recurrenceUntil: schedule.until
+                    recurrenceUntil: schedule.until,
+                    randomDelay: schedule.recurrence != .NONE && schedule.randomDelay
                 )
                 let created = try await APIClient.shared.createMessage(body)
                 if !session.upcoming.contains(where: { $0.id == created.id }) {
