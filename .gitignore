@@ -5,3 +5,4 @@ data/
 *.xcodeproj
 .DS_Store
 apps/CatchApp/DerivedData/
+dist/

@@ -73,7 +73,10 @@ Luego configura Evolution desde la app (Ajustes → Servidor Evolution → URL i
 
 ## Apps iOS y macOS
 
-*(Próximamente: DMG para Mac e IPA para iPhone listos para descargar.)*
+Descarga la última versión desde [**Releases**](https://github.com/sebastianov92/crona/releases):
+
+- **Mac (`Crona.dmg`)** — abre el DMG, arrastra Crona a Aplicaciones. La primera vez: click derecho → **Abrir** (la app no está notarizada).
+- **iPhone (`Crona.ipa`)** — el IPA viene sin firmar; instálalo con [Sideloadly](https://sideloadly.io) o [AltStore](https://altstore.io) usando tu propio Apple ID. Con Apple ID gratuito la firma dura 7 días (re-instala con la misma herramienta para renovar).
 
 ## Notificaciones push (ntfy)
 

@@ -1,0 +1,32 @@
+name: Release apps (DMG + IPA)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build DMG + IPA
+        run: ./scripts/build-release.sh
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Crona.dmg
+            dist/Crona.ipa
+          generate_release_notes: true
+        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload artifacts (manual runs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: crona-apps
+          path: dist/
+        if: "!startsWith(github.ref, 'refs/tags/')"
