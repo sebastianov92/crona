@@ -86,6 +86,7 @@ services:
       - traefik_net
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=n8n_default"
       - "traefik.http.routers.crona.rule=Host(`${CRONA_DOMAIN}`)"
       - "traefik.http.routers.crona.entrypoints=websecure"
       - "traefik.http.routers.crona.tls=true"
