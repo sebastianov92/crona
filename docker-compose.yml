@@ -15,20 +15,32 @@ services:
       POSTGRES_DB: crona
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crona"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  # crea la base `evolution` si no existe (one-shot; sin archivos externos — compatible con paneles)
+  db-init:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD}
+    entrypoint: >
+      sh -c "psql -h postgres -U crona -d crona -tc \"SELECT 1 FROM pg_database WHERE datname='evolution'\" | grep -q 1
+      || createdb -h postgres -U crona evolution"
+
   evolution:
     image: evoapicloud/evolution-api:v2.3.7
     container_name: crona-evolution
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     environment:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?Define EVOLUTION_API_KEY (openssl rand -hex 24)}
       DATABASE_ENABLED: "true"
