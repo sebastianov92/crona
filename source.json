@@ -1,0 +1,36 @@
+{
+  "name": "Crona",
+  "identifier": "com.sebastian.crona.source",
+  "subtitle": "Programa mensajes de WhatsApp",
+  "iconURL": "https://raw.githubusercontent.com/sebastianov92/crona/main/docs/icon.png",
+  "website": "https://github.com/sebastianov92/crona",
+  "tintColor": "#25D366",
+  "apps": [
+    {
+      "name": "Crona",
+      "bundleIdentifier": "com.sebastian.crona",
+      "developerName": "Sebastián Ordóñez",
+      "subtitle": "Programa mensajes de WhatsApp",
+      "localizedDescription": "Programa mensajes de WhatsApp (texto, fotos, videos y PDF) para que se envíen solos, con recurrencias, múltiples destinatarios y respuestas automáticas. Requiere tu propio servidor Crona (ver GitHub).",
+      "iconURL": "https://raw.githubusercontent.com/sebastianov92/crona/main/docs/icon.png",
+      "tintColor": "#25D366",
+      "category": "utilities",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "date": "2026-07-20",
+          "size": 7167186,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.0.0/Crona.ipa",
+          "localizedDescription": "Primera versión pública.",
+          "minOSVersion": "17.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": ["com.apple.security.application-groups"],
+        "privacy": {}
+      }
+    }
+  ],
+  "news": []
+}

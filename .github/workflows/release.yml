@@ -30,3 +30,15 @@ jobs:
           name: crona-apps
           path: dist/
         if: "!startsWith(github.ref, 'refs/tags/')"
+      - name: Update SideStore source.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          SIZE=$(stat -f%z dist/Crona.ipa)
+          TAG="${GITHUB_REF#refs/tags/}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main && git checkout main
+          ./scripts/make-source.sh "$TAG" "$SIZE" "Actualización $TAG"
+          git add source.json
+          git commit -m "chore: source.json → $TAG" || exit 0
+          git push origin main
