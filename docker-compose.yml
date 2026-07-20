@@ -60,7 +60,7 @@ services:
   crona:
     image: ghcr.io/sebastianov92/crona:latest
     # si el pull fallara, compila local: comenta `image` y descomenta la línea siguiente
-    # build: ./server
+    # build: { context: ., dockerfile: server/Dockerfile }
     container_name: crona
     restart: unless-stopped
     depends_on:

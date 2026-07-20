@@ -13,6 +13,7 @@
     "@fastify/helmet": "^13.1.0",
     "@fastify/multipart": "^10.1.0",
     "@fastify/rate-limit": "^11.1.0",
+    "@fastify/static": "^10.1.0",
     "@fastify/websocket": "^11.3.0",
     "@prisma/client": "^6",
     "argon2": "^0.41",

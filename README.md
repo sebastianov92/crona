@@ -71,6 +71,10 @@ Luego configura Evolution desde la app (Ajustes → Servidor Evolution → URL i
 
 > 💡 En ambos casos el server queda por HTTP en el puerto 3000. Para TLS: dominio + el servicio `caddy` incluido en el compose de Evolution-existente, o Cloudflare Tunnel, o Tailscale.
 
+## Web app (incluida)
+
+El servidor sirve una web app completa en **`http://tu-servidor:3000/app`** — misma funcionalidad que las apps nativas, con layout de escritorio (sidebar) y móvil (tabs). En iPhone/Android: abrir en el navegador → Compartir → **"Añadir a pantalla de inicio"** y se comporta como app (sin firmas ni renovaciones).
+
 ## Apps iOS y macOS
 
 Descarga la última versión desde [**Releases**](https://github.com/sebastianov92/crona/releases):

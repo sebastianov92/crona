@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 import { AppError } from "../lib/errors.js";
 import { EvolutionError } from "../services/evolution.js";
 
-export function registerErrorHandler(app: FastifyInstance) {
+export function registerErrorHandler(app: FastifyInstance, opts: { spaRoot?: string } = {}) {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {
       return reply.status(err.statusCode).send({ error: { code: err.code, message: err.message } });
@@ -29,7 +29,11 @@ export function registerErrorHandler(app: FastifyInstance) {
     return reply.status(500).send({ error: { code: "INTERNAL_ERROR", message: "Error interno del servidor." } });
   });
 
-  app.setNotFoundHandler((_req, reply) =>
-    reply.status(404).send({ error: { code: "NOT_FOUND", message: "La ruta no existe." } }),
-  );
+  app.setNotFoundHandler((req, reply) => {
+    // rutas internas de la SPA → index.html
+    if (opts.spaRoot && req.method === "GET" && req.url.startsWith("/app/")) {
+      return reply.type("text/html").sendFile("index.html", opts.spaRoot);
+    }
+    return reply.status(404).send({ error: { code: "NOT_FOUND", message: "La ruta no existe." } });
+  });
 }

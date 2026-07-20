@@ -3,7 +3,11 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
+import fastifyStatic from "@fastify/static";
 import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
 import { registerErrorHandler } from "./plugins/error-handler.js";
@@ -33,7 +37,18 @@ async function main() {
   await app.register(multipart, { limits: { fileSize: 64 * 1024 * 1024 } });
   await app.register(websocket);
 
-  registerErrorHandler(app);
+  // Web app (SPA) en /app — si existe el build (web/dist se copia a ./web en la imagen Docker)
+  const webDist = [
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../web"),
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/dist"),
+  ].find((p) => existsSync(path.join(p, "index.html")));
+  if (webDist) {
+    await app.register(fastifyStatic, { root: webDist, prefix: "/app/" });
+    app.get("/app", (_req, reply) => reply.redirect("/app/"));
+    app.get("/", (_req, reply) => reply.redirect("/app/"));
+  }
+
+  registerErrorHandler(app, { spaRoot: webDist });
 
   app.get("/health", async () => ({ ok: true, service: "crona", ts: new Date().toISOString() }));
 

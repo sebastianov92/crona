@@ -1,0 +1,11 @@
+{
+  "name": "Crona",
+  "short_name": "Crona",
+  "description": "Programa mensajes de WhatsApp",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#111B21",
+  "theme_color": "#25D366",
+  "icons": [{ "src": "/app/icon.png", "sizes": "512x512", "type": "image/png" }]
+}

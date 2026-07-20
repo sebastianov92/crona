@@ -4,7 +4,7 @@ services:
     # con un token del repo si es privado). Alternativa sin registry: comenta `image` y
     # descomenta `build` para compilar en el VPS.
     image: ghcr.io/sebastianov92/crona:latest
-    # build: ./server
+    # build: { context: ., dockerfile: server/Dockerfile }
     container_name: crona
     restart: unless-stopped
     env_file: .env
