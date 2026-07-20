@@ -14,7 +14,10 @@ struct AutoRepliesView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(rules) { rule in
-                    AutoReplyRow(rule: rule) { enabled in
+                    AutoReplyRow(rule: rule,
+                                 instanceName: session.instances.count > 1
+                                     ? session.instances.first { $0.id == rule.instanceId }?.name
+                                     : nil) { enabled in
                         Task {
                             _ = try? await APIClient.shared.setAutoReplyEnabled(id: rule.id, enabled: enabled)
                             await load()
@@ -58,6 +61,7 @@ struct AutoRepliesView: View {
 
 struct AutoReplyRow: View {
     let rule: AutoReply
+    var instanceName: String? = nil
     let onToggle: (Bool) -> Void
 
     private var ruleTitle: String {
@@ -82,6 +86,11 @@ struct AutoReplyRow: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                if let instanceName {
+                    Text("Número: \(instanceName)")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.accent)
+                }
             }
             Spacer()
             Toggle("", isOn: .init(get: { rule.enabled }, set: onToggle))
@@ -96,6 +105,7 @@ struct AutoReplyEditView: View {
 
     let rule: AutoReply?
 
+    @State private var instanceId: String?
     @State private var action: AutoReplyAction = .REPLY
     @State private var contact: Recipient?
     @State private var keyword = ""
@@ -111,6 +121,22 @@ struct AutoReplyEditView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if session.instances.count > 1 {
+                    Section("Número que responde") {
+                        if let rule {
+                            // la instancia de una regla existente no se cambia (crea otra regla si la necesitas en otro número)
+                            LabeledContent("Instancia",
+                                           value: session.instances.first { $0.id == rule.instanceId }?.name ?? "—")
+                        } else {
+                            Picker("Instancia", selection: $instanceId) {
+                                ForEach(session.instances) { inst in
+                                    Text(inst.name).tag(Optional(inst.id))
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Section("Cuando escriba") {
                     Button {
                         showContactPicker = true
@@ -195,7 +221,7 @@ struct AutoReplyEditView: View {
             }
             .onAppear { applyRule() }
             .sheet(isPresented: $showContactPicker) {
-                if let iid = rule?.instanceId ?? session.activeInstance?.id {
+                if let iid = rule?.instanceId ?? instanceId ?? session.activeInstance?.id {
                     RecipientPickerView(instanceId: iid) { picked in
                         contact = picked.first
                     }
@@ -208,6 +234,7 @@ struct AutoReplyEditView: View {
     }
 
     private func applyRule() {
+        if instanceId == nil { instanceId = rule?.instanceId ?? session.activeInstance?.id }
         guard let rule else { return }
         action = rule.action
         if let jid = rule.contactJid {
@@ -223,7 +250,7 @@ struct AutoReplyEditView: View {
     }
 
     private func save() async {
-        guard let instanceId = rule?.instanceId ?? session.activeInstance?.id else {
+        guard let instanceId = rule?.instanceId ?? instanceId ?? session.activeInstance?.id else {
             error = "Primero vincula una instancia de WhatsApp."
             return
         }
