@@ -47,11 +47,22 @@ Edita `.env`:
 
 ### 1.4 Levantar
 
+**Con imagen precompilada (rápido, recomendado)** — GitHub Actions publica la imagen en cada push a `main`:
+
+```bash
+# una sola vez: autenticarse en ghcr (token clásico con scope read:packages en github.com/settings/tokens)
+echo TU_TOKEN | docker login ghcr.io -u sebastianov92 --password-stdin
+
+docker compose pull && docker compose up -d && docker compose logs -f crona
+```
+
+**Compilando en el VPS** (sin registry): en `docker-compose.yml` comenta `image:` y descomenta `build: ./server`, luego:
+
 ```bash
 docker compose up -d --build && docker compose logs -f crona
 ```
 
-Las migraciones corren solas en el arranque del contenedor.
+Las migraciones corren solas en el arranque del contenedor. Para actualizar: `git pull && docker compose pull && docker compose up -d` (o `--build` en la variante local).
 
 **Opción A — con dominio y TLS (recomendada)**: incluye el servicio `caddy` del compose y edita `Caddyfile` con tu dominio. TLS automático.
 
