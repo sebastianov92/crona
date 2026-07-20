@@ -15,7 +15,10 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Build DMG + IPA
-        run: ./scripts/build-release.sh
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          [[ "$TAG" == v* ]] && export VERSION="${TAG#v}"
+          ./scripts/build-release.sh
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

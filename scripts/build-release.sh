@@ -5,6 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="${VERSION:-1.0.0}"   # en CI viene del tag (vX.Y.Z)
 APP_DIR="$ROOT/apps/Crona"
 DIST="$ROOT/dist"
 DD="$(mktemp -d)/dd"
@@ -18,7 +19,7 @@ xcodegen generate >/dev/null
 echo "── macOS (Release, firma ad-hoc) ──"
 xcodebuild -project Crona.xcodeproj -scheme Crona -configuration Release \
   -destination 'platform=macOS' -derivedDataPath "$DD" \
-  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES \
+  MARKETING_VERSION="$VERSION" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES \
   DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
   build | grep -E "error:|BUILD" || true
 
@@ -35,7 +36,7 @@ echo "→ $DIST/Crona.dmg"
 echo "── iOS (Release, sin firmar) ──"
 xcodebuild -project Crona.xcodeproj -scheme Crona -configuration Release \
   -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$DD" \
-  CODE_SIGNING_ALLOWED=NO build | grep -E "error:|BUILD" || true
+  MARKETING_VERSION="$VERSION" CODE_SIGNING_ALLOWED=NO build | grep -E "error:|BUILD" || true
 
 IOS_APP="$DD/Build/Products/Release-iphoneos/Crona.app"
 [ -d "$IOS_APP" ] || { echo "build iOS falló"; exit 1; }
