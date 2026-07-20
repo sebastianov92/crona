@@ -23,7 +23,7 @@ cat > "$(dirname "$0")/../source.json" <<EOF
   "apps": [
     {
       "name": "Crona",
-      "bundleIdentifier": "com.sebastian.crona",
+      "bundleIdentifier": "com.sebastianov.crona",
       "developerName": "Sebastián Ordóñez",
       "subtitle": "Programa mensajes de WhatsApp",
       "localizedDescription": "Programa mensajes de WhatsApp (texto, fotos, videos y PDF) para que se envíen solos, con recurrencias, múltiples destinatarios y respuestas automáticas. Requiere tu propio servidor Crona (ver GitHub).",
