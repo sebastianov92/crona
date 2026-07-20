@@ -183,3 +183,8 @@ textarea.field { resize: vertical; min-height: 70px; }
   transition: border-color .15s, color .15s;
 }
 .filebtn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Logo completo: variante blanca en oscuro, negra en claro */
+.logofull { display: block; }
+[data-theme="dark"] .logofull.light-only { display: none; }
+[data-theme="light"] .logofull.dark-only { display: none; }

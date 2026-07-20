@@ -5,6 +5,7 @@ import Scheduled from "./views/Scheduled";
 import History from "./views/History";
 import Settings from "./views/Settings";
 import { IconClock, IconGear, IconHistory } from "./icons";
+import { LogoFull } from "./lib";
 
 export interface AppState {
   user: User;
@@ -68,7 +69,7 @@ export default function App() {
   if (phase === "loading")
     return (
       <div className="center">
-        <img src="/app/icon.png" width={84} style={{ borderRadius: 20 }} />
+        <LogoFull width={240} />
       </div>
     );
   if (phase === "login" || !user)
@@ -113,8 +114,9 @@ function Login({ onDone }: { onDone: (u: User) => void }) {
   return (
     <div className="center">
       <div className="authbox">
-        <img className="logo" src="/app/icon.png" />
-        <h1 style={{ textAlign: "center", marginBottom: 8 }}>Crona</h1>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+          <LogoFull width={260} />
+        </div>
         {mode === "register" && (
           <input className="field" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
         )}
@@ -225,8 +227,8 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
     <Ctx.Provider value={state}>
       <div className="shell">
         <nav className="sidebar">
-          <div className="logo">
-            <img src="/app/icon.png" /> Crona
+          <div className="logo" style={{ justifyContent: "center" }}>
+            <LogoFull width={150} />
           </div>
           {tabs.map((t) => (
             <button key={t.id} className={`navbtn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>

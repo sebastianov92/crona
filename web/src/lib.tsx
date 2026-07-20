@@ -3,6 +3,18 @@ import { mediaBlobURL } from "./api";
 import { IconPaperclip } from "./icons";
 import type { LogStatus, MessageType, Recurrence, ScheduleStatus } from "./types";
 
+/** Logo completo "Crona": texto negro en tema claro, blanco en oscuro (los SVG traen la burbuja verde). */
+export function LogoFull({ width = 220 }: { width?: number }) {
+  // el arte útil del SVG ocupa la franja central del lienzo 1920×1080 — recorte visual vía aspect-ratio
+  const style = { width, height: width * 0.36, objectFit: "cover" as const, objectPosition: "center" };
+  return (
+    <>
+      <img className="logofull light-only" src="/app/logo-light.svg" alt="Crona" style={style} />
+      <img className="logofull dark-only" src="/app/logo-dark.svg" alt="Crona" style={style} />
+    </>
+  );
+}
+
 export function Avatar({ name, url, size = 44 }: { name: string; url?: string | null; size?: number }) {
   const initials = name
     .split(" ")
