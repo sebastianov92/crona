@@ -9,6 +9,10 @@ const Env = z.object({
   PUBLIC_URL: z.string().min(1),
   INTERNAL_URL: z.string().default("http://crona:3000"),
   PORT: z.coerce.number().default(3000),
+  // opcionales: si vienen, se siembran los ServerSettings al primer arranque (compose todo-en-uno)
+  EVOLUTION_BASE_URL: z.string().optional(),
+  EVOLUTION_API_KEY: z.string().optional(),
+  NTFY_BASE_URL: z.string().default("https://ntfy.sh"),
 });
 
 export const config = Env.parse(process.env);

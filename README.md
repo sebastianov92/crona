@@ -10,7 +10,35 @@ Ver [SPEC.md](SPEC.md) para la especificación completa y [DECISIONS.md](DECISIO
 
 ---
 
-## 1. Puesta en marcha en el VPS
+## 0. Instalación rápida TODO-EN-UNO (VPS sin nada instalado)
+
+Si tu VPS **no** tiene Evolution todavía, este compose levanta Postgres + Evolution v2 + Crona juntos y ya conectados entre sí:
+
+```bash
+git clone https://github.com/sebastianov92/crona.git && cd crona
+echo TU_TOKEN | docker login ghcr.io -u sebastianov92 --password-stdin
+
+cp .env.full.example .env
+openssl rand -hex 16   # → POSTGRES_PASSWORD
+openssl rand -hex 24   # → EVOLUTION_API_KEY
+openssl rand -hex 32   # → JWT_SECRET
+openssl rand -hex 32   # → ENCRYPTION_KEY
+openssl rand -hex 24   # → WEBHOOK_SECRET
+nano .env              # pega los valores y pon tu IP en PUBLIC_URL
+
+docker compose -f docker-compose.full.yml up -d
+curl -s localhost:3000/health   # → {"ok":true,...}
+```
+
+Evolution queda **preconfigurada automáticamente** (no hay que tocar el panel admin). Desde la app: servidor `http://IP_DEL_VPS:3000` → crear cuenta (1º = ADMIN) → vincular tu número → listo.
+
+Actualizar: `git pull && docker compose -f docker-compose.full.yml pull && docker compose -f docker-compose.full.yml up -d`
+
+Si **ya tienes Evolution corriendo**, usa la sección 1 (compose que se engancha a tu instalación existente).
+
+---
+
+## 1. Puesta en marcha en el VPS (Evolution existente)
 
 ### 1.1 Base de datos
 

@@ -20,6 +20,7 @@ import * as scheduler from "./services/scheduler.js";
 
 async function main() {
   await prisma.$connect();
+  await seedSettingsFromEnv();
   await scheduler.recoverOnBoot(); // logs SENDING → FAILED "INTERRUMPIDO", claims liberados (§17.6)
 
   // maxParamLength: los tokens firmados de /internal/media/:signedToken miden ~105 chars (default 100)
@@ -48,6 +49,20 @@ async function main() {
 
   await app.listen({ host: "0.0.0.0", port: config.PORT });
   scheduler.start(); // tick inmediato + setInterval 30 s
+}
+
+// Compose todo-en-uno: config de Evolution vía env en el PRIMER arranque (luego manda el panel admin)
+async function seedSettingsFromEnv() {
+  if (!config.EVOLUTION_BASE_URL || !config.EVOLUTION_API_KEY) return;
+  const existing = await prisma.serverSettings.findUnique({ where: { id: 1 } });
+  if (existing) return;
+  const { updateSettings } = await import("./services/settings.js");
+  await updateSettings({
+    evolutionBaseUrl: config.EVOLUTION_BASE_URL,
+    evolutionGlobalApiKey: config.EVOLUTION_API_KEY,
+    ntfyBaseUrl: config.NTFY_BASE_URL,
+  });
+  console.log("ServerSettings sembrados desde el entorno (Evolution preconfigurada)");
 }
 
 main().catch((err) => {

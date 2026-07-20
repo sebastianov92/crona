@@ -1,0 +1,73 @@
+# Crona TODO-EN-UNO: Postgres + Evolution API v2 + Crona Server.
+# Para VPS sin nada instalado. Uso:
+#   cp .env.full.example .env   (genera los secretos indicados)
+#   docker compose -f docker-compose.full.yml up -d
+# Las apps se conectan a http://IP_DEL_VPS:3000
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crona-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crona
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: crona
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crona"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: crona-evolution
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://crona:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      SERVER_PORT: 8080
+      LOG_LEVEL: ERROR
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  crona:
+    image: ghcr.io/sebastianov92/crona:latest
+    container_name: crona
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://crona:${POSTGRES_PASSWORD}@postgres:5432/crona
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      MEDIA_DIR: /data/media
+      PUBLIC_URL: ${PUBLIC_URL}
+      INTERNAL_URL: http://crona:3000
+      PORT: 3000
+      TZ: ${TZ:-America/Guayaquil}
+      # Evolution queda preconfigurada — no hace falta tocar el panel admin
+      EVOLUTION_BASE_URL: http://evolution:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+    volumes:
+      - crona_media:/data/media
+    ports:
+      - "3000:3000"
+
+volumes:
+  pg_data:
+  evolution_instances:
+  crona_media:
