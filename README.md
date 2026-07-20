@@ -25,13 +25,30 @@ openssl rand -hex 32   # → ENCRYPTION_KEY
 openssl rand -hex 24   # → WEBHOOK_SECRET
 nano .env              # pega los valores y pon tu IP en PUBLIC_URL
 
-docker compose -f docker-compose.full.yml up -d
+docker compose up -d
 curl -s localhost:3000/health   # → {"ok":true,...}
 ```
 
 Evolution queda **preconfigurada automáticamente** (no hay que tocar el panel admin). Desde la app: servidor `http://IP_DEL_VPS:3000` → crear cuenta (1º = ADMIN) → vincular tu número → listo.
 
-Actualizar: `git pull && docker compose -f docker-compose.full.yml pull && docker compose -f docker-compose.full.yml up -d`
+Actualizar: `git pull && docker compose pull && docker compose up -d`
+
+### Deploy desde panel (Hostinger y similares)
+
+El `docker-compose.yml` de la raíz es autocontenido: en el panel Docker pega la URL del repo
+(`https://github.com/sebastianov92/crona`) y define estas variables de entorno antes de desplegar
+(valores aleatorios largos; genera con `openssl rand -hex 32` o cualquier generador):
+
+| Variable | Nota |
+|---|---|
+| `POSTGRES_PASSWORD` | libre |
+| `EVOLUTION_API_KEY` | libre |
+| `JWT_SECRET` | mínimo 32 caracteres |
+| `ENCRYPTION_KEY` | **exactamente 64 caracteres hex** (0-9 a-f) |
+| `WEBHOOK_SECRET` | mínimo 16 caracteres |
+| `PUBLIC_URL` | `http://IP_DEL_VPS:3000` |
+
+Si falta alguna, el deploy falla con un mensaje que dice cuál.
 
 Si **ya tienes Evolution corriendo**, usa la sección 1 (compose que se engancha a tu instalación existente).
 
@@ -49,7 +66,7 @@ docker exec -it <contenedor_postgres> psql -U <usuario> -c "CREATE DATABASE cron
 
 ### 1.2 Red de Docker
 
-El nombre de la red del compose de Evolution varía. Verifícalo y ponlo en `docker-compose.yml` → `networks.evolution-net.name`:
+El nombre de la red del compose de Evolution varía. Verifícalo y ponlo en `docker-compose.evolution-existente.yml` → `networks.evolution-net.name`:
 
 ```bash
 docker network ls
@@ -77,13 +94,13 @@ Edita `.env`:
 **Con imagen precompilada (rápido, recomendado)** — GitHub Actions publica la imagen pública en cada push a `main`:
 
 ```bash
-docker compose pull && docker compose up -d && docker compose logs -f crona
+docker compose -f docker-compose.evolution-existente.yml pull && docker compose -f docker-compose.evolution-existente.yml up -d
 ```
 
-**Compilando en el VPS** (sin registry): en `docker-compose.yml` comenta `image:` y descomenta `build: ./server`, luego:
+**Compilando en el VPS** (sin registry): en `docker-compose.evolution-existente.yml` comenta `image:` y descomenta `build: ./server`, luego:
 
 ```bash
-docker compose up -d --build && docker compose logs -f crona
+docker compose -f docker-compose.evolution-existente.yml up -d --build
 ```
 
 Las migraciones corren solas en el arranque del contenedor. Para actualizar: `git pull && docker compose pull && docker compose up -d` (o `--build` en la variante local).

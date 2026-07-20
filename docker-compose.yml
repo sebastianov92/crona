@@ -1,32 +1,75 @@
+# Crona TODO-EN-UNO: Postgres + Evolution API v2 + Crona Server (autocontenido).
+# Compatible con paneles tipo Hostinger: pega la URL del repo y define las 5 variables
+# de entorno de abajo en el panel (o usa `cp .env.full.example .env` por SSH).
+# Variante para engancharse a una Evolution YA instalada: docker-compose.evolution-existente.yml
+# Las apps se conectan a http://IP_DEL_VPS:3000
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crona-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crona
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD (openssl rand -hex 16)}
+      POSTGRES_DB: crona
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crona"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: crona-evolution
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?Define EVOLUTION_API_KEY (openssl rand -hex 24)}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://crona:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      SERVER_PORT: 8080
+      LOG_LEVEL: ERROR
+    volumes:
+      - evolution_instances:/evolution/instances
+
   crona:
-    # Instalación rápida: imagen precompilada por GitHub Actions (requiere `docker login ghcr.io`
-    # con un token del repo si es privado). Alternativa sin registry: comenta `image` y
-    # descomenta `build` para compilar en el VPS.
     image: ghcr.io/sebastianov92/crona:latest
+    # si el pull fallara, compila local: comenta `image` y descomenta la línea siguiente
     # build: ./server
     container_name: crona
     restart: unless-stopped
-    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://crona:${POSTGRES_PASSWORD}@postgres:5432/crona
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (openssl rand -hex 32)}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Define ENCRYPTION_KEY (openssl rand -hex 32, 64 chars hex)}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?Define WEBHOOK_SECRET (openssl rand -hex 24)}
+      MEDIA_DIR: /data/media
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      INTERNAL_URL: http://crona:3000
+      PORT: 3000
+      TZ: ${TZ:-America/Guayaquil}
+      # Evolution queda preconfigurada — no hace falta tocar el panel admin
+      EVOLUTION_BASE_URL: http://evolution:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
     volumes:
-      - ./data/media:/data/media
-    networks: [evolution-net]
-    # Opción A (recomendada): expuesto solo vía reverse proxy (caddy).
-    # Opción B (solo HTTP, sin dominio): descomentar y quitar el servicio caddy.
-    # ports: ["3000:3000"]
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports: ["80:80", "443:443"]
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-    networks: [evolution-net]
-
-networks:
-  evolution-net:
-    external: true          # ⚠️ nombre real de la red del compose de Evolution (`docker network ls`)
+      - crona_media:/data/media
+    ports:
+      - "3000:3000"
 
 volumes:
-  caddy_data:
+  pg_data:
+  evolution_instances:
+  crona_media:
