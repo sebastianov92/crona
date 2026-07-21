@@ -377,8 +377,8 @@ struct ComposeView: View {
                 uploading = false
             }
             let typingMs = computedTypingMs()
-            // varios destinatarios (o una lista): arranca a la hora elegida, 3-9 s aleatorios entre cada envío
-            var offsetSec: TimeInterval = 0
+            // Varios destinatarios (o una lista): misma hora para todos — el worker los envía
+            // UNO POR UNO (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente).
             for r in recipients {
                 let body = CreateMessageBody(
                     instanceId: instanceId,
@@ -389,7 +389,7 @@ struct ComposeView: View {
                         ? nil
                         : (text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text),
                     mediaId: mediaId,
-                    scheduledAt: schedule.date.addingTimeInterval(offsetSec),
+                    scheduledAt: schedule.date,
                     timezone: schedule.timezone,
                     recurrence: schedule.recurrence,
                     recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
@@ -397,7 +397,6 @@ struct ComposeView: View {
                     randomDelay: schedule.recurrence != .NONE && schedule.randomDelay,
                     typingMs: typingMs
                 )
-                offsetSec += TimeInterval(Int.random(in: 3...9))
                 let created = try await APIClient.shared.createMessage(body)
                 if !session.upcoming.contains(where: { $0.id == created.id }) {
                     session.upcoming.append(created)

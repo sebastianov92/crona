@@ -15,7 +15,13 @@ export const QUICK_PERIODS = [
 export const clampTyping = (ms: number | null): number | null =>
   ms === null ? null : Math.max(1500, Math.min(25_000, Math.round(ms)));
 
-export const staggerSeconds = () => 3 + Math.floor(Math.random() * 7); // 3-9 s entre envíos de lista
+/** ¿La hora elegida cae dentro de la franja de este botón rápido? (para pintarlo activo) */
+export const quickActive = (when: string, r: { start: number; end: number }): boolean => {
+  const d = new Date(when);
+  if (Number.isNaN(d.getTime())) return false;
+  const m = d.getHours() * 60 + d.getMinutes();
+  return m >= r.start && m <= Math.max(r.start + 5, r.end);
+};
 
 const FILTERS = [
   { id: "all", label: "Todos" },
@@ -144,9 +150,8 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       const typingMs = clampTyping(
         type === "AUDIO" ? voiceMs.current : typingStart.current ? Date.now() - typingStart.current : null,
       );
-      // varios destinatarios: arranca a la hora elegida con 3-9 s aleatorios entre cada envío
-      let offsetSec = 0;
-      const base = new Date(when).getTime();
+      // Varios destinatarios: misma hora para todos — el worker los envía UNO POR UNO
+      // (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente), nunca dos a la vez.
       for (const r of recipients) {
         await api("POST", "/messages", {
           instanceId,
@@ -154,14 +159,13 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           type,
           body: type === "AUDIO" ? null : text.trim() || null,
           mediaId: mediaId ?? null,
-          scheduledAt: new Date(base + offsetSec * 1000).toISOString(),
+          scheduledAt: new Date(when).toISOString(),
           timezone: tz,
           recurrence,
           recurrenceDays: recurrence === "WEEKLY" ? [...days].sort() : [],
           randomDelay: recurrence !== "NONE" && randomDelay,
           typingMs,
         });
-        offsetSec += staggerSeconds();
       }
       await refreshMessages();
       toast(`Programado para ${recipients.length} destinatario${recipients.length > 1 ? "s" : ""} ✓`);
@@ -243,7 +247,11 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       <label className="label">Fecha y hora</label>
       <div className="chips" style={{ paddingBottom: 8 }}>
         {QUICK_PERIODS.map(([k, label]) => (
-          <button key={k} className="chip" onClick={() => setWhen(localInputValue(quickDate(user.quickHours[k])))}>
+          <button
+            key={k}
+            className={`chip ${quickActive(when, user.quickHours[k]) ? "active" : ""}`}
+            onClick={() => setWhen(localInputValue(quickDate(user.quickHours[k])))}
+          >
             {label}
           </button>
         ))}

@@ -53,8 +53,10 @@ export const evolution = {
   state: async (n: string) => evoFetch(`/instance/connectionState/${n}`, { apikey: await GLOBAL() }),
   logout: async (n: string) => evoFetch(`/instance/logout/${n}`, { method: "DELETE", apikey: await GLOBAL() }),
   remove: async (n: string) => evoFetch(`/instance/delete/${n}`, { method: "DELETE", apikey: await GLOBAL() }),
+  // timeout 60 s: el body lleva delay (señal "escribiendo…") de hasta 25 s y Evolution
+  // responde recién DESPUÉS de ese delay — el default de 30 s quedaba justo
   sendText: (n: string, k: string, body: unknown) =>
-    evoFetch(`/message/sendText/${n}`, { method: "POST", body, apikey: k }),
+    evoFetch(`/message/sendText/${n}`, { method: "POST", body, apikey: k, timeoutMs: 60_000 }),
   sendMedia: (n: string, k: string, body: unknown) =>
     evoFetch(`/message/sendMedia/${n}`, { method: "POST", body, apikey: k, timeoutMs: 180_000 }),
   // Nota de voz (ptt): body { number, audio, delay, encoding }

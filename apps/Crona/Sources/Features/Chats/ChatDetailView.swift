@@ -198,7 +198,11 @@ struct ChatDetailView: View {
     private var hours: QuickHours { session.user?.quickHours ?? .default }
 
     private func quickButton(_ label: String, icon: String, _ range: QuickRange) -> some View {
-        Button {
+        // resaltado si la hora elegida cae dentro de la franja — feedback de que el botón hizo efecto
+        let cal = Calendar.current
+        let minuteOfDay = cal.component(.hour, from: when) * 60 + cal.component(.minute, from: when)
+        let selected = minuteOfDay >= range.start && minuteOfDay <= max(range.start + 5, range.end)
+        return Button {
             when = quickDate(range)
         } label: {
             VStack(spacing: 4) {
@@ -207,8 +211,11 @@ struct ChatDetailView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 48)
-            .background(Color.gray.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.gray.opacity(0.25), lineWidth: 1))
+            .background(selected ? Theme.accent.opacity(0.22) : Color.gray.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(selected ? Theme.accent : Color.gray.opacity(0.25), lineWidth: 1))
+            .foregroundStyle(selected ? Theme.accent : .primary)
         }
         .buttonStyle(.plain)
     }

@@ -202,7 +202,9 @@ export async function tick(): Promise<void> {
   if (running) return; // nunca dos ticks solapados
   running = true;
   try {
-    const ids = await claimDue(10);
+    // 25 por tick: una lista se envía completa en secuencia (escribiendo → envía → pausa 3-9 s)
+    // dentro del mismo ciclo; `running` garantiza que nunca hay dos envíos en paralelo.
+    const ids = await claimDue(25);
     if (!ids.length) return;
     const msgs = await prisma.scheduledMessage.findMany({
       where: { id: { in: ids } },

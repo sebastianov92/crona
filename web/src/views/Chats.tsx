@@ -5,7 +5,7 @@ import { Avatar, messagePreview, scheduleLabel, useAsync } from "../lib";
 import { quickDate } from "../types";
 import type { ChatBubble, ChatSummary, Paginated } from "../types";
 import { IconCheck, IconChevron, IconPaperclip, IconSend, IconTrash } from "../icons";
-import { clampTyping, QUICK_PERIODS, VoiceRecorderButton } from "./Scheduled";
+import { clampTyping, QUICK_PERIODS, quickActive, VoiceRecorderButton } from "./Scheduled";
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -243,7 +243,7 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
               {QUICK_PERIODS.map(([k, label]) => (
                 <button
                   key={k}
-                  className="chip"
+                  className={`chip ${quickActive(when, user.quickHours[k]) ? "active" : ""}`}
                   onClick={() => {
                     const d = quickDate(user.quickHours[k]);
                     const p = (n: number) => String(n).padStart(2, "0");
