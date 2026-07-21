@@ -41,6 +41,8 @@ struct ComposeView: View {
     #endif
     @State private var showFileImporter = false
     @State private var showRecorder = false
+    @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
+    @State private var voiceMs: Int? // duración de la nota de voz grabada
 
     private var canSubmit: Bool {
         !recipients.isEmpty && instanceId != nil && !sending &&
@@ -245,7 +247,15 @@ struct ComposeView: View {
                 }
             }
             .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
-            .sheet(isPresented: $showRecorder) { VoiceRecorderSheet { attachment = $0 } }
+            .sheet(isPresented: $showRecorder) {
+                VoiceRecorderSheet { att, durationMs in
+                    attachment = att
+                    voiceMs = durationMs
+                }
+            }
+            .onChange(of: text) { _, t in
+                if typingStart == nil && !t.isEmpty { typingStart = .now }
+            }
             #if os(iOS)
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
             .onChange(of: photoItem) { _, item in
@@ -339,6 +349,19 @@ struct ComposeView: View {
         UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
     }
 
+    /// Tiempo real de redacción (texto) o duración de la grabación (audio), acotado 1.5–25 s.
+    private func computedTypingMs() -> Int? {
+        let raw: Int?
+        if attachment?.messageType == .AUDIO {
+            raw = voiceMs
+        } else if let typingStart {
+            raw = Int(Date().timeIntervalSince(typingStart) * 1000)
+        } else {
+            raw = nil
+        }
+        return raw.map { max(1500, min(25_000, $0)) }
+    }
+
     private func submit() async {
         guard let instanceId, !recipients.isEmpty else { return }
         error = nil; sending = true
@@ -353,6 +376,9 @@ struct ComposeView: View {
                 ).mediaId
                 uploading = false
             }
+            let typingMs = computedTypingMs()
+            // varios destinatarios (o una lista): arranca a la hora elegida, 3-9 s aleatorios entre cada envío
+            var offsetSec: TimeInterval = 0
             for r in recipients {
                 let body = CreateMessageBody(
                     instanceId: instanceId,
@@ -363,13 +389,15 @@ struct ComposeView: View {
                         ? nil
                         : (text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text),
                     mediaId: mediaId,
-                    scheduledAt: schedule.date,
+                    scheduledAt: schedule.date.addingTimeInterval(offsetSec),
                     timezone: schedule.timezone,
                     recurrence: schedule.recurrence,
                     recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
                     recurrenceUntil: schedule.until,
-                    randomDelay: schedule.recurrence != .NONE && schedule.randomDelay
+                    randomDelay: schedule.recurrence != .NONE && schedule.randomDelay,
+                    typingMs: typingMs
                 )
+                offsetSec += TimeInterval(Int.random(in: 3...9))
                 let created = try await APIClient.shared.createMessage(body)
                 if !session.upcoming.contains(where: { $0.id == created.id }) {
                     session.upcoming.append(created)

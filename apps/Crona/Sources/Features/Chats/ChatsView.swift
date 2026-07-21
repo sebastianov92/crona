@@ -49,6 +49,21 @@ struct ChatsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task { await hide(chat) }
+                        } label: {
+                            Label("Quitar", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            Task { await hide(chat) }
+                        } label: {
+                            Label("Quitar de la lista", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .listStyle(.plain)
@@ -76,5 +91,13 @@ struct ChatsView: View {
             chats = try await APIClient.shared.chats().items
         } catch { session.report(error) }
         loading = false
+    }
+
+    /// "Quitar" chat: se oculta hasta que haya un mensaje nuevo (enviado o recibido).
+    private func hide(_ chat: ChatSummary) async {
+        do {
+            _ = try await APIClient.shared.hideChat(instanceId: chat.instanceId, jid: chat.jid)
+            chats.removeAll { $0.id == chat.id }
+        } catch { session.report(error) }
     }
 }

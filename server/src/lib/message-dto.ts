@@ -19,6 +19,7 @@ export const messageDTO = (m: ScheduledMessage) => ({
   status: m.status,
   isAutoReply: m.isAutoReply,
   randomDelay: m.randomDelay,
+  typingMs: m.typingMs,
   attempts: m.attempts,
   lastError: m.lastError,
   createdAt: m.createdAt,

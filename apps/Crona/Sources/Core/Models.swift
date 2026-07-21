@@ -22,7 +22,55 @@ struct User: Identifiable, Codable, Hashable {
     var notifyOnSent: Bool
     var chatListCount: Int
     var chatIncomingCount: Int
+    var quickHours: QuickHours
     let createdAt: Date
+}
+
+/// Franja de un botón rápido, en minutos del día (0–1439).
+/// start == end → hora exacta (se envía +1..5 min aleatorios); si no, hora aleatoria del rango.
+struct QuickRange: Codable, Hashable {
+    var start: Int
+    var end: Int
+}
+
+struct QuickHours: Codable, Hashable {
+    var morning: QuickRange
+    var afternoon: QuickRange
+    var evening: QuickRange
+
+    static let `default` = QuickHours(
+        morning: QuickRange(start: 8 * 60, end: 9 * 60),
+        afternoon: QuickRange(start: 15 * 60, end: 16 * 60),
+        evening: QuickRange(start: 20 * 60, end: 21 * 60)
+    )
+}
+
+/// Fecha para un botón rápido: antes de la hora configurada → hoy; dentro del rango o después → mañana.
+func quickDate(_ r: QuickRange) -> Date {
+    let cal = Calendar.current
+    let now = Date()
+    let nowMin = cal.component(.hour, from: now) * 60 + cal.component(.minute, from: now)
+    var day = now
+    if nowMin >= r.start { day = cal.date(byAdding: .day, value: 1, to: now)! }
+    let minute = r.start == r.end
+        ? r.start + Int.random(in: 1...5)
+        : Int.random(in: r.start...max(r.start, r.end))
+    return cal.date(bySettingHour: (minute / 60) % 24, minute: minute % 60, second: 0, of: day)!
+}
+
+struct ContactList: Identifiable, Codable, Hashable {
+    let id: String
+    let instanceId: String
+    var name: String
+    let createdAt: Date
+    var members: [ContactListMember]
+}
+
+struct ContactListMember: Codable, Hashable {
+    let jid: String
+    let name: String
+    let pictureUrl: String?
+    let kind: RecipientKind
 }
 
 struct ChatSummary: Identifiable, Codable, Hashable {
@@ -254,6 +302,7 @@ struct CreateMessageBody: Codable, Hashable {
     var recurrenceDays: [Int]
     var recurrenceUntil: Date?
     var randomDelay: Bool = false
+    var typingMs: Int? = nil
 }
 
 struct PatchMessageBody: Codable, Hashable {

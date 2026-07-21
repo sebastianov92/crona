@@ -73,10 +73,9 @@ struct InstanceListView: View {
         }
         .sheet(isPresented: $showCreate) { CreateInstanceView() }
         .sheet(item: $qrInstance) { inst in QRLinkView(instance: inst) }
-        .confirmationDialog(
-            "Se desconecta el número de WhatsApp y se borran sus mensajes programados. ¿Eliminar?",
-            isPresented: .init(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
-            titleVisibility: .visible
+        .alert(
+            "¿Eliminar instancia?",
+            isPresented: .init(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } })
         ) {
             Button("Eliminar \(confirmDelete?.name ?? "")", role: .destructive) {
                 if let inst = confirmDelete {
@@ -89,6 +88,9 @@ struct InstanceListView: View {
                     }
                 }
             }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se desconecta el número de WhatsApp y se borran sus mensajes programados. Irreversible.")
         }
         .refreshable { await session.refreshInstances() }
         .task { await session.refreshInstances() }

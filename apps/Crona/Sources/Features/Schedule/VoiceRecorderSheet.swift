@@ -4,7 +4,8 @@ import AVFoundation
 /// Grabadora de notas de voz: graba en AAC (.m4a), con preescucha antes de adjuntar.
 struct VoiceRecorderSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let onDone: (Attachment) -> Void
+    /// (adjunto, duración de la grabación en ms) — la duración alimenta la señal "grabando audio…"
+    let onDone: (Attachment, Int) -> Void
 
     enum Phase { case idle, denied, recording, recorded }
 
@@ -200,7 +201,7 @@ struct VoiceRecorderSheet: View {
             return
         }
         try? FileManager.default.removeItem(at: fileURL)
-        onDone(Attachment(data: data, fileName: "nota-de-voz.m4a", mimeType: "audio/mp4"))
+        onDone(Attachment(data: data, fileName: "nota-de-voz.m4a", mimeType: "audio/mp4"), seconds * 1000)
         dismiss()
     }
 }

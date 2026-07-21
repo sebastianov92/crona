@@ -18,6 +18,8 @@ struct ChatDetailView: View {
     @State private var sending = false
     @State private var showRecorder = false
     @State private var showFileImporter = false
+    @State private var typingStart: Date?
+    @State private var voiceMs: Int?
     #if os(iOS)
     @State private var photoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
@@ -60,7 +62,15 @@ struct ChatDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .catchappChatIncoming)) { note in
             if note.userInfo?["jid"] as? String == chat.jid { Task { await load() } }
         }
-        .sheet(isPresented: $showRecorder) { VoiceRecorderSheet { attachment = $0 } }
+        .sheet(isPresented: $showRecorder) {
+            VoiceRecorderSheet { att, durationMs in
+                attachment = att
+                voiceMs = durationMs
+            }
+        }
+        .onChange(of: text) { _, t in
+            if typingStart == nil && !t.isEmpty { typingStart = .now }
+        }
         #if os(iOS)
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
         .onChange(of: photoItem) { _, item in
@@ -150,6 +160,11 @@ struct ChatDetailView: View {
         NavigationStack {
             VStack(spacing: 18) {
                 Text("¿Cuándo se envía?").font(.title3.bold())
+                HStack(spacing: 8) {
+                    quickButton("Mañana", icon: "sunrise", hours.morning)
+                    quickButton("Tarde", icon: "sun.max", hours.afternoon)
+                    quickButton("Noche", icon: "moon", hours.evening)
+                }
                 DatePicker("Fecha y hora", selection: $when, in: Date().addingTimeInterval(120)...)
                     .datePickerStyle(.graphical)
                 Button {
@@ -180,6 +195,37 @@ struct ChatDetailView: View {
 
     // MARK: - Lógica
 
+    private var hours: QuickHours { session.user?.quickHours ?? .default }
+
+    private func quickButton(_ label: String, icon: String, _ range: QuickRange) -> some View {
+        Button {
+            when = quickDate(range)
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.subheadline)
+                Text(label).font(.caption.weight(.medium)).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(Color.gray.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.gray.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Tiempo real de redacción o duración de la grabación, acotado 1.5–25 s.
+    private func computedTypingMs() -> Int? {
+        let raw: Int?
+        if isAudio {
+            raw = voiceMs
+        } else if let typingStart {
+            raw = Int(Date().timeIntervalSince(typingStart) * 1000)
+        } else {
+            raw = nil
+        }
+        return raw.map { max(1500, min(25_000, $0)) }
+    }
+
     private func load() async {
         do {
             bubbles = try await APIClient.shared.chatMessages(instanceId: chat.instanceId, jid: chat.jid).items
@@ -207,7 +253,8 @@ struct ChatDetailView: View {
                 timezone: TimeZone.current.identifier,
                 recurrence: .NONE,
                 recurrenceDays: [],
-                recurrenceUntil: nil
+                recurrenceUntil: nil,
+                typingMs: computedTypingMs()
             )
             let created = try await APIClient.shared.createMessage(body)
             if !session.upcoming.contains(where: { $0.id == created.id }) {
@@ -216,6 +263,8 @@ struct ChatDetailView: View {
             }
             text = ""
             attachment = nil
+            typingStart = nil
+            voiceMs = nil
             askWhen = false
             await load()
         } catch { session.report(error) }

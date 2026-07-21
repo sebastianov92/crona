@@ -67,7 +67,7 @@ export default function Settings() {
               } catch { toast("Error al guardar"); }
             }}
           >
-            {[5, 10, 20, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+            {[5, 10, 20, 30, 50, 75, 100].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <div className="kv">
@@ -89,6 +89,11 @@ export default function Settings() {
             <option value={20}>Últimos 20</option>
           </select>
         </div>
+      </div>
+
+      <label className="label">Horarios rápidos (Mañana · Tarde · Noche)</label>
+      <div className="card" style={{ padding: "2px 14px" }}>
+        <QuickHoursEditor />
       </div>
 
       <label className="label">Envíos</label>
@@ -125,6 +130,83 @@ export default function Settings() {
       {view === "admin" && <AdminSheet onClose={() => setView("")} />}
       {view === "users" && <UsersSheet onClose={() => setView("")} />}
     </div>
+  );
+}
+
+// ── Horarios rápidos ─────────────────────────────────────
+
+const toHHMM = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+function QuickHoursEditor() {
+  const { user, setUser, toast } = useApp();
+  const periods = [
+    ["morning", "Mañana"],
+    ["afternoon", "Tarde"],
+    ["evening", "Noche"],
+  ] as const;
+
+  const save = async (key: (typeof periods)[number][0], start: number, end: number) => {
+    try {
+      setUser(await api<User>("PATCH", "/me", { quickHours: { ...user.quickHours, [key]: { start, end } } }));
+    } catch {
+      toast("Error al guardar el horario");
+    }
+  };
+
+  return (
+    <>
+      {periods.map(([key, label]) => {
+        const r = user.quickHours[key];
+        const exact = r.start === r.end;
+        return (
+          <div key={key} className="kv" style={{ flexWrap: "wrap", gap: 8 }}>
+            <span className="k">{label}</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <select
+                className="field"
+                style={{ width: "auto", padding: "6px 8px" }}
+                value={exact ? "exact" : "range"}
+                onChange={(e) =>
+                  e.target.value === "exact" ? save(key, r.start, r.start) : save(key, r.start, Math.min(r.start + 60, 1439))
+                }
+              >
+                <option value="exact">Hora exacta</option>
+                <option value="range">Rango</option>
+              </select>
+              <input
+                className="field"
+                style={{ width: "auto", padding: "6px 8px" }}
+                type="time"
+                value={toHHMM(r.start)}
+                onChange={(e) => {
+                  const s = toMin(e.target.value);
+                  save(key, s, exact ? s : Math.max(s, r.end));
+                }}
+              />
+              {!exact && (
+                <>
+                  <span className="k">a</span>
+                  <input
+                    className="field"
+                    style={{ width: "auto", padding: "6px 8px" }}
+                    type="time"
+                    value={toHHMM(r.end)}
+                    onChange={(e) => save(key, Math.min(r.start, toMin(e.target.value)), toMin(e.target.value))}
+                  />
+                </>
+              )}
+            </span>
+            <div className="hint" style={{ width: "100%", marginTop: 0 }}>
+              {exact ? "Se envía entre 1 y 5 min después de esa hora." : "Se envía a una hora aleatoria dentro del rango."}
+            </div>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

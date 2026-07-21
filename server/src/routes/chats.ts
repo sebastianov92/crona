@@ -36,6 +36,9 @@ export function registerChatRoutes(app: FastifyInstance) {
       },
     });
 
+    const hidden = await prisma.hiddenChat.findMany({ where: { userId: req.userId } });
+    const hiddenAt = new Map(hidden.map((h) => [`${h.instanceId}|${h.jid}`, h.hiddenAt]));
+
     const seen = new Set<string>();
     const chats: typeof msgs = [];
     for (const m of msgs) {
@@ -43,7 +46,6 @@ export function registerChatRoutes(app: FastifyInstance) {
       if (seen.has(key)) continue;
       seen.add(key);
       chats.push(m);
-      if (chats.length >= user.chatListCount) break;
     }
 
     const items = await Promise.all(
@@ -96,8 +98,25 @@ export function registerChatRoutes(app: FastifyInstance) {
       }),
     );
 
-    items.sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
-    return { items, nextCursor: null };
+    // Chats "eliminados": ocultos hasta que haya actividad posterior a hiddenAt
+    const visible = items.filter((i) => {
+      const h = hiddenAt.get(`${i.instanceId}|${i.jid}`);
+      return !h || i.lastAt > h;
+    });
+    visible.sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+    return { items: visible.slice(0, user.chatListCount), nextCursor: null };
+  });
+
+  // "Eliminar" chat de la lista: se oculta hasta que haya un mensaje nuevo (enviado o recibido)
+  app.delete("/chats", { preHandler: authenticate }, async (req) => {
+    const Query = z.object({ instanceId: z.string().uuid(), jid: z.string().min(3) });
+    const q = Query.parse(req.query);
+    await prisma.hiddenChat.upsert({
+      where: { userId_instanceId_jid: { userId: req.userId, instanceId: q.instanceId, jid: q.jid } },
+      create: { userId: req.userId, instanceId: q.instanceId, jid: q.jid },
+      update: { hiddenAt: new Date() },
+    });
+    return { ok: true };
   });
 
   app.get("/chats/messages", { preHandler: authenticate }, async (req) => {

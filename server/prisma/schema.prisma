@@ -72,12 +72,53 @@ model User {
   notifyOnSent  Boolean  @default(false) // notificar también envíos exitosos
   chatListCount     Int  @default(10) // cuántos chats mostrar en la pestaña Chats
   chatIncomingCount Int  @default(5) // mensajes recibidos visibles por chat (0 = ninguno)
+  // Botones rápidos Mañana/Tarde/Noche: minutos del día {start,end} por franja.
+  // start == end → hora exacta (se envía con +1..5 min aleatorios); si no, hora aleatoria del rango.
+  quickHours        Json? // {"morning":{"start":480,"end":540},"afternoon":{...},"evening":{...}}
   createdAt     DateTime @default(now())
   instances     Instance[]
   messages      ScheduledMessage[]
   media         Media[]
   refreshTokens RefreshToken[]
   autoReplies   AutoReply[]
+  hiddenChats   HiddenChat[]
+  contactLists  ContactList[]
+}
+
+// Chat "eliminado" de la pestaña Chats: se oculta hasta que haya actividad nueva
+// (mensaje programado/enviado o recibido después de hiddenAt).
+model HiddenChat {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId String
+  jid        String
+  hiddenAt   DateTime @default(now())
+
+  @@unique([userId, instanceId, jid])
+}
+
+// Lista de difusión: varios contactos a los que se programa de una sola vez.
+model ContactList {
+  id         String              @id @default(uuid())
+  userId     String
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId String
+  name       String
+  createdAt  DateTime            @default(now())
+  members    ContactListMember[]
+}
+
+model ContactListMember {
+  id         String      @id @default(uuid())
+  listId     String
+  list       ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  jid        String
+  name       String
+  pictureUrl String?
+  kind       RecipientKind @default(CONTACT)
+
+  @@unique([listId, jid])
 }
 
 model Invite {
@@ -228,6 +269,7 @@ model ScheduledMessage {
   status              ScheduleStatus @default(ACTIVE)
   isAutoReply         Boolean        @default(false) // creado por una regla de respuesta automática
   randomDelay         Boolean        @default(false) // recurrentes: variar cada ocurrencia +1..5 min (anti-detección)
+  typingMs            Int? // cuánto mostrar "escribiendo…/grabando audio…" antes de enviar (lo que tardó el usuario al redactar)
   attempts            Int            @default(0) // de la ocurrencia actual
   lastError           String?
   claimedAt           DateTime? // claim del worker (§17); NULL cuando no está en proceso

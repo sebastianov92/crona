@@ -35,6 +35,7 @@ func timezoneLabel(_ id: String) -> String {
 
 struct ScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(SessionStore.self) private var session
     @Binding var config: ScheduleConfig
 
     private static let dayNames = [(1, "L"), (2, "M"), (3, "X"), (4, "J"), (5, "V"), (6, "S"), (7, "D")]
@@ -44,12 +45,14 @@ struct ScheduleSheet: View {
             Form {
                 Section {
                     HStack(spacing: 8) {
-                        quickChip("En 1 hora", icon: "clock", Date().addingTimeInterval(3600))
-                        quickChip("Hoy 8 PM", icon: "moon", tonight8PM())
-                        quickChip("Mañana 9 AM", icon: "sunrise", tomorrow9AM())
+                        quickChip("Mañana", icon: "sunrise", hours.morning)
+                        quickChip("Tarde", icon: "sun.max", hours.afternoon)
+                        quickChip("Noche", icon: "moon", hours.evening)
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
                     .listRowBackground(Color.clear)
+                } footer: {
+                    Text("Las horas de cada franja se configuran en Ajustes.")
                 }
 
                 Section("Elegir fecha…") {
@@ -129,15 +132,20 @@ struct ScheduleSheet: View {
         #endif
     }
 
-    /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
+    private var hours: QuickHours { session.user?.quickHours ?? .default }
+
     private var tzOptions: [String] {
         commonTimezones.contains(config.timezone) ? commonTimezones : [config.timezone] + commonTimezones
     }
 
-    private func quickChip(_ label: String, icon: String, _ date: Date) -> some View {
-        let selected = abs(config.date.timeIntervalSince(date)) < 60
+    /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
+    /// Antes de la hora configurada → hoy; dentro del rango o después → mañana.
+    private func quickChip(_ label: String, icon: String, _ range: QuickRange) -> some View {
+        let cal = Calendar.current
+        let minuteOfDay = cal.component(.hour, from: config.date) * 60 + cal.component(.minute, from: config.date)
+        let selected = minuteOfDay >= range.start && minuteOfDay <= max(range.start + 5, range.end)
         return Button {
-            config.date = date
+            config.date = quickDate(range)
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: icon).font(.subheadline)
@@ -158,15 +166,4 @@ struct ScheduleSheet: View {
         .buttonStyle(.plain)
     }
 
-    private func tonight8PM() -> Date {
-        let cal = Calendar.current
-        let today8 = cal.date(bySettingHour: 20, minute: 0, second: 0, of: .now)!
-        return today8 > .now ? today8 : cal.date(byAdding: .day, value: 1, to: today8)!
-    }
-
-    private func tomorrow9AM() -> Date {
-        let cal = Calendar.current
-        let tomorrow = cal.date(byAdding: .day, value: 1, to: .now)!
-        return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
-    }
 }

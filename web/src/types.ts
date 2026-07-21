@@ -16,7 +16,41 @@ export interface User {
   notifyOnSent: boolean;
   chatListCount: number;
   chatIncomingCount: number;
+  quickHours: QuickHours;
   createdAt: string;
+}
+
+export interface QuickRange {
+  start: number; // minuto del día 0-1439
+  end: number; // == start → hora exacta (envía +1..5 min); si no, aleatorio dentro del rango
+}
+
+export interface QuickHours {
+  morning: QuickRange;
+  afternoon: QuickRange;
+  evening: QuickRange;
+}
+
+/** Fecha para un botón rápido: antes de la hora → hoy; dentro del rango o después → mañana. */
+export function quickDate(r: QuickRange): Date {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const d = new Date(now);
+  if (nowMin >= r.start) d.setDate(d.getDate() + 1);
+  const minute =
+    r.start === r.end
+      ? r.start + 1 + Math.floor(Math.random() * 5)
+      : r.start + Math.floor(Math.random() * (r.end - r.start + 1));
+  d.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  return d;
+}
+
+export interface ContactList {
+  id: string;
+  instanceId: string;
+  name: string;
+  createdAt: string;
+  members: { jid: string; name: string; pictureUrl: string | null; kind: RecipientKind }[];
 }
 
 export interface ChatSummary {

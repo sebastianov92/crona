@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, messagePreview, scheduleLabel, useAsync } from "../lib";
+import { quickDate } from "../types";
 import type { ChatBubble, ChatSummary, Paginated } from "../types";
-import { IconCheck, IconChevron, IconPaperclip, IconSend } from "../icons";
-import { VoiceRecorderButton } from "./Scheduled";
+import { IconCheck, IconChevron, IconPaperclip, IconSend, IconTrash } from "../icons";
+import { clampTyping, QUICK_PERIODS, VoiceRecorderButton } from "./Scheduled";
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -14,11 +15,23 @@ function timeLabel(iso: string): string {
 }
 
 export default function Chats() {
+  const { toast } = useApp();
   const [open, setOpen] = useState<ChatSummary | null>(null);
   const [chats, loading, reload] = useAsync(
     async () => (await api<Paginated<ChatSummary>>("GET", "/chats")).items,
     [],
   );
+
+  const removeChat = async (c: ChatSummary) => {
+    if (!confirm(`¿Quitar el chat con ${c.name}? Volverá a aparecer cuando haya un mensaje nuevo.`)) return;
+    try {
+      const q = new URLSearchParams({ instanceId: c.instanceId, jid: c.jid });
+      await api("DELETE", `/chats?${q}`);
+      reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error al quitar el chat");
+    }
+  };
 
   useEffect(() => {
     const fn = () => reload();
@@ -53,6 +66,16 @@ export default function Chats() {
               <div className="time">{timeLabel(c.lastAt)}</div>
               {c.pendingCount > 0 && <div className="state">{c.pendingCount} pendiente{c.pendingCount > 1 ? "s" : ""}</div>}
             </div>
+            <span
+              title="Quitar chat"
+              style={{ color: "var(--text2)", display: "flex", padding: 6 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeChat(c);
+              }}
+            >
+              <IconTrash size={15} />
+            </span>
           </button>
         ))}
       </div>
@@ -61,13 +84,15 @@ export default function Chats() {
 }
 
 function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
-  const { toast, refreshMessages } = useApp();
+  const { user, toast, refreshMessages } = useApp();
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [asking, setAsking] = useState(false);
   const [when, setWhen] = useState("");
   const [busy, setBusy] = useState(false);
+  const typingStart = useRef<number | null>(null);
+  const voiceMs = useRef<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -124,9 +149,14 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         recurrence: "NONE",
         recurrenceDays: [],
+        typingMs: clampTyping(
+          type === "AUDIO" ? voiceMs.current : typingStart.current ? Date.now() - typingStart.current : null,
+        ),
       });
       setText("");
       setFile(null);
+      typingStart.current = null;
+      voiceMs.current = null;
       setAsking(false);
       toast(`Programado para ${scheduleLabel(new Date(when).toISOString())} ✓`);
       await load();
@@ -183,7 +213,7 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
           />
         </label>
         <div style={{ flexShrink: 0 }}>
-          <VoiceRecorderMini onDone={setFile} />
+          <VoiceRecorderMini onDone={(f, dur) => { setFile(f); voiceMs.current = dur ?? null; }} />
         </div>
         {isAudio ? (
           <div className="hint" style={{ flex: 1, marginTop: 0 }}>Nota de voz lista — se envía sin texto.</div>
@@ -193,7 +223,10 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
             style={{ flex: 1 }}
             placeholder="Escribe un mensaje"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              if (!typingStart.current && e.target.value) typingStart.current = Date.now();
+              setText(e.target.value);
+            }}
             onKeyDown={(e) => e.key === "Enter" && canSend && openAsk()}
           />
         )}
@@ -206,6 +239,21 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setAsking(false)}>
           <div className="sheet" style={{ maxWidth: 420 }}>
             <div className="sheethead"><h2>¿Cuándo se envía?</h2></div>
+            <div className="chips" style={{ paddingBottom: 8 }}>
+              {QUICK_PERIODS.map(([k, label]) => (
+                <button
+                  key={k}
+                  className="chip"
+                  onClick={() => {
+                    const d = quickDate(user.quickHours[k]);
+                    const p = (n: number) => String(n).padStart(2, "0");
+                    setWhen(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <input className="field" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
             <button className="btn" style={{ marginTop: 14 }} disabled={busy} onClick={send}>
               {busy ? <span className="spin" /> : "Programar"}
@@ -218,6 +266,6 @@ function ChatView({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
 }
 
 // versión compacta del grabador para la barra del chat (solo icono)
-function VoiceRecorderMini({ onDone }: { onDone: (f: File) => void }) {
+function VoiceRecorderMini({ onDone }: { onDone: (f: File, durationMs?: number) => void }) {
   return <VoiceRecorderButton onDone={onDone} compact />;
 }

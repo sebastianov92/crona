@@ -18,6 +18,7 @@ import { registerInstanceRoutes } from "./routes/instances.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerMessageRoutes } from "./routes/messages.js";
 import { registerChatRoutes } from "./routes/chats.js";
+import { registerListRoutes } from "./routes/lists.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerWsRoutes } from "./routes/ws.js";
 import { registerAutoReplyRoutes } from "./routes/autoreplies.js";
@@ -60,6 +61,7 @@ async function main() {
   registerWebhookRoutes(app);
   registerMessageRoutes(app);
   registerChatRoutes(app);
+  registerListRoutes(app);
   registerMediaRoutes(app);
   registerWsRoutes(app);
   registerAutoReplyRoutes(app);

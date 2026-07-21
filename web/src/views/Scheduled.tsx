@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
-import { shownName } from "../types";
-import type { MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
-import { IconCheckCircle, IconCircle, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop } from "../icons";
+import { quickDate, shownName } from "../types";
+import type { ContactList, MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
+import { IconCheckCircle, IconCircle, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop, IconTrash } from "../icons";
+
+export const QUICK_PERIODS = [
+  ["morning", "Mañana"],
+  ["afternoon", "Tarde"],
+  ["evening", "Noche"],
+] as const;
+
+export const clampTyping = (ms: number | null): number | null =>
+  ms === null ? null : Math.max(1500, Math.min(25_000, Math.round(ms)));
+
+export const staggerSeconds = () => 3 + Math.floor(Math.random() * 7); // 3-9 s entre envíos de lista
 
 const FILTERS = [
   { id: "all", label: "Todos" },
@@ -97,12 +108,14 @@ function localInputValue(d: Date): string {
 }
 
 function ComposeSheet({ onClose }: { onClose: () => void }) {
-  const { instances, refreshMessages, toast } = useApp();
+  const { user, instances, refreshMessages, toast } = useApp();
   const [instanceId, setInstanceId] = useState(instances[0]?.id ?? "");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const typingStart = useRef<number | null>(null); // primer caracter escrito
+  const voiceMs = useRef<number | null>(null); // duración de la nota de voz grabada
   const [when, setWhen] = useState(() => localInputValue(new Date(Date.now() + 3600_000)));
   const [tz, setTz] = useState(COMMON_TZ[0]);
   const [recurrence, setRecurrence] = useState<Recurrence>("NONE");
@@ -128,6 +141,12 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
             : file.type.startsWith("audio/")
               ? "AUDIO"
               : "DOCUMENT";
+      const typingMs = clampTyping(
+        type === "AUDIO" ? voiceMs.current : typingStart.current ? Date.now() - typingStart.current : null,
+      );
+      // varios destinatarios: arranca a la hora elegida con 3-9 s aleatorios entre cada envío
+      let offsetSec = 0;
+      const base = new Date(when).getTime();
       for (const r of recipients) {
         await api("POST", "/messages", {
           instanceId,
@@ -135,12 +154,14 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           type,
           body: type === "AUDIO" ? null : text.trim() || null,
           mediaId: mediaId ?? null,
-          scheduledAt: new Date(when).toISOString(),
+          scheduledAt: new Date(base + offsetSec * 1000).toISOString(),
           timezone: tz,
           recurrence,
           recurrenceDays: recurrence === "WEEKLY" ? [...days].sort() : [],
           randomDelay: recurrence !== "NONE" && randomDelay,
+          typingMs,
         });
+        offsetSec += staggerSeconds();
       }
       await refreshMessages();
       toast(`Programado para ${recipients.length} destinatario${recipients.length > 1 ? "s" : ""} ✓`);
@@ -184,7 +205,15 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
         <div className="hint">Las notas de voz se envían solas, sin texto.</div>
       ) : (
         <>
-          <textarea className="field" placeholder="Escribe un mensaje" value={text} onChange={(e) => setText(e.target.value)} />
+          <textarea
+            className="field"
+            placeholder="Escribe un mensaje"
+            value={text}
+            onChange={(e) => {
+              if (!typingStart.current && e.target.value) typingStart.current = Date.now();
+              setText(e.target.value);
+            }}
+          />
           <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
         </>
       )}
@@ -207,11 +236,18 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
           </label>
-          <VoiceRecorderButton onDone={setFile} />
+          <VoiceRecorderButton onDone={(f, dur) => { setFile(f); voiceMs.current = dur ?? null; }} />
         </div>
       )}
 
       <label className="label">Fecha y hora</label>
+      <div className="chips" style={{ paddingBottom: 8 }}>
+        {QUICK_PERIODS.map(([k, label]) => (
+          <button key={k} className="chip" onClick={() => setWhen(localInputValue(quickDate(user.quickHours[k])))}>
+            {label}
+          </button>
+        ))}
+      </div>
       <input className="field" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
       <label className="label">Zona horaria</label>
       <select className="field" value={tz} onChange={(e) => setTz(e.target.value)}>
@@ -262,10 +298,11 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
 
 // ── Grabador de notas de voz ─────────────────────────────
 
-export function VoiceRecorderButton({ onDone, compact = false }: { onDone: (f: File) => void; compact?: boolean }) {
+export function VoiceRecorderButton({ onDone, compact = false }: { onDone: (f: File, durationMs?: number) => void; compact?: boolean }) {
   const { toast } = useApp();
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [secs, setSecs] = useState(0);
+  const startedAt = useRef(0);
 
   useEffect(() => {
     if (!rec) return;
@@ -289,9 +326,10 @@ export function VoiceRecorderButton({ onDone, compact = false }: { onDone: (f: F
         stream.getTracks().forEach((t) => t.stop());
         const type = (r.mimeType || "audio/webm").split(";")[0];
         const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-        onDone(new File(chunks, `nota-de-voz.${ext}`, { type }));
+        onDone(new File(chunks, `nota-de-voz.${ext}`, { type }), Date.now() - startedAt.current);
       };
       r.start();
+      startedAt.current = Date.now();
       setSecs(0);
       setRec(r);
     } catch {
@@ -412,16 +450,31 @@ function ManualNumberForm({ onAdd }: { onAdd: (r: Recipient) => void }) {
 
 function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; onDone: (r: Recipient[]) => void; onClose: () => void }) {
   const { toast } = useApp();
-  const [kind, setKind] = useState<RecipientKind>("CONTACT");
+  const [tab, setTab] = useState<"CONTACT" | "GROUP" | "LISTS">("CONTACT");
+  const kind: RecipientKind = tab === "GROUP" ? "GROUP" : "CONTACT";
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Recipient[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [manualAdded, setManualAdded] = useState<Recipient[]>([]);
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [editingList, setEditingList] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const loadLists = useCallback(async () => {
+    try {
+      setLists((await api<Paginated<ContactList>>("GET", "/lists")).items.filter((l) => l.instanceId === instanceId));
+    } catch {
+      /* */
+    }
+  }, [instanceId]);
+
   useEffect(() => {
+    if (tab === "LISTS") {
+      loadLists();
+      return;
+    }
     const t = setTimeout(async () => {
       try {
         const q = new URLSearchParams({ kind, ...(search ? { search } : {}) });
@@ -431,7 +484,17 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [kind, search, instanceId]);
+  }, [tab, kind, search, instanceId, loadLists]);
+
+  const memberToRecipient = (m: ContactList["members"][number]): Recipient => ({
+    id: `list-${m.jid}`,
+    jid: m.jid,
+    displayName: m.name,
+    alias: null,
+    pictureUrl: m.pictureUrl,
+    kind: m.kind,
+    phoneNumber: null,
+  });
 
   const toggle = (r: Recipient) =>
     setSelected((prev) => (prev.some((x) => x.jid === r.jid) ? prev.filter((x) => x.jid !== r.jid) : [...prev, r]));
@@ -479,9 +542,70 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
       }
     >
       <div className="seg" style={{ marginBottom: 10 }}>
-        <button className={kind === "CONTACT" ? "active" : ""} onClick={() => setKind("CONTACT")}>Contactos</button>
-        <button className={kind === "GROUP" ? "active" : ""} onClick={() => setKind("GROUP")}>Grupos</button>
+        <button className={tab === "CONTACT" ? "active" : ""} onClick={() => setTab("CONTACT")}>Contactos</button>
+        <button className={tab === "GROUP" ? "active" : ""} onClick={() => setTab("GROUP")}>Grupos</button>
+        <button className={tab === "LISTS" ? "active" : ""} onClick={() => setTab("LISTS")}>Listas</button>
       </div>
+      {tab === "LISTS" ? (
+        <div className="card">
+          <button className="row" onClick={() => setEditingList(true)}>
+            <span style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
+              <IconPlus size={16} /> Nueva lista
+            </span>
+          </button>
+          {editingList && (
+            <ListEditor
+              instanceId={instanceId}
+              onSaved={() => { setEditingList(false); loadLists(); }}
+              onCancel={() => setEditingList(false)}
+            />
+          )}
+          {lists.length === 0 && !editingList && (
+            <div className="empty">Crea una lista para programar a varios contactos de una sola vez.</div>
+          )}
+          {lists.map((l) => {
+            const allIn = l.members.every((m) => selected.some((x) => x.jid === m.jid));
+            return (
+              <button
+                key={l.id}
+                className="row"
+                onClick={() => {
+                  const rs = l.members.map(memberToRecipient);
+                  setSelected((prev) =>
+                    allIn
+                      ? prev.filter((x) => !l.members.some((m) => m.jid === x.jid))
+                      : [...prev, ...rs.filter((r) => !prev.some((x) => x.jid === r.jid))],
+                  );
+                }}
+              >
+                <Avatar name={l.name} url={null} size={38} />
+                <div className="main">
+                  <div className="name" style={{ fontSize: 14 }}>{l.name}</div>
+                  <div className="sub">{l.members.length} contacto{l.members.length !== 1 ? "s" : ""} · se envía con 3-9 s entre cada uno</div>
+                </div>
+                <span
+                  title="Eliminar lista"
+                  style={{ color: "var(--text2)", display: "flex", padding: 6 }}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`¿Eliminar la lista "${l.name}"?`)) return;
+                    try {
+                      await api("DELETE", `/lists/${l.id}`);
+                      loadLists();
+                    } catch { toast("Error al eliminar la lista"); }
+                  }}
+                >
+                  <IconTrash size={15} />
+                </span>
+                <span style={{ color: allIn ? "var(--accent)" : "var(--text2)", display: "flex" }}>
+                  {allIn ? <IconCheckCircle size={20} /> : <IconCircle size={20} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+      <>
       <input
         ref={searchRef}
         className="field"
@@ -547,7 +671,75 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
           );
         })}
       </div>
+      </>
+      )}
     </Sheet>
+  );
+}
+
+// Editor de lista: nombre + contactos con checkbox (búsqueda propia)
+function ListEditor({ instanceId, onSaved, onCancel }: { instanceId: string; onSaved: () => void; onCancel: () => void }) {
+  const { toast } = useApp();
+  const [name, setName] = useState("");
+  const [search, setSearch] = useState("");
+  const [items, setItems] = useState<Recipient[]>([]);
+  const [members, setMembers] = useState<Recipient[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        const q = new URLSearchParams({ kind: "CONTACT", ...(search ? { search } : {}) });
+        setItems((await api<Paginated<Recipient>>("GET", `/instances/${instanceId}/recipients?${q}`)).items);
+      } catch {
+        /* */
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, instanceId]);
+
+  const toggle = (r: Recipient) =>
+    setMembers((prev) => (prev.some((x) => x.jid === r.jid) ? prev.filter((x) => x.jid !== r.jid) : [...prev, r]));
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api("POST", "/lists", {
+        instanceId,
+        name: name.trim(),
+        members: members.map((m) => ({ jid: m.jid, name: shownName(m), pictureUrl: m.pictureUrl, kind: m.kind })),
+      });
+      onSaved();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error al crear la lista");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
+      <input className="field" placeholder="Nombre de la lista (ej. Familia)" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      <input className="field" placeholder="Buscar contactos" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+        {items.map((r) => {
+          const on = members.some((x) => x.jid === r.jid);
+          return (
+            <button key={r.jid} className="row" onClick={() => toggle(r)} style={{ padding: "8px 10px" }}>
+              <Avatar name={shownName(r)} url={r.pictureUrl} size={30} />
+              <div className="main"><div className="name" style={{ fontSize: 13 }}>{shownName(r)}</div></div>
+              <span style={{ color: on ? "var(--accent)" : "var(--text2)", display: "flex" }}>{on ? <IconCheckCircle size={18} /> : <IconCircle size={18} />}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button className="btn small secondary" onClick={onCancel}>Cancelar</button>
+        <button className="btn small" disabled={!name.trim() || members.length === 0 || busy} onClick={save}>
+          Guardar ({members.length})
+        </button>
+      </div>
+    </div>
   );
 }
 

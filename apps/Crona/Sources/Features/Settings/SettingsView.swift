@@ -35,7 +35,7 @@ struct SettingsView: View {
                             get: { user.chatListCount },
                             set: { n in Task { session.user = try? await APIClient.shared.patchMe(chatListCount: n) } }
                         )) {
-                            ForEach([5, 10, 20, 30, 50], id: \.self) { Text("\($0)").tag($0) }
+                            ForEach([5, 10, 20, 30, 50, 75, 100], id: \.self) { Text("\($0)").tag($0) }
                         }
                         Picker("Mensajes recibidos por chat", selection: Binding(
                             get: { user.chatIncomingCount },
@@ -47,6 +47,11 @@ struct SettingsView: View {
                             Text("Últimos 10").tag(10)
                             Text("Últimos 20").tag(20)
                         }
+                    }
+                    Section {
+                        NavigationLink("Horarios rápidos (Mañana · Tarde · Noche)") { QuickHoursSettingsView() }
+                    } footer: {
+                        Text("Los botones rápidos al programar usan estas horas.")
                     }
                 }
 
@@ -255,10 +260,9 @@ struct AdminUsersView: View {
         } message: {
             Text("Se cerrarán sus sesiones activas.")
         }
-        .confirmationDialog(
-            "Se elimina el usuario, sus instancias de WhatsApp y todos sus mensajes. Irreversible.",
-            isPresented: .init(get: { deleteUser != nil }, set: { if !$0 { deleteUser = nil } }),
-            titleVisibility: .visible
+        .alert(
+            "¿Eliminar usuario?",
+            isPresented: .init(get: { deleteUser != nil }, set: { if !$0 { deleteUser = nil } })
         ) {
             Button("Eliminar \(deleteUser?.name ?? "")", role: .destructive) {
                 if let u = deleteUser {
@@ -270,6 +274,9 @@ struct AdminUsersView: View {
                     }
                 }
             }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se elimina el usuario, sus instancias de WhatsApp y todos sus mensajes. Irreversible.")
         }
     }
 

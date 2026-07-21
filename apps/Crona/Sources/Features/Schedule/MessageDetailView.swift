@@ -133,14 +133,15 @@ struct MessageDetailView: View {
         .sheet(isPresented: $showEdit, onDismiss: { Task { await load() } }) {
             if let msg { EditMessageView(message: msg) }
         }
-        .confirmationDialog("¿Cancelar este envío?", isPresented: $confirmCancel) {
+        .alert("¿Cancelar este envío?", isPresented: $confirmCancel) {
             Button("Cancelar envío", role: .destructive) { Task { await cancel() } }
+            Button("Volver", role: .cancel) {}
         }
-        .confirmationDialog(
-            "Se enviará a \(msg?.recipientName ?? "") en los próximos segundos.",
-            isPresented: $confirmSendNow, titleVisibility: .visible
-        ) {
+        .alert("¿Enviar ahora?", isPresented: $confirmSendNow) {
             Button("Enviar ahora") { Task { await sendNow() } }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Se enviará a \(msg?.recipientName ?? "") en los próximos segundos.")
         }
         .disabled(busy)
     }

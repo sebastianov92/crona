@@ -109,7 +109,7 @@ export async function buildMediaPayload(msg: ScheduledMessage): Promise<Record<s
     caption: renderVariables(msg.body ?? "", msg),
     media: mediaField,
     fileName: media.fileName,
-    delay: 1800,
+    delay: msg.typingMs ?? 1800, // "escribiendo…" el tiempo que el usuario tardó redactando
   };
 }
 
@@ -127,7 +127,7 @@ export async function buildAudioPayload(msg: ScheduledMessage): Promise<Record<s
   return {
     number: msg.recipientJid,
     audio: audioField,
-    delay: 1800,
+    delay: msg.typingMs ?? 1800, // "grabando audio…" el tiempo que duró la grabación
     encoding: true, // Evolution convierte a ogg/opus → llega como nota de voz real
   };
 }

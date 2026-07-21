@@ -30,6 +30,8 @@ const CreateBody = z.object({
   recurrenceDays: z.array(z.number().int().min(1).max(7)).default([]),
   recurrenceUntil: z.coerce.date().nullable().optional(),
   randomDelay: z.boolean().default(false),
+  // cuánto tardó el usuario redactando: se muestra "escribiendo…/grabando audio…" ese tiempo antes de enviar
+  typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
 });
 
 function validateContent(input: {
@@ -129,6 +131,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         recurrenceDays: body.recurrenceDays,
         recurrenceUntil: body.recurrenceUntil ?? null,
         randomDelay: body.randomDelay,
+        typingMs: body.typingMs ?? null,
         nextRunAt: body.scheduledAt,
       },
     });

@@ -173,7 +173,7 @@ async function sendOne(msg: FullMessage): Promise<void> {
         ? await evolution.sendText(msg.instance.instanceName, key, {
             number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
             text: renderVariables(msg.body ?? "", msg),
-            delay: 1800,
+            delay: msg.typingMs ?? 1800, // "escribiendo…" el tiempo real de redacción
           })
         : msg.type === "AUDIO"
           ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(msg))
@@ -210,7 +210,7 @@ export async function tick(): Promise<void> {
       orderBy: { nextRunAt: "asc" },
     });
     for (const [i, msg] of msgs.entries()) {
-      await sleep(i === 0 ? 0 : 3000 + rand(0, 9000)); // jitter anti-ban entre mensajes del mismo tick
+      await sleep(i === 0 ? 0 : 3000 + rand(0, 6000)); // 3-9 s entre mensajes del mismo tick (anti-ban, y ritmo de listas)
       await sendOne(msg as FullMessage);
     }
   } catch (err) {
