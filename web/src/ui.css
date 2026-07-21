@@ -184,6 +184,28 @@ textarea.field { resize: vertical; min-height: 70px; }
 }
 .filebtn:hover { border-color: var(--accent); color: var(--accent); }
 
+/* ── Chats ──────────────────────────────────────────── */
+.chatpage { display: flex; flex-direction: column; height: 100%; padding-bottom: 16px; }
+@media (max-width: 800px) { .chatpage { padding-bottom: 80px; } }
+.chathead { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
+.bubbles { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; }
+.bubblerow { display: flex; }
+.bubblerow.left { justify-content: flex-start; }
+.bubblerow.right { justify-content: flex-end; }
+.bubble {
+  max-width: 78%; padding: 8px 12px; border-radius: 14px; font-size: 14px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.bubble.out { background: var(--accent-dim); border-color: transparent; border-bottom-right-radius: 4px; }
+.bubble.in { border-bottom-left-radius: 4px; }
+.bubble.scheduled { background: none; border: 1.5px dashed var(--accent); border-bottom-right-radius: 4px; }
+.bubblemeta {
+  display: flex; align-items: center; gap: 4px; justify-content: flex-end;
+  font-size: 11px; color: var(--text2); margin-top: 3px;
+}
+.bubble.scheduled .bubblemeta { color: var(--accent); }
+.chatinput { display: flex; align-items: center; gap: 8px; padding-top: 10px; }
+
 /* Logo completo: variante blanca en oscuro, negra en claro */
 .logofull { display: block; }
 [data-theme="dark"] .logofull.light-only { display: none; }

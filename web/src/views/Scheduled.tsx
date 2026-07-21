@@ -133,7 +133,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           instanceId,
           recipient: { jid: r.jid, name: shownName(r), kind: r.kind, pictureUrl: r.pictureUrl },
           type,
-          body: text.trim() || null,
+          body: type === "AUDIO" ? null : text.trim() || null,
           mediaId: mediaId ?? null,
           scheduledAt: new Date(when).toISOString(),
           timezone: tz,
@@ -180,8 +180,14 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       <label className="label">Mensaje</label>
-      <textarea className="field" placeholder="Escribe un mensaje" value={text} onChange={(e) => setText(e.target.value)} />
-      <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
+      {file?.type.startsWith("audio/") ? (
+        <div className="hint">Las notas de voz se envían solas, sin texto.</div>
+      ) : (
+        <>
+          <textarea className="field" placeholder="Escribe un mensaje" value={text} onChange={(e) => setText(e.target.value)} />
+          <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
+        </>
+      )}
 
       <label className="label">Adjunto (foto, video, PDF o audio)</label>
       {file ? (
@@ -256,7 +262,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
 
 // ── Grabador de notas de voz ─────────────────────────────
 
-function VoiceRecorderButton({ onDone }: { onDone: (f: File) => void }) {
+export function VoiceRecorderButton({ onDone, compact = false }: { onDone: (f: File) => void; compact?: boolean }) {
   const { toast } = useApp();
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [secs, setSecs] = useState(0);
@@ -299,6 +305,19 @@ function VoiceRecorderButton({ onDone }: { onDone: (f: File) => void }) {
   };
 
   const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className="btn small secondary"
+        style={rec ? { color: "var(--danger)" } : undefined}
+        onClick={() => (rec ? stop() : start())}
+      >
+        {rec ? <IconStop size={16} /> : <IconMic size={16} />}
+        {rec && mmss}
+      </button>
+    );
+  }
   return (
     <button
       type="button"

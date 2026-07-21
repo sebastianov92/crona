@@ -2,9 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { api, ApiError, connectWS, session } from "./api";
 import type { Instance, ScheduledMessage, User, Paginated } from "./types";
 import Scheduled from "./views/Scheduled";
+import Chats from "./views/Chats";
 import History from "./views/History";
 import Settings from "./views/Settings";
-import { IconClock, IconGear, IconHistory } from "./icons";
+import { IconChat, IconClock, IconGear, IconHistory } from "./icons";
 import { LogoFull } from "./lib";
 
 export interface AppState {
@@ -148,7 +149,7 @@ function Login({ onDone }: { onDone: (u: User) => void }) {
 }
 
 function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => void }) {
-  const [tab, setTab] = useState<"scheduled" | "history" | "settings">("scheduled");
+  const [tab, setTab] = useState<"scheduled" | "chats" | "history" | "settings">("scheduled");
   const [user, setUser] = useState(initialUser);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [upcoming, setUpcoming] = useState<ScheduledMessage[]>([]);
@@ -186,6 +187,9 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
         const inst = payload as Instance;
         setInstances((prev) => prev.map((i) => (i.id === inst.id ? inst : i)));
       }
+      if (type === "chat.incoming") {
+        window.dispatchEvent(new CustomEvent("chat-incoming", { detail: payload }));
+      }
     });
     const onFocus = () => {
       refreshInstances();
@@ -219,6 +223,7 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
 
   const tabs = [
     { id: "scheduled" as const, label: "Programados", Icon: IconClock },
+    { id: "chats" as const, label: "Chats", Icon: IconChat },
     { id: "history" as const, label: "Historial", Icon: IconHistory },
     { id: "settings" as const, label: "Ajustes", Icon: IconGear },
   ];
@@ -238,6 +243,7 @@ function Main({ user: initialUser, onLogout }: { user: User; onLogout: () => voi
         </nav>
         <main className="content">
           {tab === "scheduled" && <Scheduled />}
+          {tab === "chats" && <Chats />}
           {tab === "history" && <History />}
           {tab === "settings" && <Settings />}
         </main>

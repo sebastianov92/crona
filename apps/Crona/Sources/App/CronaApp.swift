@@ -115,6 +115,8 @@ struct MainView: View {
         TabView {
             ScheduledListView()
                 .tabItem { Label("Programados", systemImage: "clock") }
+            ChatsView()
+                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
             HistoryView()
                 .tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
             SettingsView()
@@ -128,12 +130,14 @@ struct MainView: View {
 struct MacMainView: View {
     enum Section: String, CaseIterable, Identifiable {
         case scheduled = "Programados"
+        case chats = "Chats"
         case history = "Historial"
         case settings = "Ajustes"
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .scheduled: return "clock"
+            case .chats: return "bubble.left.and.bubble.right"
             case .history: return "clock.arrow.circlepath"
             case .settings: return "gearshape"
             }
@@ -151,6 +155,7 @@ struct MacMainView: View {
         } detail: {
             switch section {
             case .scheduled: ScheduledListView()
+            case .chats: ChatsView()
             case .history: HistoryView()
             case .settings: SettingsView()
             }

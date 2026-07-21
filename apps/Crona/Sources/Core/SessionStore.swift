@@ -162,6 +162,9 @@ final class SessionStore {
             NotificationCenter.default.post(name: .catchappInstanceUpdated, object: inst)
         case .qrUpdated(let instanceId, let qrBase64):
             lastQR = (instanceId, qrBase64)
+        case .chatIncoming(let instanceId, let jid):
+            NotificationCenter.default.post(name: .catchappChatIncoming, object: nil,
+                                            userInfo: ["instanceId": instanceId, "jid": jid])
         }
     }
 }
@@ -170,4 +173,5 @@ extension Notification.Name {
     static let catchappMessageUpdated = Notification.Name("catchapp.message.updated")
     static let catchappLogUpdated = Notification.Name("catchapp.log.updated")
     static let catchappInstanceUpdated = Notification.Name("catchapp.instance.updated")
+    static let catchappChatIncoming = Notification.Name("catchapp.chat.incoming")
 }

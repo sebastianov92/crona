@@ -20,7 +20,40 @@ struct User: Identifiable, Codable, Hashable {
     let role: Role
     var ntfyTopic: String?
     var notifyOnSent: Bool
+    var chatListCount: Int
+    var chatIncomingCount: Int
     let createdAt: Date
+}
+
+struct ChatSummary: Identifiable, Codable, Hashable {
+    let instanceId: String
+    let jid: String
+    let name: String
+    let pictureUrl: String?
+    let kind: RecipientKind
+    let pendingCount: Int
+    let last: ChatLast?
+    let lastAt: Date
+    var id: String { "\(instanceId)|\(jid)" }
+}
+
+struct ChatLast: Codable, Hashable {
+    let fromMe: Bool
+    let type: MessageType
+    let body: String?
+    let at: Date
+}
+
+enum ChatDirection: String, Codable { case incoming = "in", out, scheduled }
+
+struct ChatBubble: Identifiable, Codable, Hashable {
+    let id: String
+    let direction: ChatDirection
+    let type: MessageType
+    let body: String?
+    let at: Date
+    let status: String?
+    let scheduledMessageId: String?
 }
 
 struct AuthResponse: Codable, Hashable {

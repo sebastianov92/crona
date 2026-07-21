@@ -70,6 +70,8 @@ model User {
   ntfyTopic     String? // topic personal, ej. "catchapp-sebastian-x7k2"
   ntfyToken     String? // opcional si el server ntfy usa auth
   notifyOnSent  Boolean  @default(false) // notificar también envíos exitosos
+  chatListCount     Int  @default(10) // cuántos chats mostrar en la pestaña Chats
+  chatIncomingCount Int  @default(5) // mensajes recibidos visibles por chat (0 = ninguno)
   createdAt     DateTime @default(now())
   instances     Instance[]
   messages      ScheduledMessage[]
@@ -120,6 +122,25 @@ model Instance {
   recipients      Recipient[]
   messages        ScheduledMessage[]
   autoReplies     AutoReply[]
+  chatMessages    ChatMessage[]
+}
+
+// Mensajes recibidos (webhook MESSAGES_UPSERT) — alimentan la pestaña Chats.
+// Solo se guardan a partir de que el server los ve; limpieza a 30 días.
+model ChatMessage {
+  id                 String      @id @default(uuid())
+  instanceId         String
+  instance           Instance    @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  jid                String // contacto (5939…@s.whatsapp.net)
+  fromMe             Boolean     @default(false)
+  type               MessageType @default(TEXT)
+  body               String? // texto o caption; null en media sin caption
+  pushName           String?
+  evolutionMessageId String?
+  sentAt             DateTime
+  createdAt          DateTime    @default(now())
+
+  @@index([instanceId, jid, sentAt])
 }
 
 // Regla de respuesta automática a mensajes entrantes (webhook MESSAGES_UPSERT)

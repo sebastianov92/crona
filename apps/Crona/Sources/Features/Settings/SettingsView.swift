@@ -29,6 +29,27 @@ struct SettingsView: View {
                     NavigationLink("Respuestas automáticas") { AutoRepliesView() }
                 }
 
+                if let user = session.user {
+                    Section("Chats") {
+                        Picker("Chats en la lista", selection: Binding(
+                            get: { user.chatListCount },
+                            set: { n in Task { session.user = try? await APIClient.shared.patchMe(chatListCount: n) } }
+                        )) {
+                            ForEach([5, 10, 20, 30, 50], id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        Picker("Mensajes recibidos por chat", selection: Binding(
+                            get: { user.chatIncomingCount },
+                            set: { n in Task { session.user = try? await APIClient.shared.patchMe(chatIncomingCount: n) } }
+                        )) {
+                            Text("Ninguno").tag(0)
+                            Text("El último").tag(1)
+                            Text("Últimos 5").tag(5)
+                            Text("Últimos 10").tag(10)
+                            Text("Últimos 20").tag(20)
+                        }
+                    }
+                }
+
                 Section("Envíos") {
                     if session.upcoming.contains(where: { $0.status == .ACTIVE }) {
                         Button {

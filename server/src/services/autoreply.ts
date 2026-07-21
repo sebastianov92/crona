@@ -21,6 +21,14 @@ function extractText(message: any): string {
   );
 }
 
+function detectType(message: any): "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "AUDIO" {
+  if (message?.audioMessage) return "AUDIO";
+  if (message?.imageMessage) return "IMAGE";
+  if (message?.videoMessage) return "VIDEO";
+  if (message?.documentMessage) return "DOCUMENT";
+  return "TEXT";
+}
+
 /** Procesa un mensaje entrante (webhook MESSAGES_UPSERT) contra las reglas de la instancia. */
 export async function handleIncomingMessage(instanceName: string, data: any): Promise<void> {
   const key = data?.key;
@@ -30,7 +38,6 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
   if (!jid || jid.endsWith("@g.us") || jid.includes("@broadcast")) return;
 
   const text = extractText(data?.message);
-  if (!text.trim()) return;
   const senderName: string = data?.pushName ?? jid.split("@")[0];
 
   const instance = await prisma.instance.findUnique({
@@ -38,6 +45,40 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
     include: { user: true },
   });
   if (!instance) return;
+
+  // Guardar el mensaje recibido para la pestaña Chats (texto y media), con dedupe por key.id
+  const type = detectType(data?.message);
+  if (text.trim() || type !== "TEXT") {
+    const evolutionMessageId: string | null = key.id ?? null;
+    const tsRaw = Number(data?.messageTimestamp ?? 0);
+    const sentAt = tsRaw > 0 ? new Date(tsRaw * 1000) : new Date();
+    const exists = evolutionMessageId
+      ? await prisma.chatMessage.findFirst({ where: { instanceId: instance.id, evolutionMessageId } })
+      : null;
+    if (!exists) {
+      const stored = await prisma.chatMessage.create({
+        data: {
+          instanceId: instance.id,
+          jid,
+          fromMe: false,
+          type,
+          body: text.trim() || null,
+          pushName: data?.pushName ?? null,
+          evolutionMessageId,
+          sentAt,
+        },
+      });
+      broadcast(instance.userId, "chat.incoming", {
+        instanceId: instance.id,
+        jid,
+        type: stored.type,
+        body: stored.body,
+        sentAt: stored.sentAt,
+      });
+    }
+  }
+
+  if (!text.trim()) return; // las reglas de respuesta automática solo aplican a texto
 
   const rules = await prisma.autoReply.findMany({
     where: { instanceId: instance.id, enabled: true },
@@ -96,5 +137,12 @@ export async function handleIncomingMessage(instanceName: string, data: any): Pr
 export async function cleanupAutoReplyHits(): Promise<void> {
   await prisma.autoReplyHit
     .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 3600_000) } } })
+    .catch(() => {});
+}
+
+// mensajes recibidos: 30 días de retención (la pestaña Chats muestra pocos por chat)
+export async function cleanupChatMessages(): Promise<void> {
+  await prisma.chatMessage
+    .deleteMany({ where: { sentAt: { lt: new Date(Date.now() - 30 * 24 * 3600_000) } } })
     .catch(() => {});
 }

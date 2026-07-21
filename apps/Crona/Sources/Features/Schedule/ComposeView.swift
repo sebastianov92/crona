@@ -152,15 +152,24 @@ struct ComposeView: View {
                         .buttonStyle(.plain)
                         .help("Grabar nota de voz")
 
-                        TextField("Escribe un mensaje", text: $text, axis: .vertical)
-                            .lineLimit(1...6)
-                            .textFieldStyle(.plain)
-                            .padding(8)
-                            .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+                        if attachment?.messageType == .AUDIO {
+                            Text("La nota de voz se envía sin texto.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                        } else {
+                            TextField("Escribe un mensaje", text: $text, axis: .vertical)
+                                .lineLimit(1...6)
+                                .textFieldStyle(.plain)
+                                .padding(8)
+                                .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+                        }
                     }
-                    Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if attachment?.messageType != .AUDIO {
+                        Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Envío") {
@@ -350,7 +359,9 @@ struct ComposeView: View {
                     recipient: RecipientInput(jid: r.jid, name: r.shownName,
                                               kind: r.kind, pictureUrl: r.pictureUrl),
                     type: attachment?.messageType ?? .TEXT,
-                    body: text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text,
+                    body: attachment?.messageType == .AUDIO
+                        ? nil
+                        : (text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text),
                     mediaId: mediaId,
                     scheduledAt: schedule.date,
                     timezone: schedule.timezone,

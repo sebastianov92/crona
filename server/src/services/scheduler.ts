@@ -8,7 +8,7 @@ import { ntfyPublish } from "./ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
 import { buildAudioPayload, buildMediaPayload, deleteMediaFile } from "./media.js";
-import { cleanupAutoReplyHits } from "./autoreply.js";
+import { cleanupAutoReplyHits, cleanupChatMessages } from "./autoreply.js";
 import { renderVariables } from "../lib/variables.js";
 
 const TICK_MS = 30_000;
@@ -263,9 +263,11 @@ export function start() {
   void cleanupRawWebhooks();
   void cleanupMedia();
   void cleanupAutoReplyHits();
+  void cleanupChatMessages();
   setInterval(() => {
     void cleanupRawWebhooks();
     void cleanupMedia();
     void cleanupAutoReplyHits();
+    void cleanupChatMessages();
   }, 24 * 3600 * 1000).unref();
 }

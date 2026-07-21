@@ -19,6 +19,8 @@ export function registerUserRoutes(app: FastifyInstance) {
     ntfyToken: z.string().nullable().optional(),
     notifyOnSent: z.boolean().optional(),
     password: z.string().min(8).optional(),
+    chatListCount: z.number().int().min(1).max(100).optional(),
+    chatIncomingCount: z.number().int().min(0).max(50).optional(),
   });
 
   app.patch("/me", { preHandler: authenticate }, async (req) => {
@@ -28,6 +30,8 @@ export function registerUserRoutes(app: FastifyInstance) {
     if (body.ntfyTopic !== undefined) data.ntfyTopic = body.ntfyTopic;
     if (body.ntfyToken !== undefined) data.ntfyToken = body.ntfyToken;
     if (body.notifyOnSent !== undefined) data.notifyOnSent = body.notifyOnSent;
+    if (body.chatListCount !== undefined) data.chatListCount = body.chatListCount;
+    if (body.chatIncomingCount !== undefined) data.chatIncomingCount = body.chatIncomingCount;
     if (body.password !== undefined) data.passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
     const user = await prisma.user.update({ where: { id: req.userId }, data });
     return userDTO(user);

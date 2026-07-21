@@ -149,6 +149,19 @@ export const IconDoc = (p: P) => (
   </svg>
 );
 
+export const IconChat = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M21 12a8 8 0 0 1-8 8H4l2.3-2.7A8 8 0 1 1 21 12z" />
+  </svg>
+);
+
+export const IconSend = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M22 2L11 13" />
+    <path d="M22 2l-7 20-4-9-9-4z" />
+  </svg>
+);
+
 export const IconMic = (p: P) => (
   <svg {...base(p)}>
     <rect x="9" y="3" width="6" height="11" rx="3" />

@@ -6,6 +6,7 @@ enum WSEvent {
     case logUpdated(MessageLog)
     case instanceUpdated(Instance)
     case qrUpdated(instanceId: String, qrBase64: String)
+    case chatIncoming(instanceId: String, jid: String)
 }
 
 final class WebSocketClient: @unchecked Sendable {
@@ -74,6 +75,10 @@ final class WebSocketClient: @unchecked Sendable {
             guard let p = payload as? [String: Any],
                   let id = p["instanceId"] as? String, let qr = p["qrBase64"] as? String else { return nil }
             return .qrUpdated(instanceId: id, qrBase64: qr)
+        case "chat.incoming":
+            guard let p = payload as? [String: Any],
+                  let id = p["instanceId"] as? String, let jid = p["jid"] as? String else { return nil }
+            return .chatIncoming(instanceId: id, jid: jid)
         default: return nil
         }
     }

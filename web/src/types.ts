@@ -14,7 +14,30 @@ export interface User {
   role: Role;
   ntfyTopic: string | null;
   notifyOnSent: boolean;
+  chatListCount: number;
+  chatIncomingCount: number;
   createdAt: string;
+}
+
+export interface ChatSummary {
+  instanceId: string;
+  jid: string;
+  name: string;
+  pictureUrl: string | null;
+  kind: RecipientKind;
+  pendingCount: number;
+  last: { fromMe: boolean; type: MessageType; body: string | null; at: string } | null;
+  lastAt: string;
+}
+
+export interface ChatBubble {
+  id: string;
+  direction: "in" | "out" | "scheduled";
+  type: MessageType;
+  body: string | null;
+  at: string;
+  status: string | null;
+  scheduledMessageId: string | null;
 }
 
 export interface Instance {

@@ -167,19 +167,38 @@ export function registerInstanceRoutes(app: FastifyInstance) {
       const id = typeof c?.id === "string" && c.id.includes("@") ? c.id : "";
       return rj || id;
     };
+    // Contactos sin pushName (nunca han chateado o no lo publican) NO se descartan:
+    // se muestran con su número como nombre — si no, "faltan contactos" en el picker.
     const contacts = rawContacts
-      .map((c) => ({
-        jid: pickJid(c),
-        name: (c?.pushName ?? c?.name ?? "") as string,
-        pictureUrl: (c?.profilePicUrl ?? null) as string | null,
-      }))
-      .filter((c) => c.jid.endsWith("@s.whatsapp.net") && c.name.trim().length > 0);
+      .map((c) => {
+        const jid = pickJid(c);
+        const pushName = ((c?.pushName ?? c?.name ?? "") as string).trim();
+        return {
+          jid,
+          name: pushName || (jid.includes("@") ? `+${jid.split("@")[0]}` : ""),
+          pictureUrl: (c?.profilePicUrl ?? null) as string | null,
+        };
+      })
+      .filter((c) => c.jid.endsWith("@s.whatsapp.net") && c.name.length > 0);
 
     const rawGroups: any[] = (await evolution.fetchAllGroups(inst.instanceName, key).catch(() => [])) ?? [];
-    // Fallback: en 2.3.7 groupFetchAllParticipating suele devolver [] — los grupos con actividad
-    // reciente sí aparecen como chats (@g.us) en findChats, con nombre en pushName/name.
-    const rawChats: any[] =
-      rawGroups.length > 0 ? [] : ((await evolution.findChats(inst.instanceName, key).catch(() => [])) ?? []);
+    // findChats siempre: aporta grupos (fallback 2.3.7, groupFetchAllParticipating suele devolver [])
+    // y también contactos con chat activo que findContacts no lista.
+    const rawChats: any[] = (await evolution.findChats(inst.instanceName, key).catch(() => [])) ?? [];
+
+    // contactos que solo aparecen como chats (no vinieron en findContacts)
+    const known = new Set(contacts.map((c) => c.jid));
+    for (const c of rawChats) {
+      const jid = pickJid(c);
+      if (!jid.endsWith("@s.whatsapp.net") || known.has(jid)) continue;
+      const pushName = ((c?.pushName ?? c?.name ?? "") as string).trim();
+      contacts.push({
+        jid,
+        name: pushName || `+${jid.split("@")[0]}`,
+        pictureUrl: (c?.profilePicUrl ?? null) as string | null,
+      });
+      known.add(jid);
+    }
     const groups = [
       ...rawGroups.map((g) => ({
         jid: (g?.id ?? "") as string,

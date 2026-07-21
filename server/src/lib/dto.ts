@@ -8,5 +8,7 @@ export const userDTO = (u: User) => ({
   role: u.role,
   ntfyTopic: u.ntfyTopic,
   notifyOnSent: u.notifyOnSent,
+  chatListCount: u.chatListCount,
+  chatIncomingCount: u.chatIncomingCount,
   createdAt: u.createdAt,
 });

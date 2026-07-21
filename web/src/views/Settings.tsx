@@ -6,7 +6,7 @@ import type { AdminSettings, AutoReply, Instance, Paginated, User } from "../typ
 import { IconCheckCircle, IconChevron, IconPause, IconPlay, IconPlus, IconTrash } from "../icons";
 
 export default function Settings() {
-  const { user, instances, upcoming, refreshMessages, logout, toast } = useApp();
+  const { user, setUser, instances, upcoming, refreshMessages, logout, toast } = useApp();
   const [theme, setTheme] = useTheme();
   const [view, setView] = useState<"" | "instances" | "autoreplies" | "ntfy" | "admin" | "users">("");
 
@@ -51,6 +51,44 @@ export default function Settings() {
         <button className="row" onClick={() => setView("autoreplies")}>
           <div className="main">Respuestas automáticas</div><IconChevron size={16} />
         </button>
+      </div>
+
+      <label className="label">Chats</label>
+      <div className="card" style={{ padding: "2px 14px" }}>
+        <div className="kv">
+          <span className="k">Chats en la lista</span>
+          <select
+            className="field"
+            style={{ width: "auto", padding: "6px 10px" }}
+            value={user.chatListCount}
+            onChange={async (e) => {
+              try {
+                setUser(await api<User>("PATCH", "/me", { chatListCount: Number(e.target.value) }));
+              } catch { toast("Error al guardar"); }
+            }}
+          >
+            {[5, 10, 20, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="kv">
+          <span className="k">Mensajes recibidos por chat</span>
+          <select
+            className="field"
+            style={{ width: "auto", padding: "6px 10px" }}
+            value={user.chatIncomingCount}
+            onChange={async (e) => {
+              try {
+                setUser(await api<User>("PATCH", "/me", { chatIncomingCount: Number(e.target.value) }));
+              } catch { toast("Error al guardar"); }
+            }}
+          >
+            <option value={0}>Ninguno</option>
+            <option value={1}>El último</option>
+            <option value={5}>Últimos 5</option>
+            <option value={10}>Últimos 10</option>
+            <option value={20}>Últimos 20</option>
+          </select>
+        </div>
       </div>
 
       <label className="label">Envíos</label>

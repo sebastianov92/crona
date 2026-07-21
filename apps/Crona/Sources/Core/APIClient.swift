@@ -156,13 +156,16 @@ extension APIClient {
     // Perfil
     func me() async throws -> User { try await request("GET", "/me") }
     func patchMe(name: String? = nil, ntfyTopic: String?? = nil, ntfyToken: String?? = nil,
-                 notifyOnSent: Bool? = nil, password: String? = nil) async throws -> User {
+                 notifyOnSent: Bool? = nil, password: String? = nil,
+                 chatListCount: Int? = nil, chatIncomingCount: Int? = nil) async throws -> User {
         struct B: Encodable {
             var name: String?
             var ntfyTopic: String??
             var ntfyToken: String??
             var notifyOnSent: Bool?
             var password: String?
+            var chatListCount: Int?
+            var chatIncomingCount: Int?
             func encode(to encoder: Encoder) throws {
                 var c = encoder.container(keyedBy: K.self)
                 if let name { try c.encode(name, forKey: .name) }
@@ -170,10 +173,21 @@ extension APIClient {
                 if let ntfyToken { try c.encode(ntfyToken, forKey: .ntfyToken) }
                 if let notifyOnSent { try c.encode(notifyOnSent, forKey: .notifyOnSent) }
                 if let password { try c.encode(password, forKey: .password) }
+                if let chatListCount { try c.encode(chatListCount, forKey: .chatListCount) }
+                if let chatIncomingCount { try c.encode(chatIncomingCount, forKey: .chatIncomingCount) }
             }
-            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password }
+            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount }
         }
-        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password))
+        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount))
+    }
+
+    // Chats
+    func chats() async throws -> Paginated<ChatSummary> { try await request("GET", "/chats") }
+    func chatMessages(instanceId: String, jid: String) async throws -> Paginated<ChatBubble> {
+        try await request("GET", "/chats/messages", query: [
+            .init(name: "instanceId", value: instanceId),
+            .init(name: "jid", value: jid),
+        ])
     }
 
     // Admin
