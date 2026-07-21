@@ -67,7 +67,8 @@ struct CreateInstanceView: View {
             CountryPickerSheet(selection: $country)
         }
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 620)
+        // alto suficiente para el paso del QR (header 80 + número + QR 230 + instrucciones + botones) sin scroll
+        .frame(minWidth: 520, minHeight: 780)
         #endif
     }
 

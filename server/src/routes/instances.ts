@@ -228,7 +228,13 @@ export function registerInstanceRoutes(app: FastifyInstance) {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      // marcas invisibles de direccion/formato que WhatsApp mete en nombres tipo "+593..."
+      .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+      .replace(/\s+/g, " ") // NBSP y espacios raros -> espacio normal
       .replaceAll("v", "b");
+
+  // Digitos de busqueda: sin ceros iniciales del formato local (0991... -> 991..., el jid es 593991...)
+  const searchDigits = (s: string) => s.replace(/\D/g, "").replace(/^0+/, "");
 
   app.get("/instances/:id/recipients", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
@@ -247,7 +253,7 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     });
 
     const term = q.search ? normalize(q.search) : "";
-    const digits = q.search?.replace(/\D/g, "") ?? "";
+    const digits = q.search ? searchDigits(q.search) : "";
     const filtered = q.search
       ? all.filter((r) => {
           const hay = normalize(`${r.alias ?? ""} ${r.displayName}`);

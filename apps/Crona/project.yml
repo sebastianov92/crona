@@ -31,6 +31,7 @@ targets:
           NSAllowsArbitraryLoads: true
         UILaunchScreen: {}
         LSApplicationCategoryType: public.app-category.productivity
+        NSMicrophoneUsageDescription: Crona usa el micrófono para grabar notas de voz que luego se envían por WhatsApp.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sebastianov.crona

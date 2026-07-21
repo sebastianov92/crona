@@ -27,6 +27,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Crona usa el micrófono para grabar notas de voz que luego se envían por WhatsApp.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

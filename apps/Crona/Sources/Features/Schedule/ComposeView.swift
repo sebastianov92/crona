@@ -40,6 +40,7 @@ struct ComposeView: View {
     @State private var showPhotoPicker = false
     #endif
     @State private var showFileImporter = false
+    @State private var showRecorder = false
 
     private var canSubmit: Bool {
         !recipients.isEmpty && instanceId != nil && !sending &&
@@ -140,6 +141,17 @@ struct ComposeView: View {
                         .help("Adjuntar foto, video, PDF o nota de voz")
                         #endif
 
+                        Button {
+                            showRecorder = true
+                        } label: {
+                            Image(systemName: "mic.fill")
+                                .font(.title3)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Grabar nota de voz")
+
                         TextField("Escribe un mensaje", text: $text, axis: .vertical)
                             .lineLimit(1...6)
                             .textFieldStyle(.plain)
@@ -224,6 +236,7 @@ struct ComposeView: View {
                 }
             }
             .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
+            .sheet(isPresented: $showRecorder) { VoiceRecorderSheet { attachment = $0 } }
             #if os(iOS)
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
             .onChange(of: photoItem) { _, item in

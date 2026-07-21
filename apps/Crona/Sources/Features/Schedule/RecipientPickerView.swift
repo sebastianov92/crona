@@ -17,6 +17,7 @@ struct RecipientPickerView: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
     @State private var showManualNumber = false
+    @State private var manualItems: [Recipient] = []
     @State private var renaming: Recipient?
     @State private var renameText = ""
 
@@ -68,6 +69,30 @@ struct RecipientPickerView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                    }
+                    // números agregados a mano en esta sesión: visibles y marcados, como cualquier contacto
+                    if kind == .CONTACT {
+                        ForEach(manualItems) { r in
+                            Button {
+                                tap(r)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    AvatarView(name: r.displayName, pictureUrl: nil, size: 40)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(r.displayName).font(.body)
+                                        Text("Número escrito a mano").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if multiSelect {
+                                        Image(systemName: isSelected(r) ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(isSelected(r) ? Theme.accent : .secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     if items.isEmpty && !loading {
                         ContentUnavailableView(
@@ -162,6 +187,7 @@ struct RecipientPickerView: View {
             .sheet(isPresented: $showManualNumber) {
                 ManualNumberSheet { recipient in
                     if multiSelect {
+                        if !manualItems.contains(where: { $0.jid == recipient.jid }) { manualItems.append(recipient) }
                         if !selected.contains(where: { $0.jid == recipient.jid }) { selected.append(recipient) }
                     } else {
                         onPick([recipient])

@@ -399,6 +399,7 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
   const [selected, setSelected] = useState<Recipient[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [manualAdded, setManualAdded] = useState<Recipient[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -482,11 +483,26 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
         {kind === "CONTACT" && showManual && (
           <ManualNumberForm
             onAdd={(r) => {
+              setManualAdded((prev) => (prev.some((x) => x.jid === r.jid) ? prev : [...prev, r]));
               setSelected((prev) => (prev.some((x) => x.jid === r.jid) ? prev : [...prev, r]));
               setShowManual(false);
             }}
           />
         )}
+        {kind === "CONTACT" &&
+          manualAdded.map((r) => {
+            const on = selected.some((x) => x.jid === r.jid);
+            return (
+              <button key={r.jid} className="row" onClick={() => toggle(r)}>
+                <Avatar name={r.displayName} url={null} size={38} />
+                <div className="main">
+                  <div className="name" style={{ fontSize: 14 }}>{r.displayName}</div>
+                  <div className="sub">Número escrito a mano</div>
+                </div>
+                <span style={{ color: on ? "var(--accent)" : "var(--text2)", display: "flex" }}>{on ? <IconCheckCircle size={20} /> : <IconCircle size={20} />}</span>
+              </button>
+            );
+          })}
         {items.length === 0 && <div className="empty">Sin resultados. Usa el botón de sincronizar (arriba a la derecha).</div>}
         {items.map((r) => {
           const on = selected.some((x) => x.jid === r.jid);
