@@ -12,7 +12,10 @@ final class SessionStore {
     var instances: [Instance] = []
     var activeInstanceId: String?
     var upcoming: [ScheduledMessage] = [] {
-        didSet { WidgetBridge.publish(upcoming: upcoming) }
+        didSet {
+            WidgetBridge.publish(upcoming: upcoming)
+            LocalNotifications.reschedule(upcoming: upcoming)
+        }
     }
     var history: [HistoryItem] = []
     var lastQR: (instanceId: String, qrBase64: String)?
@@ -152,26 +155,26 @@ final class SessionStore {
             } else {
                 upcoming.removeAll { $0.id == msg.id }
             }
-            NotificationCenter.default.post(name: .catchappMessageUpdated, object: msg)
+            NotificationCenter.default.post(name: .cronaMessageUpdated, object: msg)
         case .logUpdated(let log):
-            NotificationCenter.default.post(name: .catchappLogUpdated, object: log)
+            NotificationCenter.default.post(name: .cronaLogUpdated, object: log)
             Task { await refreshHistory() }
         case .instanceUpdated(let inst):
             if let i = instances.firstIndex(where: { $0.id == inst.id }) { instances[i] = inst }
             else { instances.append(inst) }
-            NotificationCenter.default.post(name: .catchappInstanceUpdated, object: inst)
+            NotificationCenter.default.post(name: .cronaInstanceUpdated, object: inst)
         case .qrUpdated(let instanceId, let qrBase64):
             lastQR = (instanceId, qrBase64)
         case .chatIncoming(let instanceId, let jid):
-            NotificationCenter.default.post(name: .catchappChatIncoming, object: nil,
+            NotificationCenter.default.post(name: .cronaChatIncoming, object: nil,
                                             userInfo: ["instanceId": instanceId, "jid": jid])
         }
     }
 }
 
 extension Notification.Name {
-    static let catchappMessageUpdated = Notification.Name("catchapp.message.updated")
-    static let catchappLogUpdated = Notification.Name("catchapp.log.updated")
-    static let catchappInstanceUpdated = Notification.Name("catchapp.instance.updated")
-    static let catchappChatIncoming = Notification.Name("catchapp.chat.incoming")
+    static let cronaMessageUpdated = Notification.Name("crona.message.updated")
+    static let cronaLogUpdated = Notification.Name("crona.log.updated")
+    static let cronaInstanceUpdated = Notification.Name("crona.instance.updated")
+    static let cronaChatIncoming = Notification.Name("crona.chat.incoming")
 }

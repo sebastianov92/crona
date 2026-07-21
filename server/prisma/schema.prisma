@@ -67,7 +67,7 @@ model User {
   passwordHash  String // argon2id
   name          String
   role          Role     @default(USER)
-  ntfyTopic     String? // topic personal, ej. "catchapp-sebastian-x7k2"
+  ntfyTopic     String? // topic personal, ej. "crona-sebastian-x7k2"
   ntfyToken     String? // opcional si el server ntfy usa auth
   notifyOnSent  Boolean  @default(false) // notificar también envíos exitosos
   chatListCount     Int  @default(10) // cuántos chats mostrar en la pestaña Chats

@@ -43,7 +43,7 @@ struct MenuBarView: View {
             Divider()
             Button("Nuevo mensaje") {
                 NSApp.activate(ignoringOtherApps: true)
-                NotificationCenter.default.post(name: .catchappNewMessage, object: nil)
+                NotificationCenter.default.post(name: .cronaNewMessage, object: nil)
             }
             .padding(.horizontal, 12)
             Button("Salir") { NSApp.terminate(nil) }
@@ -55,6 +55,6 @@ struct MenuBarView: View {
 }
 
 extension Notification.Name {
-    static let catchappNewMessage = Notification.Name("catchapp.new.message")
+    static let cronaNewMessage = Notification.Name("crona.new.message")
 }
 #endif

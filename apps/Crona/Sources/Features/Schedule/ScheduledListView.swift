@@ -70,7 +70,7 @@ struct ScheduledListView: View {
             .refreshable { await session.refreshMessages() }
             .task { await session.refreshMessages() }
             #if os(macOS)
-            .onReceive(NotificationCenter.default.publisher(for: .catchappNewMessage)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: .cronaNewMessage)) { _ in
                 showCompose = true   // "Nuevo mensaje" desde la menu bar (§9.4)
             }
             #endif

@@ -87,7 +87,7 @@ actor APIClient {
 
     func uploadMedia(data: Data, fileName: String, mimeType: String, retryOn401: Bool = true) async throws -> MediaUpload {
         guard let baseURL else { throw APIError.notConfigured }
-        let boundary = "catchapp-\(UUID().uuidString)"
+        let boundary = "crona-\(UUID().uuidString)"
         var req = URLRequest(url: baseURL.appending(path: "/media"))
         req.httpMethod = "POST"
         req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")

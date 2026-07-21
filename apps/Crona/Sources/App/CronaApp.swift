@@ -12,9 +12,7 @@ struct CronaApp: App {
                 .tint(Theme.accent)
                 .task {
                     await session.bootstrap()
-                    #if os(macOS)
                     LocalNotifications.setup()
-                    #endif
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, session.phase == .ready {

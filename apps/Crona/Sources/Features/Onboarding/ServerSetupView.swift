@@ -19,7 +19,7 @@ struct ServerSetupView: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 8) {
-                TextField("https://catchapp.midominio.com", text: $urlText)
+                TextField("https://crona.midominio.com", text: $urlText)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                     #if os(iOS)

@@ -59,7 +59,7 @@ struct ChatDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task { await load() }
-        .onReceive(NotificationCenter.default.publisher(for: .catchappChatIncoming)) { note in
+        .onReceive(NotificationCenter.default.publisher(for: .cronaChatIncoming)) { note in
             if note.userInfo?["jid"] as? String == chat.jid { Task { await load() } }
         }
         .sheet(isPresented: $showRecorder) {

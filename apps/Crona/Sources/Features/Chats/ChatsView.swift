@@ -71,7 +71,7 @@ struct ChatsView: View {
             .navigationTitle("Chats")
             .refreshable { await load() }
             .task { await load() }
-            .onReceive(NotificationCenter.default.publisher(for: .catchappChatIncoming)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: .cronaChatIncoming)) { _ in
                 Task { await load() }
             }
             .navigationDestination(item: $selected) { chat in

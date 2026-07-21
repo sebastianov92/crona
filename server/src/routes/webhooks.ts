@@ -38,7 +38,7 @@ async function handleConnectionUpdate(instanceName: string, data: any) {
   if (status === "DISCONNECTED" && inst.status !== "DISCONNECTED") {
     await ntfyPublish(inst.user, {
       title: "WhatsApp desconectado",
-      message: `WhatsApp (${inst.name}) se desconectó. Ábrela en CatchApp y re-escanea el QR`,
+      message: `WhatsApp (${inst.name}) se desconectó. Ábrela en Crona y re-escanea el QR`,
       priority: 4,
       tags: ["electric_plug"],
     });

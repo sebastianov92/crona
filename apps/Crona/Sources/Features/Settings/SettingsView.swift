@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(SessionStore.self) private var session
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
+    @AppStorage("localNotifications") private var localNotifications = true
 
     var body: some View {
         NavigationStack {
@@ -79,8 +80,25 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Notificaciones") {
-                    NavigationLink("Notificaciones (ntfy)") { NtfySettingsView() }
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { localNotifications },
+                        set: { localNotifications = $0; LocalNotifications.enabled = $0
+                               if $0 { LocalNotifications.requestAuthorization()
+                                       LocalNotifications.reschedule(upcoming: session.upcoming) } }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Notificaciones en este dispositivo")
+                            Text("Aviso al enviarse cada mensaje programado, y si algo falla mientras la app está abierta.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    NavigationLink("Notificaciones remotas (ntfy)") { NtfySettingsView() }
+                } header: {
+                    Text("Notificaciones")
+                } footer: {
+                    Text("Las de este dispositivo funcionan solas, sin configurar nada. ntfy es opcional y sirve para recibir avisos aunque no tengas Crona instalada (por ejemplo un fallo de envío de madrugada).")
                 }
 
                 if session.isAdmin {

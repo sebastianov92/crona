@@ -127,7 +127,7 @@ struct MessageDetailView: View {
             }
         }
         .task { await load() }
-        .onReceive(NotificationCenter.default.publisher(for: .catchappLogUpdated)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .cronaLogUpdated)) { _ in
             Task { await load() }
         }
         .sheet(isPresented: $showEdit, onDismiss: { Task { await load() } }) {
