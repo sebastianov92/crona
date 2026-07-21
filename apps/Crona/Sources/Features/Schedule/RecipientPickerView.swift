@@ -350,7 +350,7 @@ struct RecipientPickerView: View {
         loading = true
         defer { loading = false }
         do {
-            items = try await APIClient.shared.recipients(instanceId: instanceId, kind: kind, search: search).items
+            items = try await APIClient.shared.allRecipients(instanceId: instanceId, kind: kind, search: search)
         } catch { session.report(error) }
     }
 
@@ -465,7 +465,7 @@ private struct ListEditorSheet: View {
 
     private func load() async {
         do {
-            items = try await APIClient.shared.recipients(instanceId: instanceId, kind: .CONTACT, search: search).items
+            items = try await APIClient.shared.allRecipients(instanceId: instanceId, kind: .CONTACT, search: search)
         } catch { session.report(error) }
     }
 

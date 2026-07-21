@@ -94,6 +94,23 @@ export const session = {
   },
 };
 
+/**
+ * Trae TODAS las páginas de un endpoint paginado (la agenda puede tener cientos de contactos
+ * y el picker debe mostrarlos completos, no solo la primera página).
+ */
+export async function fetchAll<T>(path: string, params: Record<string, string> = {}, maxPages = 20): Promise<T[]> {
+  const out: T[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < maxPages; i++) {
+    const q = new URLSearchParams({ ...params, limit: "200", ...(cursor ? { cursor } : {}) });
+    const page: { items: T[]; nextCursor: string | null } = await api(`GET`, `${path}?${q}`);
+    out.push(...page.items);
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return out;
+}
+
 export async function uploadMedia(file: File): Promise<{ mediaId: string }> {
   const form = new FormData();
   form.append("file", file);

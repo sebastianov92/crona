@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, uploadMedia } from "../api";
+import { api, ApiError, fetchAll, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
 import { quickDate, shownName } from "../types";
@@ -460,6 +460,7 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
   const [manualAdded, setManualAdded] = useState<Recipient[]>([]);
   const [lists, setLists] = useState<ContactList[]>([]);
   const [editingList, setEditingList] = useState(false);
+  const [loading, setLoading] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const loadLists = useCallback(async () => {
@@ -475,15 +476,23 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
       loadLists();
       return;
     }
+    let alive = true;
     const t = setTimeout(async () => {
+      setLoading(true);
       try {
-        const q = new URLSearchParams({ kind, ...(search ? { search } : {}) });
-        setItems((await api<Paginated<Recipient>>("GET", `/instances/${instanceId}/recipients?${q}`)).items);
+        // todas las páginas: la agenda puede tener cientos de contactos
+        const all = await fetchAll<Recipient>(`/instances/${instanceId}/recipients`, { kind, ...(search ? { search } : {}) });
+        if (alive) setItems(all);
       } catch {
         /* */
+      } finally {
+        if (alive) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, [tab, kind, search, instanceId, loadLists]);
 
   const memberToRecipient = (m: ContactList["members"][number]): Recipient => ({
@@ -670,12 +679,14 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
             </button>
           );
         })}
+        {loading && <div className="empty">Cargando contactos…</div>}
       </div>
       </>
       )}
     </Sheet>
   );
 }
+
 
 // Editor de lista: nombre + contactos con checkbox (búsqueda propia)
 function ListEditor({ instanceId, onSaved, onCancel }: { instanceId: string; onSaved: () => void; onCancel: () => void }) {
@@ -685,17 +696,20 @@ function ListEditor({ instanceId, onSaved, onCancel }: { instanceId: string; onS
   const [items, setItems] = useState<Recipient[]>([]);
   const [members, setMembers] = useState<Recipient[]>([]);
   const [busy, setBusy] = useState(false);
-
   useEffect(() => {
+    let alive = true;
     const t = setTimeout(async () => {
       try {
-        const q = new URLSearchParams({ kind: "CONTACT", ...(search ? { search } : {}) });
-        setItems((await api<Paginated<Recipient>>("GET", `/instances/${instanceId}/recipients?${q}`)).items);
+        const all = await fetchAll<Recipient>(`/instances/${instanceId}/recipients`, { kind: "CONTACT", ...(search ? { search } : {}) });
+        if (alive) setItems(all);
       } catch {
         /* */
       }
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, [search, instanceId]);
 
   const toggle = (r: Recipient) =>

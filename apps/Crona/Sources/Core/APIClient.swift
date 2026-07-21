@@ -243,6 +243,23 @@ extension APIClient {
         if let cursor { q.append(.init(name: "cursor", value: cursor)) }
         return try await request("GET", "/instances/\(instanceId)/recipients", query: q)
     }
+    /// Todas las páginas de contactos/grupos: la agenda puede tener cientos y el picker
+    /// debe mostrarlos completos (antes solo llegaba la primera página de 50).
+    func allRecipients(instanceId: String, kind: RecipientKind?, search: String, maxPages: Int = 20) async throws -> [Recipient] {
+        var out: [Recipient] = []
+        var cursor: String? = nil
+        for _ in 0..<maxPages {
+            var q: [URLQueryItem] = [.init(name: "limit", value: "200")]
+            if let kind { q.append(.init(name: "kind", value: kind.rawValue)) }
+            if !search.isEmpty { q.append(.init(name: "search", value: search)) }
+            if let cursor { q.append(.init(name: "cursor", value: cursor)) }
+            let page: Paginated<Recipient> = try await request("GET", "/instances/\(instanceId)/recipients", query: q)
+            out.append(contentsOf: page.items)
+            cursor = page.nextCursor
+            if cursor == nil { break }
+        }
+        return out
+    }
     func renameRecipient(instanceId: String, recipientId: String, alias: String?) async throws -> Recipient {
         struct B: Encodable { let alias: String? }
         return try await request("PATCH", "/instances/\(instanceId)/recipients/\(recipientId)", body: B(alias: alias))
