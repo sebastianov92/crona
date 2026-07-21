@@ -109,7 +109,18 @@ export function registerInstanceRoutes(app: FastifyInstance) {
       },
     });
 
-    const { qrBase64, pairingCode } = extractQr(res);
+    let { qrBase64, pairingCode } = extractQr(res);
+    // Gotcha: create con `number` a veces responde sin pairingCode (Baileys aún arrancando).
+    // Reintentar vía connect hasta 2 veces con espera — el código que devuelve connect sí vincula.
+    if (body.phoneNumber && !pairingCode) {
+      for (let i = 0; i < 2 && !pairingCode; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const retry = await evolution.connect(instanceName, body.phoneNumber).catch(() => null);
+        const q = extractQr(retry);
+        pairingCode = q.pairingCode ?? pairingCode;
+        qrBase64 = q.qrBase64 ?? qrBase64;
+      }
+    }
     return reply.status(201).send({ instance: instanceDTO(instance), qrBase64, pairingCode });
   });
 
@@ -119,7 +130,15 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     const q = Query.parse(req.query);
     const inst = await ownInstance(req.userId, id);
     const res = await evolution.connect(inst.instanceName, q.number);
-    return extractQr(res);
+    let out = extractQr(res);
+    // Pidieron código pero Evolution aún no lo generó → reintentar una vez
+    if (q.number && !out.pairingCode) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const retry = await evolution.connect(inst.instanceName, q.number).catch(() => null);
+      const again = extractQr(retry);
+      out = { qrBase64: again.qrBase64 ?? out.qrBase64, pairingCode: again.pairingCode ?? out.pairingCode };
+    }
+    return out;
   });
 
   app.get("/instances/:id/status", { preHandler: authenticate }, async (req) => {
@@ -203,6 +222,14 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     return { contacts: contacts.length, groups: groups.length };
   });
 
+  // Búsqueda tolerante: sin tildes, b=v, y también por dígitos del número (parciales, ej. últimos 4)
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replaceAll("v", "b");
+
   app.get("/instances/:id/recipients", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
     const Query = z.object({
@@ -214,29 +241,57 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     const q = Query.parse(req.query);
     const inst = await ownInstance(req.userId, id);
 
-    const where: Prisma.RecipientWhereInput = {
-      instanceId: inst.id,
-      ...(q.kind ? { kind: q.kind } : {}),
-      ...(q.search ? { displayName: { contains: q.search, mode: "insensitive" } } : {}),
-    };
-    const cursorId = decodeCursor(q.cursor);
-    const rows = await prisma.recipient.findMany({
-      where,
-      orderBy: [{ displayName: "asc" }, { id: "asc" }],
-      take: q.limit + 1,
-      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    // el cache por instancia son cientos de filas: filtrar en memoria permite normalización real
+    const all = await prisma.recipient.findMany({
+      where: { instanceId: inst.id, ...(q.kind ? { kind: q.kind } : {}) },
     });
-    const page = rows.slice(0, q.limit);
+
+    const term = q.search ? normalize(q.search) : "";
+    const digits = q.search?.replace(/\D/g, "") ?? "";
+    const filtered = q.search
+      ? all.filter((r) => {
+          const hay = normalize(`${r.alias ?? ""} ${r.displayName}`);
+          const phone = r.phoneNumber ?? r.jid.split("@")[0];
+          return (term.length > 0 && hay.includes(term)) || (digits.length >= 2 && phone.includes(digits));
+        })
+      : all;
+
+    filtered.sort((a, b) => (a.alias ?? a.displayName).localeCompare(b.alias ?? b.displayName, "es"));
+
+    const offset = Number(decodeCursor(q.cursor) ?? 0) || 0;
+    const page = filtered.slice(offset, offset + q.limit);
     return {
       items: page.map((r) => ({
         id: r.id,
         jid: r.jid,
         displayName: r.displayName,
+        alias: r.alias,
         pictureUrl: r.pictureUrl,
         kind: r.kind,
         phoneNumber: r.phoneNumber,
       })),
-      nextCursor: rows.length > q.limit ? encodeCursor(page[page.length - 1].id) : null,
+      nextCursor: offset + q.limit < filtered.length ? encodeCursor(String(offset + q.limit)) : null,
+    };
+  });
+
+  // Renombrar contacto en Crona (los pushName de WhatsApp no siempre coinciden con tu agenda)
+  app.patch("/instances/:id/recipients/:rid", { preHandler: authenticate }, async (req) => {
+    const { id, rid } = req.params as { id: string; rid: string };
+    // optional porque JSONEncoder de Swift omite claves nil → ausente = quitar alias
+    const Body = z.object({ alias: z.string().min(1).max(80).nullable().optional() });
+    const body = Body.parse(req.body);
+    const inst = await ownInstance(req.userId, id);
+    const rec = await prisma.recipient.findFirst({ where: { id: rid, instanceId: inst.id } });
+    if (!rec) throw errors.notFound("El contacto");
+    const updated = await prisma.recipient.update({ where: { id: rid }, data: { alias: body.alias ?? null } });
+    return {
+      id: updated.id,
+      jid: updated.jid,
+      displayName: updated.displayName,
+      alias: updated.alias,
+      pictureUrl: updated.pictureUrl,
+      kind: updated.kind,
+      phoneNumber: updated.phoneNumber,
     };
   });
 

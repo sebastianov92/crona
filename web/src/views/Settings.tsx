@@ -46,7 +46,7 @@ export default function Settings() {
       <label className="label">WhatsApp</label>
       <div className="card">
         <button className="row" onClick={() => setView("instances")}>
-          <div className="main">Instancias ({instances.length})</div><IconChevron size={16} />
+          <div className="main">Conectar a WhatsApp ({instances.length})</div><IconChevron size={16} />
         </button>
         <button className="row" onClick={() => setView("autoreplies")}>
           <div className="main">Respuestas automáticas</div><IconChevron size={16} />
@@ -97,7 +97,7 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
   const [linking, setLinking] = useState(false);
 
   return (
-    <Sheet title="Instancias" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}><IconPlus size={14} /> Vincular</button>}>
+    <Sheet title="Conectar a WhatsApp" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}><IconPlus size={14} /> Vincular</button>}>
       <div className="card">
         {instances.length === 0 && <div className="empty">Vincula tu número de WhatsApp para empezar.</div>}
         {instances.map((i) => (

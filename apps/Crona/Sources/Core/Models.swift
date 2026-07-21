@@ -5,7 +5,7 @@ import Foundation
 enum Role: String, Codable, CaseIterable { case ADMIN, USER }
 enum InstanceStatus: String, Codable, CaseIterable { case CREATED, CONNECTING, CONNECTED, DISCONNECTED }
 enum RecipientKind: String, Codable, CaseIterable { case CONTACT, GROUP }
-enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT }
+enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO }
 enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
 enum AutoReplyAction: String, Codable, CaseIterable { case REPLY, NOTIFY }
 enum ScheduleStatus: String, Codable, CaseIterable { case ACTIVE, PAUSED, COMPLETED, CANCELLED, FAILED }
@@ -65,9 +65,13 @@ struct Recipient: Identifiable, Codable, Hashable {
     let id: String
     let jid: String
     let displayName: String
+    var alias: String?
     let pictureUrl: String?
     let kind: RecipientKind
     let phoneNumber: String?
+
+    /// Nombre a mostrar: alias local de Crona si existe, si no el pushName de WhatsApp
+    var shownName: String { alias?.isEmpty == false ? alias! : displayName }
 }
 
 struct MediaUpload: Codable, Hashable {

@@ -127,6 +127,9 @@ final class SessionStore {
     }
 
     func report(_ error: Error) {
+        // tareas canceladas (cambio de vista, .task re-lanzada al abrir la app) no son errores reales
+        if error is CancellationError { return }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return }
         toastError = (error as? APIError)?.errorDescription ?? error.localizedDescription
     }
 

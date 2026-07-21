@@ -57,6 +57,9 @@ export const evolution = {
     evoFetch(`/message/sendText/${n}`, { method: "POST", body, apikey: k }),
   sendMedia: (n: string, k: string, body: unknown) =>
     evoFetch(`/message/sendMedia/${n}`, { method: "POST", body, apikey: k, timeoutMs: 180_000 }),
+  // Nota de voz (ptt): body { number, audio, delay, encoding }
+  sendAudio: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendWhatsAppAudio/${n}`, { method: "POST", body, apikey: k, timeoutMs: 180_000 }),
   findContacts: (n: string, k: string) =>
     evoFetch(`/chat/findContacts/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
   findChats: (n: string, k: string) =>

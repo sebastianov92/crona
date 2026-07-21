@@ -8,14 +8,22 @@ import { config } from "../config.js";
 import { errors } from "../lib/errors.js";
 import { renderVariables } from "../lib/variables.js";
 
-// Límites por tipo (SPEC §15): imagen ≤16 MB · video/pdf ≤64 MB
-const LIMITS: Record<string, { maxBytes: number; ext: string; mediatype: "image" | "video" | "document" }> = {
+// Límites por tipo (SPEC §15): imagen ≤16 MB · video/pdf ≤64 MB · audio ≤16 MB
+const LIMITS: Record<string, { maxBytes: number; ext: string; mediatype: "image" | "video" | "document" | "audio" }> = {
   "image/jpeg": { maxBytes: 16 * 1024 * 1024, ext: "jpg", mediatype: "image" },
   "image/png": { maxBytes: 16 * 1024 * 1024, ext: "png", mediatype: "image" },
   "image/webp": { maxBytes: 16 * 1024 * 1024, ext: "webp", mediatype: "image" },
   "video/mp4": { maxBytes: 64 * 1024 * 1024, ext: "mp4", mediatype: "video" },
   "video/quicktime": { maxBytes: 64 * 1024 * 1024, ext: "mov", mediatype: "video" },
   "application/pdf": { maxBytes: 64 * 1024 * 1024, ext: "pdf", mediatype: "document" },
+  // Notas de voz: Evolution las convierte a ogg/opus al enviar (encoding: true)
+  "audio/mpeg": { maxBytes: 16 * 1024 * 1024, ext: "mp3", mediatype: "audio" },
+  "audio/mp4": { maxBytes: 16 * 1024 * 1024, ext: "m4a", mediatype: "audio" },
+  "audio/x-m4a": { maxBytes: 16 * 1024 * 1024, ext: "m4a", mediatype: "audio" },
+  "audio/aac": { maxBytes: 16 * 1024 * 1024, ext: "aac", mediatype: "audio" },
+  "audio/ogg": { maxBytes: 16 * 1024 * 1024, ext: "ogg", mediatype: "audio" },
+  "audio/webm": { maxBytes: 16 * 1024 * 1024, ext: "webm", mediatype: "audio" },
+  "audio/wav": { maxBytes: 16 * 1024 * 1024, ext: "wav", mediatype: "audio" },
 };
 
 const BASE64_MAX = 3 * 1024 * 1024; // ≤3 MB base64; >3 MB URL firmada (SPEC §5.3)
@@ -102,5 +110,24 @@ export async function buildMediaPayload(msg: ScheduledMessage): Promise<Record<s
     media: mediaField,
     fileName: media.fileName,
     delay: 1800,
+  };
+}
+
+// Nota de voz: sendWhatsAppAudio usa campo `audio` y no lleva caption/mimetype
+export async function buildAudioPayload(msg: ScheduledMessage): Promise<Record<string, unknown>> {
+  if (!msg.mediaId) throw errors.validation("El mensaje no tiene audio adjunto.");
+  const media = await prisma.media.findUnique({ where: { id: msg.mediaId } });
+  if (!media) throw errors.notFound("El archivo adjunto");
+
+  const audioField =
+    media.sizeBytes <= BASE64_MAX
+      ? (await readFile(mediaAbsPath(media))).toString("base64")
+      : `${config.INTERNAL_URL}/internal/media/${signMediaToken(media.id)}`;
+
+  return {
+    number: msg.recipientJid,
+    audio: audioField,
+    delay: 1800,
+    encoding: true, // Evolution convierte a ogg/opus → llega como nota de voz real
   };
 }

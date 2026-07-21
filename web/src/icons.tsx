@@ -148,3 +148,36 @@ export const IconDoc = (p: P) => (
     <path d="M14 2v5h5" />
   </svg>
 );
+
+export const IconMic = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0" />
+    <path d="M12 18v3" />
+  </svg>
+);
+
+export const IconStop = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </svg>
+);
+
+export const IconWave = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+  </svg>
+);
+
+export const IconPencil = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M17 3l4 4L8 20l-5 1 1-5z" />
+  </svg>
+);
+
+export const IconPhonePlus = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M22 16.9v2a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.4 19.4 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 1h2a2 2 0 0 1 2 1.7c.13.96.36 1.9.7 2.8a2 2 0 0 1-.45 2.1L7.1 8.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.45c.9.34 1.84.57 2.8.7A2 2 0 0 1 22 16.9z" />
+    <path d="M17 5h6M20 2v6" />
+  </svg>
+);

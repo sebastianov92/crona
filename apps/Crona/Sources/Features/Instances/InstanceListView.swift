@@ -14,6 +14,7 @@ struct InstanceListView: View {
                     systemImage: "qrcode",
                     description: Text("Vincula tu número de WhatsApp para empezar.")
                 )
+                .frame(maxWidth: .infinity)
             }
             ForEach(session.instances) { inst in
                 HStack(spacing: 12) {

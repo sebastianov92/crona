@@ -55,10 +55,10 @@ struct MediaPreviewView: View {
                 ProgressView().frame(height: 120)
             } else {
                 HStack(spacing: 10) {
-                    Image(systemName: type == .VIDEO ? "video.fill" : "doc.fill")
+                    Image(systemName: type == .VIDEO ? "video.fill" : type == .AUDIO ? "waveform" : "doc.fill")
                         .font(.title2)
                         .foregroundStyle(Theme.accent)
-                    Text(type == .VIDEO ? "Video adjunto" : "Documento adjunto")
+                    Text(type == .VIDEO ? "Video adjunto" : type == .AUDIO ? "Nota de voz adjunta" : "Documento adjunto")
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,7 +7,7 @@ import { nextOccurrence } from "./recurrence.js";
 import { ntfyPublish } from "./ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
-import { buildMediaPayload, deleteMediaFile } from "./media.js";
+import { buildAudioPayload, buildMediaPayload, deleteMediaFile } from "./media.js";
 import { cleanupAutoReplyHits } from "./autoreply.js";
 import { renderVariables } from "../lib/variables.js";
 
@@ -175,7 +175,9 @@ async function sendOne(msg: FullMessage): Promise<void> {
             text: renderVariables(msg.body ?? "", msg),
             delay: 1800,
           })
-        : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(msg));
+        : msg.type === "AUDIO"
+          ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(msg))
+          : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(msg));
     const keyId: string | undefined = res?.key?.id ?? res?.response?.key?.id;
     await markLog(msg, log, "SENT", keyId);
     await onOccurrenceSuccess(msg);

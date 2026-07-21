@@ -10,6 +10,7 @@ struct Attachment: Equatable {
     var messageType: MessageType {
         if mimeType.hasPrefix("image/") { return .IMAGE }
         if mimeType.hasPrefix("video/") { return .VIDEO }
+        if mimeType.hasPrefix("audio/") { return .AUDIO }
         return .DOCUMENT
     }
 }
@@ -36,6 +37,7 @@ struct ComposeView: View {
 
     #if os(iOS)
     @State private var photoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
     #endif
     @State private var showFileImporter = false
 
@@ -60,8 +62,8 @@ struct ComposeView: View {
                 Section("Destinatarios") {
                     ForEach(recipients, id: \.jid) { r in
                         HStack(spacing: 12) {
-                            AvatarView(name: r.displayName, pictureUrl: r.pictureUrl, size: 36)
-                            Text(r.displayName)
+                            AvatarView(name: r.shownName, pictureUrl: r.pictureUrl, size: 36)
+                            Text(r.shownName)
                             Spacer()
                             Button {
                                 recipients.removeAll { $0.jid == r.jid }
@@ -107,7 +109,18 @@ struct ComposeView: View {
 
                     HStack(alignment: .bottom, spacing: 8) {
                         #if os(iOS)
-                        PhotosPicker(selection: $photoItem, matching: .any(of: [.images, .videos])) {
+                        Menu {
+                            Button {
+                                showPhotoPicker = true
+                            } label: {
+                                Label("Foto o video", systemImage: "photo")
+                            }
+                            Button {
+                                showFileImporter = true
+                            } label: {
+                                Label("Audio o archivo", systemImage: "waveform")
+                            }
+                        } label: {
                             Image(systemName: "paperclip")
                                 .font(.title3)
                                 .frame(width: 36, height: 36)
@@ -124,7 +137,7 @@ struct ComposeView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("Adjuntar foto, video o PDF")
+                        .help("Adjuntar foto, video, PDF o nota de voz")
                         #endif
 
                         TextField("Escribe un mensaje", text: $text, axis: .vertical)
@@ -174,7 +187,12 @@ struct ComposeView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
+                        // iOS: programar directo; macOS: confirmar primero (clicks accidentales de mouse)
+                        #if os(iOS)
+                        Task { await submit() }
+                        #else
                         showConfirm = true
+                        #endif
                     } label: {
                         if sending { ProgressView().controlSize(.small) } else { Text("Programar") }
                     }
@@ -207,13 +225,14 @@ struct ComposeView: View {
             }
             .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
             #if os(iOS)
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
                 Task { await loadPhoto(item) }
             }
             #endif
             .fileImporter(isPresented: $showFileImporter,
-                          allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie, .pdf]) { result in
+                          allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie, .pdf, .audio]) { result in
                 if case .success(let url) = result { loadFile(url) }
             }
             .onAppear { applyPrefill() }
@@ -254,7 +273,7 @@ struct ComposeView: View {
         guard let p = prefill else { return }
         instanceId = p.instanceId
         recipients = [Recipient(id: p.recipientJid, jid: p.recipientJid, displayName: p.recipientName,
-                                pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)]
+                                alias: nil, pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)]
         text = p.body ?? ""
         schedule.date = max(p.scheduledAt, Date().addingTimeInterval(3600))
         schedule.recurrence = p.recurrence
@@ -315,7 +334,7 @@ struct ComposeView: View {
             for r in recipients {
                 let body = CreateMessageBody(
                     instanceId: instanceId,
-                    recipient: RecipientInput(jid: r.jid, name: r.displayName,
+                    recipient: RecipientInput(jid: r.jid, name: r.shownName,
                                               kind: r.kind, pictureUrl: r.pictureUrl),
                     type: attachment?.messageType ?? .TEXT,
                     body: text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text,
@@ -365,7 +384,8 @@ struct AttachmentThumb: View {
                     img.resizable().scaledToFill()
                 } else {
                     VStack(spacing: 6) {
-                        Image(systemName: attachment.messageType == .VIDEO ? "video.fill" : "doc.fill")
+                        Image(systemName: attachment.messageType == .VIDEO ? "video.fill"
+                              : attachment.messageType == .AUDIO ? "waveform" : "doc.fill")
                             .font(.title2)
                         Text(attachment.fileName).font(.caption2).lineLimit(1)
                         Text(sizeLabel).font(.caption2).foregroundStyle(.secondary)

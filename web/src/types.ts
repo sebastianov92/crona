@@ -1,7 +1,7 @@
 export type Role = "ADMIN" | "USER";
 export type InstanceStatus = "CREATED" | "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 export type RecipientKind = "CONTACT" | "GROUP";
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "AUDIO";
 export type Recurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type ScheduleStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED" | "FAILED";
 export type LogStatus = "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
@@ -32,10 +32,14 @@ export interface Recipient {
   id: string;
   jid: string;
   displayName: string;
+  alias: string | null;
   pictureUrl: string | null;
   kind: RecipientKind;
   phoneNumber: string | null;
 }
+
+/** Nombre a mostrar: alias local de Crona si existe, si no el pushName de WhatsApp. */
+export const shownName = (r: Recipient) => r.alias || r.displayName;
 
 export interface ScheduledMessage {
   id: string;

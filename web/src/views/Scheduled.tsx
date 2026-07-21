@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
+import { shownName } from "../types";
 import type { MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
-import { IconCheckCircle, IconCircle, IconPaperclip, IconPlus, IconRefresh, IconRepeat, IconReply } from "../icons";
+import { IconCheckCircle, IconCircle, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop } from "../icons";
 
 const FILTERS = [
   { id: "all", label: "Todos" },
@@ -44,7 +45,7 @@ export default function Scheduled() {
   return (
     <div className="page">
       <h1 className="pagetitle">Programados</h1>
-      {disconnected && <div className="banner">Tu WhatsApp está desconectado — los envíos fallarán. Re-escanea el QR en Ajustes → Instancias.</div>}
+      {disconnected && <div className="banner">Tu WhatsApp está desconectado — los envíos fallarán. Re-escanea el QR en Ajustes → Conectar a WhatsApp.</div>}
       <input className="field" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 12 }} />
       <div className="chips">
         {FILTERS.map((f) => (
@@ -118,11 +119,19 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
     try {
       let mediaId: string | undefined;
       if (file) mediaId = (await uploadMedia(file)).mediaId;
-      const type = !file ? "TEXT" : file.type.startsWith("image/") ? "IMAGE" : file.type.startsWith("video/") ? "VIDEO" : "DOCUMENT";
+      const type = !file
+        ? "TEXT"
+        : file.type.startsWith("image/")
+          ? "IMAGE"
+          : file.type.startsWith("video/")
+            ? "VIDEO"
+            : file.type.startsWith("audio/")
+              ? "AUDIO"
+              : "DOCUMENT";
       for (const r of recipients) {
         await api("POST", "/messages", {
           instanceId,
-          recipient: { jid: r.jid, name: r.displayName, kind: r.kind, pictureUrl: r.pictureUrl },
+          recipient: { jid: r.jid, name: shownName(r), kind: r.kind, pictureUrl: r.pictureUrl },
           type,
           body: text.trim() || null,
           mediaId: mediaId ?? null,
@@ -160,8 +169,8 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       <div className="card">
         {recipients.map((r) => (
           <div key={r.jid} className="row" style={{ cursor: "default" }}>
-            <Avatar name={r.displayName} url={r.pictureUrl} size={34} />
-            <div className="main"><div className="name" style={{ fontSize: 14 }}>{r.displayName}</div></div>
+            <Avatar name={shownName(r)} url={r.pictureUrl} size={34} />
+            <div className="main"><div className="name" style={{ fontSize: 14 }}>{shownName(r)}</div></div>
             <button className="btn small secondary" onClick={() => setRecipients(recipients.filter((x) => x.jid !== r.jid))}>✕</button>
           </div>
         ))}
@@ -174,23 +183,26 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       <textarea className="field" placeholder="Escribe un mensaje" value={text} onChange={(e) => setText(e.target.value)} />
       <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
 
-      <label className="label">Adjunto (foto, video o PDF)</label>
+      <label className="label">Adjunto (foto, video, PDF o audio)</label>
       {file ? (
         <div className="kv">
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}><IconPaperclip size={14} /> {file.name}</span>
           <button className="btn small secondary" onClick={() => setFile(null)}>Quitar</button>
         </div>
       ) : (
-        <label className="filebtn">
-          <IconPaperclip size={16} />
-          Adjuntar archivo
-          <input
-            type="file"
-            hidden
-            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <label className="filebtn">
+            <IconPaperclip size={16} />
+            Adjuntar archivo
+            <input
+              type="file"
+              hidden
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/webm,audio/wav"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <VoiceRecorderButton onDone={setFile} />
+        </div>
       )}
 
       <label className="label">Fecha y hora</label>
@@ -242,7 +254,142 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Grabador de notas de voz ─────────────────────────────
+
+function VoiceRecorderButton({ onDone }: { onDone: (f: File) => void }) {
+  const { toast } = useApp();
+  const [rec, setRec] = useState<MediaRecorder | null>(null);
+  const [secs, setSecs] = useState(0);
+
+  useEffect(() => {
+    if (!rec) return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [rec]);
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Chrome/Firefox: webm/opus · Safari: mp4 (aac)
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+      const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const chunks: Blob[] = [];
+      r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      r.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const type = (r.mimeType || "audio/webm").split(";")[0];
+        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        onDone(new File(chunks, `nota-de-voz.${ext}`, { type }));
+      };
+      r.start();
+      setSecs(0);
+      setRec(r);
+    } catch {
+      toast("No se pudo acceder al micrófono. Revisa los permisos del navegador.");
+    }
+  };
+
+  const stop = () => {
+    rec?.stop();
+    setRec(null);
+  };
+
+  const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  return (
+    <button
+      type="button"
+      className="filebtn"
+      style={rec ? { borderColor: "var(--danger)", color: "var(--danger)" } : undefined}
+      onClick={() => (rec ? stop() : start())}
+    >
+      {rec ? <IconStop size={16} /> : <IconMic size={16} />}
+      {rec ? `Detener (${mmss})` : "Grabar nota de voz"}
+    </button>
+  );
+}
+
 // ── Picker de destinatarios ──────────────────────────────
+
+// Prefijos telefónicos ITU por región ISO-3166 (mismo mapa que la app nativa)
+const DIAL_RAW =
+  "AF:93,AL:355,DZ:213,AD:376,AO:244,AG:1268,AR:54,AM:374,AU:61,AT:43,AZ:994,BS:1242,BH:973,BD:880,BB:1246," +
+  "BY:375,BE:32,BZ:501,BJ:229,BT:975,BO:591,BA:387,BW:267,BR:55,BN:673,BG:359,BF:226,BI:257,KH:855,CM:237," +
+  "CA:1,CV:238,CF:236,TD:235,CL:56,CN:86,CO:57,KM:269,CG:242,CD:243,CR:506,CI:225,HR:385,CU:53,CY:357,CZ:420," +
+  "DK:45,DJ:253,DM:1767,DO:1809,EC:593,EG:20,SV:503,GQ:240,ER:291,EE:372,SZ:268,ET:251,FJ:679,FI:358,FR:33," +
+  "GA:241,GM:220,GE:995,DE:49,GH:233,GR:30,GD:1473,GT:502,GN:224,GW:245,GY:592,HT:509,HN:504,HK:852,HU:36," +
+  "IS:354,IN:91,ID:62,IR:98,IQ:964,IE:353,IL:972,IT:39,JM:1876,JP:81,JO:962,KZ:7,KE:254,KI:686,KW:965,KG:996," +
+  "LA:856,LV:371,LB:961,LS:266,LR:231,LY:218,LI:423,LT:370,LU:352,MO:853,MG:261,MW:265,MY:60,MV:960,ML:223," +
+  "MT:356,MH:692,MR:222,MU:230,MX:52,FM:691,MD:373,MC:377,MN:976,ME:382,MA:212,MZ:258,MM:95,NA:264,NR:674," +
+  "NP:977,NL:31,NZ:64,NI:505,NE:227,NG:234,KP:850,MK:389,NO:47,OM:968,PK:92,PW:680,PA:507,PG:675,PY:595,PE:51," +
+  "PH:63,PL:48,PT:351,PR:1787,QA:974,RO:40,RU:7,RW:250,KN:1869,LC:1758,VC:1784,WS:685,SM:378,ST:239,SA:966," +
+  "SN:221,RS:381,SC:248,SL:232,SG:65,SK:421,SI:386,SB:677,SO:252,ZA:27,KR:82,SS:211,ES:34,LK:94,SD:249,SR:597," +
+  "SE:46,CH:41,SY:963,TW:886,TJ:992,TZ:255,TH:66,TL:670,TG:228,TO:676,TT:1868,TN:216,TR:90,TM:993,TV:688," +
+  "UG:256,UA:380,AE:971,GB:44,US:1,UY:598,UZ:998,VU:678,VE:58,VN:84,YE:967,ZM:260,ZW:263";
+
+const COUNTRIES = (() => {
+  const names = new Intl.DisplayNames(["es"], { type: "region" });
+  const flag = (region: string) => [...region].map((c) => String.fromCodePoint(127397 + c.charCodeAt(0))).join("");
+  return DIAL_RAW.split(",")
+    .map((pair) => {
+      const [region, code] = pair.split(":");
+      return { region, code, name: names.of(region) ?? region, flag: flag(region) };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+})();
+
+function ManualNumberForm({ onAdd }: { onAdd: (r: Recipient) => void }) {
+  const [region, setRegion] = useState("EC");
+  const [number, setNumber] = useState("");
+  const country = COUNTRIES.find((c) => c.region === region)!;
+  const digits = number.replace(/\D/g, "");
+  const normalized = digits.startsWith("0") ? digits.slice(1) : digits; // 0999… → 999…
+  const full = country.code + normalized;
+  const valid = normalized.length >= 7 && full.length <= 15;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <select className="field" style={{ flex: 1 }} value={region} onChange={(e) => setRegion(e.target.value)}>
+          {COUNTRIES.map((c) => (
+            <option key={c.region} value={c.region}>{c.flag} {c.name} (+{c.code})</option>
+          ))}
+        </select>
+        <input
+          className="field"
+          style={{ flex: 1 }}
+          placeholder="Número (ej. 991234567)"
+          inputMode="numeric"
+          autoFocus
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+        />
+      </div>
+      <div className="hint">{valid ? `Se enviará a +${full}` : "Escribe el número sin el código de país."}</div>
+      <button
+        className="btn small"
+        style={{ alignSelf: "flex-end" }}
+        disabled={!valid}
+        onClick={() =>
+          onAdd({
+            id: `manual-${full}`,
+            jid: `${full}@s.whatsapp.net`,
+            displayName: `+${full}`,
+            alias: null,
+            pictureUrl: null,
+            kind: "CONTACT",
+            phoneNumber: full,
+          })
+        }
+      >
+        Agregar
+      </button>
+    </div>
+  );
+}
 
 function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; onDone: (r: Recipient[]) => void; onClose: () => void }) {
   const { toast } = useApp();
@@ -251,6 +398,8 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
   const [items, setItems] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Recipient[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -266,6 +415,19 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
 
   const toggle = (r: Recipient) =>
     setSelected((prev) => (prev.some((x) => x.jid === r.jid) ? prev.filter((x) => x.jid !== r.jid) : [...prev, r]));
+
+  const rename = async (r: Recipient) => {
+    const input = window.prompt(`Apodo para "${r.displayName}" (vacío para quitarlo):`, r.alias ?? "");
+    if (input === null) return;
+    const alias = input.trim() || null;
+    try {
+      const updated = await api<Recipient>("PATCH", `/instances/${instanceId}/recipients/${r.id}`, { alias });
+      setItems((prev) => prev.map((x) => (x.id === r.id ? updated : x)));
+      setSelected((prev) => prev.map((x) => (x.id === r.id ? updated : x)));
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error al renombrar");
+    }
+  };
 
   return (
     <Sheet
@@ -300,18 +462,51 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
         <button className={kind === "CONTACT" ? "active" : ""} onClick={() => setKind("CONTACT")}>Contactos</button>
         <button className={kind === "GROUP" ? "active" : ""} onClick={() => setKind("GROUP")}>Grupos</button>
       </div>
-      <input className="field" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 10 }} />
+      <input
+        ref={searchRef}
+        className="field"
+        placeholder="Buscar por nombre o número"
+        autoFocus
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ marginBottom: 10 }}
+      />
       <div className="card">
+        {kind === "CONTACT" && (
+          <button className="row" onClick={() => setShowManual((v) => !v)}>
+            <span style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
+              <IconPhonePlus size={18} /> Enviar a un número
+            </span>
+          </button>
+        )}
+        {kind === "CONTACT" && showManual && (
+          <ManualNumberForm
+            onAdd={(r) => {
+              setSelected((prev) => (prev.some((x) => x.jid === r.jid) ? prev : [...prev, r]));
+              setShowManual(false);
+            }}
+          />
+        )}
         {items.length === 0 && <div className="empty">Sin resultados. Usa el botón de sincronizar (arriba a la derecha).</div>}
         {items.map((r) => {
           const on = selected.some((x) => x.jid === r.jid);
           return (
             <button key={r.jid} className="row" onClick={() => toggle(r)}>
-              <Avatar name={r.displayName} url={r.pictureUrl} size={38} />
+              <Avatar name={shownName(r)} url={r.pictureUrl} size={38} />
               <div className="main">
-                <div className="name" style={{ fontSize: 14 }}>{r.displayName}</div>
-                {r.phoneNumber && <div className="sub">{r.phoneNumber}</div>}
+                <div className="name" style={{ fontSize: 14 }}>{shownName(r)}</div>
+                <div className="sub">{r.alias ? r.displayName : r.phoneNumber ?? ""}</div>
               </div>
+              <span
+                title="Renombrar en Crona"
+                style={{ color: "var(--text2)", display: "flex", padding: 6 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  rename(r);
+                }}
+              >
+                <IconPencil size={15} />
+              </span>
               <span style={{ color: on ? "var(--accent)" : "var(--text2)", display: "flex" }}>{on ? <IconCheckCircle size={20} /> : <IconCircle size={20} />}</span>
             </button>
           );

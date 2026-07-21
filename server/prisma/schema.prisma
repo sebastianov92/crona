@@ -29,6 +29,7 @@ enum MessageType {
   IMAGE
   VIDEO
   DOCUMENT
+  AUDIO
 }
 
 enum Recurrence {
@@ -160,6 +161,7 @@ model Recipient {
   instance    Instance      @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   jid         String // "5939XXXXXXXX@s.whatsapp.net" | "1203...@g.us"
   displayName String
+  alias       String? // nombre puesto por el usuario en Crona (pushName no siempre es el de su agenda)
   pictureUrl  String?
   kind        RecipientKind
   phoneNumber String? // solo contactos

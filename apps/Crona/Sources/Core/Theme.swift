@@ -90,6 +90,7 @@ extension MessageType {
         case .IMAGE: return "📷 Foto"
         case .VIDEO: return "🎥 Video"
         case .DOCUMENT: return "📄 Documento"
+        case .AUDIO: return "🎤 Nota de voz"
         }
     }
 }

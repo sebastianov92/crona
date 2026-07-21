@@ -19,7 +19,12 @@ struct CreateInstanceView: View {
     @State private var created: CreateInstanceResponse?
     @State private var pairingCode: String?
     @State private var qrBase64: String?
+    // Mac: escanear QR con el teléfono es lo natural; iOS: WhatsApp está en el mismo equipo → código
+    #if os(macOS)
+    @State private var showQR = true
+    #else
     @State private var showQR = false
+    #endif
     @State private var copied = false
     @State private var pollTask: Task<Void, Never>?
 
@@ -206,13 +211,11 @@ struct CreateInstanceView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
 
-            #if os(macOS)
             Button("¿Prefieres escanear un QR?") {
                 showQR = true
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.accent)
-            #endif
         }
     }
 
@@ -230,7 +233,7 @@ struct CreateInstanceView: View {
             Text("WhatsApp → Dispositivos vinculados → Vincular dispositivo → escanea.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("Volver al código") { showQR = false }
+            Button("¿Prefieres escribir un código?") { showQR = false }
                 .buttonStyle(.plain)
                 .foregroundStyle(Theme.accent)
         }

@@ -268,7 +268,7 @@ struct AutoReplyEditView: View {
         action = rule.action
         if let jid = rule.contactJid {
             contact = Recipient(id: jid, jid: jid, displayName: rule.contactName ?? jid,
-                                pictureUrl: nil, kind: .CONTACT, phoneNumber: nil)
+                                alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: nil)
         }
         keyword = rule.keyword ?? ""
         replyText = rule.replyText ?? ""

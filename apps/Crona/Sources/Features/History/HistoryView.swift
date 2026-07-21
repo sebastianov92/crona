@@ -20,6 +20,7 @@ struct HistoryView: View {
                         "Aún no hay envíos en el historial.",
                         systemImage: "clock.arrow.circlepath"
                     )
+                    .frame(maxWidth: .infinity)
                     .listRowSeparator(.hidden)
                 }
                 ForEach(filtered) { item in

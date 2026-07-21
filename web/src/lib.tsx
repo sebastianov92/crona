@@ -57,7 +57,8 @@ export function MediaImg({ mediaId, type }: { mediaId: string; type: MessageType
   if (type !== "IMAGE")
     return (
       <div className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <IconPaperclip size={14} /> {type === "VIDEO" ? "Video adjunto" : "Documento adjunto"}
+        <IconPaperclip size={14} />{" "}
+        {type === "VIDEO" ? "Video adjunto" : type === "AUDIO" ? "Nota de voz adjunta" : "Documento adjunto"}
       </div>
     );
   return url ? <img className="mediathumb" src={url} alt="adjunto" /> : <div className="hint">Cargando adjunto…</div>;
@@ -78,7 +79,7 @@ export function scheduleLabel(iso: string): string {
 }
 
 export function messagePreview(type: MessageType, body: string | null): string {
-  const labels: Record<MessageType, string> = { TEXT: "", IMAGE: "Foto", VIDEO: "Video", DOCUMENT: "Documento" };
+  const labels: Record<MessageType, string> = { TEXT: "", IMAGE: "Foto", VIDEO: "Video", DOCUMENT: "Documento", AUDIO: "Nota de voz" };
   if (type === "TEXT") return body ?? "";
   return body ? `${labels[type]} · ${body}` : labels[type];
 }

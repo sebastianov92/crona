@@ -43,6 +43,7 @@ struct ScheduledListView: View {
                             systemImage: "clock.badge.questionmark",
                             description: Text("Toca + para crear el primero.")
                         )
+                        .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
                     }
                     ForEach(filtered) { msg in

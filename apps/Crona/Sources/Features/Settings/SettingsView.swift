@@ -25,7 +25,7 @@ struct SettingsView: View {
                 }
 
                 Section("WhatsApp") {
-                    NavigationLink("Instancias") { InstanceListView() }
+                    NavigationLink("Conectar a WhatsApp") { InstanceListView() }
                     NavigationLink("Respuestas automáticas") { AutoRepliesView() }
                 }
 

@@ -212,6 +212,10 @@ extension APIClient {
         if let cursor { q.append(.init(name: "cursor", value: cursor)) }
         return try await request("GET", "/instances/\(instanceId)/recipients", query: q)
     }
+    func renameRecipient(instanceId: String, recipientId: String, alias: String?) async throws -> Recipient {
+        struct B: Encodable { let alias: String? }
+        return try await request("PATCH", "/instances/\(instanceId)/recipients/\(recipientId)", body: B(alias: alias))
+    }
 
     // Mensajes
     func upcomingMessages(cursor: String? = nil) async throws -> Paginated<ScheduledMessage> {
