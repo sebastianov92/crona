@@ -148,6 +148,21 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Ajustes")
+            #if os(macOS)
+            // sin toolbar, macOS no dibuja la barra superior y el título no se veía
+            .toolbar {
+                ToolbarItem {
+                    Button {
+                        Task { await Updater.shared.checkManually() }
+                    } label: {
+                        if Updater.shared.checking { ProgressView().controlSize(.small) }
+                        else { Label("Buscar actualizaciones", systemImage: "arrow.down.circle") }
+                    }
+                    .help("Buscar actualizaciones")
+                    .disabled(Updater.shared.checking)
+                }
+            }
+            #endif
         }
     }
 }

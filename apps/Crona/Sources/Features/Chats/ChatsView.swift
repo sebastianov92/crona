@@ -6,11 +6,16 @@ struct ChatsView: View {
     @State private var chats: [ChatSummary] = []
     @State private var loading = true
     @State private var selected: ChatSummary?
+    @State private var search = ""
+
+    private var filtered: [ChatSummary] {
+        search.isEmpty ? chats : chats.filter { $0.name.localizedCaseInsensitiveContains(search) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                if chats.isEmpty && !loading {
+                if filtered.isEmpty && !loading {
                     ContentUnavailableView(
                         "Sin chats todavía",
                         systemImage: "bubble.left.and.bubble.right",
@@ -19,7 +24,7 @@ struct ChatsView: View {
                     .frame(maxWidth: .infinity)
                     .listRowSeparator(.hidden)
                 }
-                ForEach(chats) { chat in
+                ForEach(filtered) { chat in
                     Button {
                         selected = chat
                     } label: {
@@ -69,6 +74,7 @@ struct ChatsView: View {
             .listStyle(.plain)
             .overlay { if loading && chats.isEmpty { ProgressView() } }
             .navigationTitle("Chats")
+            .searchable(text: $search, prompt: "Buscar")
             .refreshable { await load() }
             .task { await load() }
             .onReceive(NotificationCenter.default.publisher(for: .cronaChatIncoming)) { _ in
