@@ -17,6 +17,7 @@ export const userDTO = (u: User) => ({
   notifyOnSent: u.notifyOnSent,
   chatListCount: u.chatListCount,
   chatIncomingCount: u.chatIncomingCount,
+  defaultInstanceId: u.defaultInstanceId,
   quickHours: (u.quickHours as object | null) ?? DEFAULT_QUICK_HOURS,
   createdAt: u.createdAt,
 });

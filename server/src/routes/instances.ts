@@ -124,6 +124,16 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     return reply.status(201).send({ instance: instanceDTO(instance), qrBase64, pairingCode });
   });
 
+  // Renombrar la instancia (solo el nombre visible; el instanceName de Evolution no cambia)
+  app.patch("/instances/:id", { preHandler: authenticate }, async (req) => {
+    const { id } = req.params as { id: string };
+    const Body = z.object({ name: z.string().min(1).max(40) });
+    const body = Body.parse(req.body);
+    const inst = await ownInstance(req.userId, id);
+    const updated = await prisma.instance.update({ where: { id: inst.id }, data: { name: body.name } });
+    return instanceDTO(updated);
+  });
+
   app.get("/instances/:id/qr", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
     const Query = z.object({ number: z.string().regex(/^\d{8,15}$/).optional() });

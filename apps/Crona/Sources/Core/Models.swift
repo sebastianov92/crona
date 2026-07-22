@@ -22,6 +22,7 @@ struct User: Identifiable, Codable, Hashable {
     var notifyOnSent: Bool
     var chatListCount: Int
     var chatIncomingCount: Int
+    var defaultInstanceId: String?
     var quickHours: QuickHours
     let createdAt: Date
 }
@@ -315,4 +316,5 @@ struct PatchMessageBody: Codable, Hashable {
     var recurrenceUntil: Date?
     var randomDelay: Bool?
     var status: ScheduleStatus?
+    var instanceId: String? // cambiar desde qué WhatsApp se envía
 }

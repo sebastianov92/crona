@@ -223,6 +223,7 @@ struct EditMessageView: View {
 
     @State private var text: String = ""
     @State private var schedule = ScheduleConfig()
+    @State private var instanceId: String = ""
     @State private var busy = false
     @State private var error: String?
 
@@ -230,7 +231,16 @@ struct EditMessageView: View {
         NavigationStack {
             Form {
                 Section("Mensaje") {
-                    TextField("Texto", text: $text, axis: .vertical).lineLimit(1...6)
+                    TextField("Texto", text: $text, axis: .vertical).lineLimit(1...4)
+                }
+                if session.instances.count > 1 {
+                    Section("Instancia") {
+                        Picker("Enviar desde", selection: $instanceId) {
+                            ForEach(session.instances) { inst in
+                                Text(inst.name).tag(inst.id)
+                            }
+                        }
+                    }
                 }
                 Section("Envío") {
                     DatePicker("Fecha y hora", selection: $schedule.date, in: Date().addingTimeInterval(120)...)
@@ -263,6 +273,7 @@ struct EditMessageView: View {
                 schedule.recurrence = message.recurrence
                 schedule.recurrenceDays = Set(message.recurrenceDays)
                 schedule.until = message.recurrenceUntil
+                instanceId = message.instanceId
             }
         }
         #if os(macOS)
@@ -277,7 +288,8 @@ struct EditMessageView: View {
                 body: text.isEmpty ? nil : text,
                 scheduledAt: schedule.date,
                 recurrence: schedule.recurrence,
-                recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : []
+                recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
+                instanceId: instanceId != message.instanceId ? instanceId : nil
             ))
             await session.refreshMessages()
             dismiss()

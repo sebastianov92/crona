@@ -43,6 +43,7 @@ struct ComposeView: View {
     @State private var showRecorder = false
     @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
     @State private var voiceMs: Int? // duración de la nota de voz grabada
+    @FocusState private var messageFocused: Bool
 
     private var canSubmit: Bool {
         !recipients.isEmpty && instanceId != nil && !sending &&
@@ -160,11 +161,16 @@ struct ComposeView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
                         } else {
+                            // tope de 4 líneas: más allá scrollea por dentro y el cursor nunca queda
+                            // tapado (por el teclado en iOS o el borde de la ventana en Mac)
                             TextField("Escribe un mensaje", text: $text, axis: .vertical)
-                                .lineLimit(1...6)
+                                .lineLimit(1...4)
                                 .textFieldStyle(.plain)
+                                .focused($messageFocused)
                                 .padding(8)
                                 .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+                                .contentShape(RoundedRectangle(cornerRadius: 18))
+                                .onTapGesture { messageFocused = true } // toda la burbuja enfoca, no solo la línea de texto
                         }
                     }
                     if attachment?.messageType != .AUDIO {

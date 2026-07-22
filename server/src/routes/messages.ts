@@ -159,6 +159,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
     recurrenceUntil: z.coerce.date().nullable().optional(),
     randomDelay: z.boolean().optional(),
     status: z.enum(["ACTIVE", "PAUSED"]).optional(), // pausar / reanudar
+    instanceId: z.string().uuid().optional(), // cambiar desde qué WhatsApp se envía
   });
 
   app.patch("/messages/:id", { preHandler: authenticate }, async (req) => {
@@ -180,10 +181,15 @@ export function registerMessageRoutes(app: FastifyInstance) {
     };
     validateContent(merged);
     if (patch.mediaId) await assertOwnMedia(req.userId, patch.mediaId);
+    if (patch.instanceId) {
+      const inst = await prisma.instance.findFirst({ where: { id: patch.instanceId, userId: req.userId } });
+      if (!inst) throw errors.notFound("La instancia");
+    }
 
     const updated = await prisma.scheduledMessage.update({
       where: { id: msg.id },
       data: {
+        ...(patch.instanceId ? { instanceId: patch.instanceId } : {}),
         ...(patch.body !== undefined ? { body: patch.body } : {}),
         ...(patch.mediaId !== undefined ? { mediaId: patch.mediaId } : {}),
         ...(patch.scheduledAt ? { scheduledAt: patch.scheduledAt, nextRunAt: patch.scheduledAt, attempts: 0, lastError: null } : {}),

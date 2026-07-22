@@ -5,6 +5,8 @@ struct InstanceListView: View {
     @State private var showCreate = false
     @State private var qrInstance: Instance?
     @State private var confirmDelete: Instance?
+    @State private var renaming: Instance?
+    @State private var renameText = ""
 
     var body: some View {
         List {
@@ -20,7 +22,15 @@ struct InstanceListView: View {
                 HStack(spacing: 12) {
                     AvatarView(name: inst.name, pictureUrl: inst.profilePicUrl)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(inst.name).font(.headline)
+                        HStack(spacing: 5) {
+                            Text(inst.name).font(.headline)
+                            if session.user?.defaultInstanceId == inst.id {
+                                Image(systemName: "star.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.yellow)
+                                    .help("Instancia principal")
+                            }
+                        }
                         HStack(spacing: 6) {
                             Circle().fill(color(inst.status)).frame(width: 8, height: 8)
                             Text(label(inst.status)).font(.caption).foregroundStyle(.secondary)
@@ -53,6 +63,16 @@ struct InstanceListView: View {
                     .tint(.red)
                 }
                 .contextMenu {
+                    Button("Renombrar…") {
+                        renameText = inst.name
+                        renaming = inst
+                    }
+                    if session.user?.defaultInstanceId != inst.id {
+                        Button("Usar como principal") {
+                            Task { session.user = try? await APIClient.shared.patchMe(defaultInstanceId: .some(inst.id)) }
+                        }
+                    }
+                    Divider()
                     Button("Ver QR") { qrInstance = inst }
                     Button("Actualizar estado") {
                         Task { await refreshStatus(inst) }
@@ -73,6 +93,24 @@ struct InstanceListView: View {
         }
         .sheet(isPresented: $showCreate) { CreateInstanceView() }
         .sheet(item: $qrInstance) { inst in QRLinkView(instance: inst) }
+        .alert("Renombrar instancia", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Nombre", text: $renameText)
+            Button("Guardar") {
+                if let inst = renaming {
+                    let name = renameText.trimmingCharacters(in: .whitespaces)
+                    if !name.isEmpty {
+                        Task {
+                            if let updated = try? await APIClient.shared.renameInstance(id: inst.id, name: name),
+                               let i = session.instances.firstIndex(where: { $0.id == inst.id }) {
+                                session.instances[i] = updated
+                            }
+                        }
+                    }
+                }
+                renaming = nil
+            }
+            Button("Cancelar", role: .cancel) { renaming = nil }
+        }
         .alert(
             "¿Eliminar instancia?",
             isPresented: .init(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } })

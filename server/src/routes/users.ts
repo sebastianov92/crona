@@ -21,6 +21,7 @@ export function registerUserRoutes(app: FastifyInstance) {
     password: z.string().min(8).optional(),
     chatListCount: z.number().int().min(1).max(100).optional(),
     chatIncomingCount: z.number().int().min(0).max(50).optional(),
+    defaultInstanceId: z.string().uuid().nullable().optional(),
     quickHours: z
       .object({
         morning: z.object({ start: z.number().int().min(0).max(1439), end: z.number().int().min(0).max(1439) }),
@@ -40,6 +41,13 @@ export function registerUserRoutes(app: FastifyInstance) {
     if (body.chatListCount !== undefined) data.chatListCount = body.chatListCount;
     if (body.chatIncomingCount !== undefined) data.chatIncomingCount = body.chatIncomingCount;
     if (body.quickHours !== undefined) data.quickHours = body.quickHours;
+    if (body.defaultInstanceId !== undefined) {
+      if (body.defaultInstanceId) {
+        const inst = await prisma.instance.findFirst({ where: { id: body.defaultInstanceId, userId: req.userId } });
+        if (!inst) throw errors.notFound("La instancia");
+      }
+      data.defaultInstanceId = body.defaultInstanceId;
+    }
     if (body.password !== undefined) data.passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
     const user = await prisma.user.update({ where: { id: req.userId }, data });
     return userDTO(user);

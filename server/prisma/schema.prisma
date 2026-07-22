@@ -72,6 +72,7 @@ model User {
   notifyOnSent  Boolean  @default(false) // notificar también envíos exitosos
   chatListCount     Int  @default(10) // cuántos chats mostrar en la pestaña Chats
   chatIncomingCount Int  @default(5) // mensajes recibidos visibles por chat (0 = ninguno)
+  defaultInstanceId String? // instancia principal: preseleccionada al programar
   // Botones rápidos Mañana/Tarde/Noche: minutos del día {start,end} por franja.
   // start == end → hora exacta (se envía con +1..5 min aleatorios); si no, hora aleatoria del rango.
   quickHours        Json? // {"morning":{"start":480,"end":540},"afternoon":{...},"evening":{...}}

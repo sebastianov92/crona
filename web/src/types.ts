@@ -16,6 +16,7 @@ export interface User {
   notifyOnSent: boolean;
   chatListCount: number;
   chatIncomingCount: number;
+  defaultInstanceId: string | null;
   quickHours: QuickHours;
   createdAt: string;
 }

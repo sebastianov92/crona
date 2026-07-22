@@ -20,6 +20,7 @@ struct ChatDetailView: View {
     @State private var showFileImporter = false
     @State private var typingStart: Date?
     @State private var voiceMs: Int?
+    @FocusState private var inputFocused: Bool
     #if os(iOS)
     @State private var photoItem: PhotosPickerItem?
     @State private var showPhotoPicker = false
@@ -135,10 +136,13 @@ struct ChatDetailView: View {
                         .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
                 } else {
                     TextField("Escribe un mensaje", text: $text, axis: .vertical)
-                        .lineLimit(1...5)
+                        .lineLimit(1...4) // más allá scrollea adentro — el cursor nunca queda tapado
                         .textFieldStyle(.plain)
+                        .focused($inputFocused)
                         .padding(.horizontal, 10).padding(.vertical, 7)
                         .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 17))
+                        .contentShape(RoundedRectangle(cornerRadius: 17))
+                        .onTapGesture { inputFocused = true }
                 }
 
                 Button {
@@ -158,15 +162,34 @@ struct ChatDetailView: View {
 
     private var whenSheet: some View {
         NavigationStack {
-            VStack(spacing: 18) {
+            VStack(spacing: 16) {
                 Text("¿Cuándo se envía?").font(.title3.bold())
                 HStack(spacing: 8) {
                     quickButton("Mañana", icon: "sunrise", hours.morning)
                     quickButton("Tarde", icon: "sun.max", hours.afternoon)
                     quickButton("Noche", icon: "moon", hours.evening)
                 }
+                #if os(macOS)
+                // Mac: calendario para el día + campo aparte para la hora (el picker "graphical"
+                // combinado quedaba confuso); resumen legible de lo elegido
+                DatePicker("Fecha", selection: $when, in: Date().addingTimeInterval(120)..., displayedComponents: [.date])
+                    .datePickerStyle(.graphical)
+                HStack {
+                    Text("Hora").font(.headline)
+                    Spacer()
+                    DatePicker("", selection: $when, displayedComponents: [.hourAndMinute])
+                        .labelsHidden()
+                        .datePickerStyle(.stepperField)
+                }
+                .padding(12)
+                .background(Color.gray.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                Text("Se enviará \(when.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute()))")
+                    .font(.callout)
+                    .foregroundStyle(Theme.accent)
+                #else
                 DatePicker("Fecha y hora", selection: $when, in: Date().addingTimeInterval(120)...)
                     .datePickerStyle(.graphical)
+                #endif
                 Button {
                     Task { await send() }
                 } label: {
@@ -188,7 +211,7 @@ struct ChatDetailView: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 420, minHeight: 520)
+        .frame(minWidth: 460, minHeight: 640)
         #endif
         .presentationDetents([.large])
     }

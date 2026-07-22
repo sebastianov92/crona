@@ -158,7 +158,7 @@ extension APIClient {
     func patchMe(name: String? = nil, ntfyTopic: String?? = nil, ntfyToken: String?? = nil,
                  notifyOnSent: Bool? = nil, password: String? = nil,
                  chatListCount: Int? = nil, chatIncomingCount: Int? = nil,
-                 quickHours: QuickHours? = nil) async throws -> User {
+                 quickHours: QuickHours? = nil, defaultInstanceId: String?? = nil) async throws -> User {
         struct B: Encodable {
             var name: String?
             var ntfyTopic: String??
@@ -168,6 +168,7 @@ extension APIClient {
             var chatListCount: Int?
             var chatIncomingCount: Int?
             var quickHours: QuickHours?
+            var defaultInstanceId: String??
             func encode(to encoder: Encoder) throws {
                 var c = encoder.container(keyedBy: K.self)
                 if let name { try c.encode(name, forKey: .name) }
@@ -178,10 +179,11 @@ extension APIClient {
                 if let chatListCount { try c.encode(chatListCount, forKey: .chatListCount) }
                 if let chatIncomingCount { try c.encode(chatIncomingCount, forKey: .chatIncomingCount) }
                 if let quickHours { try c.encode(quickHours, forKey: .quickHours) }
+                if let defaultInstanceId { try c.encode(defaultInstanceId, forKey: .defaultInstanceId) }
             }
-            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours }
+            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours, defaultInstanceId }
         }
-        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours))
+        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours, defaultInstanceId: defaultInstanceId))
     }
 
     // Chats
@@ -234,6 +236,10 @@ extension APIClient {
         return try await request("GET", "/instances/\(id)/qr", query: q)
     }
     func instanceStatus(id: String) async throws -> Instance { try await request("GET", "/instances/\(id)/status") }
+    func renameInstance(id: String, name: String) async throws -> Instance {
+        struct B: Encodable { let name: String }
+        return try await request("PATCH", "/instances/\(id)", body: B(name: name))
+    }
     func syncInstance(id: String) async throws -> SyncResult { try await request("POST", "/instances/\(id)/sync") }
     func deleteInstance(id: String) async throws -> OkResponse { try await request("DELETE", "/instances/\(id)") }
     func recipients(instanceId: String, kind: RecipientKind?, search: String, cursor: String? = nil) async throws -> Paginated<Recipient> {

@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import { useApp, useTheme } from "../App";
 import { Avatar, DayDots, Sheet, Toggle, dayNames, useAsync } from "../lib";
 import type { AdminSettings, AutoReply, Instance, Paginated, User } from "../types";
-import { IconCheckCircle, IconChevron, IconPause, IconPlay, IconPlus, IconTrash } from "../icons";
+import { IconCheckCircle, IconChevron, IconPause, IconPencil, IconPlay, IconPlus, IconTrash } from "../icons";
 
 export default function Settings() {
   const { user, setUser, instances, upcoming, refreshMessages, logout, toast } = useApp();
@@ -213,23 +213,54 @@ function QuickHoursEditor() {
 // ── Instancias + vinculación ─────────────────────────────
 
 function InstancesSheet({ onClose }: { onClose: () => void }) {
-  const { instances, refreshInstances, toast } = useApp();
+  const { user, setUser, instances, refreshInstances, toast } = useApp();
   const [linking, setLinking] = useState(false);
+
+  const rename = async (i: Instance) => {
+    const name = window.prompt("Nuevo nombre para la instancia:", i.name);
+    if (!name || !name.trim() || name.trim() === i.name) return;
+    try {
+      await api("PATCH", `/instances/${i.id}`, { name: name.trim() });
+      await refreshInstances();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error al renombrar");
+    }
+  };
+
+  const setPrimary = async (i: Instance) => {
+    try {
+      setUser(await api<User>("PATCH", "/me", { defaultInstanceId: i.id }));
+      toast(`${i.name} es ahora la instancia principal`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error");
+    }
+  };
 
   return (
     <Sheet title="Conectar a WhatsApp" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}><IconPlus size={14} /> Vincular</button>}>
       <div className="card">
         {instances.length === 0 && <div className="empty">Vincula tu número de WhatsApp para empezar.</div>}
-        {instances.map((i) => (
+        {instances.map((i) => {
+          const primary = user.defaultInstanceId === i.id;
+          return (
           <div key={i.id} className="row" style={{ cursor: "default" }}>
             <Avatar name={i.name} url={i.profilePicUrl} />
             <div className="main">
-              <div className="name">{i.name}</div>
-              <div className="sub">{i.phoneNumber ?? "—"}</div>
+              <div className="name" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                {i.name}
+                {primary && <span title="Instancia principal" style={{ color: "#f5b301" }}>★</span>}
+              </div>
+              <div className="sub">{i.phoneNumber ?? "—"}{primary ? " · principal" : ""}</div>
             </div>
             <span className={`badge ${i.status === "CONNECTED" ? "green" : ""}`}>
               {i.status === "CONNECTED" ? "Conectado" : i.status === "CONNECTING" ? "Conectando…" : "Desconectado"}
             </span>
+            {!primary && instances.length > 1 && (
+              <button className="btn small secondary" title="Usar como principal" onClick={() => setPrimary(i)}>★</button>
+            )}
+            <button className="btn small secondary" title="Renombrar" onClick={() => rename(i)}>
+              <IconPencil size={14} />
+            </button>
             <button
               className="btn small danger"
               onClick={async () => {
@@ -245,7 +276,8 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
               <IconTrash size={15} />
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
       {linking && <LinkWizard onClose={() => setLinking(false)} />}
     </Sheet>

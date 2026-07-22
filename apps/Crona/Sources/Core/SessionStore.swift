@@ -26,7 +26,10 @@ final class SessionStore {
     private let ws = WebSocketClient()
 
     var activeInstance: Instance? {
-        instances.first { $0.id == activeInstanceId } ?? instances.first
+        // prioridad: la elegida en esta sesión → la principal del usuario → la primera
+        instances.first { $0.id == activeInstanceId }
+            ?? instances.first { $0.id == user?.defaultInstanceId }
+            ?? instances.first
     }
     var isAdmin: Bool { user?.role == .ADMIN }
     var hasDisconnectedInstance: Bool {
@@ -117,7 +120,8 @@ final class SessionStore {
     func refreshInstances() async {
         do {
             instances = try await APIClient.shared.instances().items
-            if activeInstanceId == nil { activeInstanceId = instances.first?.id }
+            // activeInstanceId queda nil hasta que el usuario elija: así `activeInstance`
+            // cae en la instancia principal configurada (defaultInstanceId)
         } catch { report(error) }
     }
 
