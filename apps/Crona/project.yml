@@ -20,8 +20,11 @@ targets:
     supportedDestinations: [iOS, macOS]
     sources: [Sources]
     dependencies:
+      # el widget solo se embebe en iOS: en Mac la app va sin sandbox y el App Group
+      # dispararía el aviso de "acceder a datos de otras apps" en cada actualización
       - target: CronaWidget
         embed: true
+        platformFilter: iOS
     info:
       path: Sources/Info.plist
       properties:
@@ -49,7 +52,7 @@ targets:
 
   CronaWidget:
     type: app-extension
-    supportedDestinations: [iOS, macOS]
+    supportedDestinations: [iOS]
     sources: [WidgetSources]
     info:
       path: WidgetSources/Info.plist

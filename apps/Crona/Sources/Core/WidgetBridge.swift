@@ -16,6 +16,12 @@ enum WidgetBridge {
     }
 
     static func publish(upcoming: [ScheduledMessage]) {
+        #if os(macOS)
+        // En Mac la app va sin sandbox (lo necesita el auto-actualizador) y tocar el
+        // contenedor del App Group dispara el aviso "Crona quiere acceder a datos de otras
+        // apps" en CADA actualización. El widget queda solo en iPhone/iPad.
+        return
+        #else
         let items = upcoming
             .filter { $0.status == .ACTIVE }
             .prefix(6)
@@ -24,5 +30,6 @@ enum WidgetBridge {
               let data = try? JSONEncoder().encode(Array(items)) else { return }
         defaults.set(data, forKey: key)
         WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 }

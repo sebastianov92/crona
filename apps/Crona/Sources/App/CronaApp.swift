@@ -193,8 +193,8 @@ struct MacMainView: View {
                     Image("CronaLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 204, height: 115)
-                        .frame(width: 184, height: 40)
+                        .frame(width: 150, height: 84)   // lienzo escalado
+                        .frame(width: 184, height: 30)   // ventana visible (recorta el aire)
                         .clipped()
                 }
             }

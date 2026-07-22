@@ -19,13 +19,30 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           [[ "$TAG" == v* ]] && export VERSION="${TAG#v}"
           ./scripts/build-release.sh
+      # El texto del tag anotado es el changelog que la app muestra al actualizar,
+      # así que va como cuerpo del release (antes GitHub ponía solo un enlace "Full Changelog").
+      - name: Changelog desde el tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          BODY="$(git tag -l --format='%(contents:body)' "$TAG")"
+          [ -z "$BODY" ] && BODY="$(git tag -l --format='%(contents)' "$TAG")"
+          [ -z "$BODY" ] && BODY="Actualización $TAG"
+          {
+            echo 'NOTES<<CRONA_EOF'
+            echo "$BODY"
+            echo CRONA_EOF
+          } >> "$GITHUB_ENV"
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/Crona.dmg
             dist/Crona.ipa
-          generate_release_notes: true
+          body: ${{ env.NOTES }}
+          generate_release_notes: false
         if: startsWith(github.ref, 'refs/tags/')
       - name: Upload artifacts (manual runs)
         uses: actions/upload-artifact@v4

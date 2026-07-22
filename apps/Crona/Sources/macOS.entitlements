@@ -7,7 +7,6 @@
   <key>com.apple.security.app-sandbox</key><false/>
   <!-- grabar notas de voz -->
   <key>com.apple.security.device.audio-input</key><true/>
-  <!-- snapshot compartido con el widget -->
-  <key>com.apple.security.application-groups</key>
-  <array><string>group.com.sebastianov.crona</string></array>
+  <!-- SIN App Group: tocar su contenedor sin sandbox dispara el aviso "acceder a datos de
+       otras apps" en cada actualización. El widget queda solo en iPhone/iPad. -->
 </dict></plist>
