@@ -41,7 +41,10 @@ struct ComposeView: View {
     #endif
     @State private var showFileImporter = false
     @State private var showRecorder = false
+    @State private var showTemplates = false
     @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
+    @State private var textPresetMs: Int? // typingMs que trajo la plantilla para la primera parte
+    @State private var extraParts: [PartDraft] = [] // split: mensajes que salen después del primero
     @State private var voiceMs: Int? // duración de la nota de voz grabada
     @FocusState private var messageFocused: Bool
 
@@ -103,6 +106,12 @@ struct ComposeView: View {
                                 }
                                 if !text.isEmpty {
                                     Text(text)
+                                        .padding(10)
+                                        .background(Theme.accent.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
+                                }
+                                // el split se ve como lo verá quien lo reciba: una burbuja por parte
+                                ForEach(extraParts.filter { !$0.isEmpty }) { part in
+                                    Text(part.trimmed)
                                         .padding(10)
                                         .background(Theme.accent.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
                                 }
@@ -173,8 +182,26 @@ struct ComposeView: View {
                                 .onTapGesture { messageFocused = true } // toda la burbuja enfoca, no solo la línea de texto
                         }
                     }
+                    // Split: cada parte se envía por separado, con su propio "escribiendo…".
+                    PartsEditor(parts: $extraParts, minParts: 0, maxParts: 9,
+                                placeholder: "Otro mensaje", addLabel: "Agregar otro mensaje")
+
+                    Button {
+                        showTemplates = true
+                    } label: {
+                        Label("Usar plantilla", systemImage: "doc.text")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
                     if attachment?.messageType != .AUDIO {
                         Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !extraParts.isEmpty {
+                        Text("Se enviarán \(extraParts.filter { !$0.isEmpty }.count + 1) mensajes seguidos, con una pausa corta entre cada uno.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -259,6 +286,9 @@ struct ComposeView: View {
                     voiceMs = durationMs
                 }
             }
+            .sheet(isPresented: $showTemplates) {
+                TemplatePickerSheet(kind: .MESSAGE) { parts in applyTemplate(parts) }
+            }
             .onChange(of: text) { _, t in
                 if typingStart == nil && !t.isEmpty { typingStart = .now }
             }
@@ -313,6 +343,7 @@ struct ComposeView: View {
         recipients = [Recipient(id: p.recipientJid, jid: p.recipientJid, displayName: p.recipientName,
                                 alias: nil, pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)]
         text = p.body ?? ""
+        extraParts = (p.parts ?? []).map { PartDraft(text: $0.body ?? "", presetTypingMs: $0.typingMs) }
         schedule.date = max(p.scheduledAt, Date().addingTimeInterval(3600))
         schedule.recurrence = p.recurrence
         schedule.recurrenceDays = Set(p.recurrenceDays)
@@ -360,12 +391,21 @@ struct ComposeView: View {
         let raw: Int?
         if attachment?.messageType == .AUDIO {
             raw = voiceMs
-        } else if let typingStart {
-            raw = Int(Date().timeIntervalSince(typingStart) * 1000)
         } else {
-            raw = nil
+            let measured = typingStart.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0
+            let value = max(measured, textPresetMs ?? 0)
+            raw = value > 0 ? value : nil
         }
-        return raw.map { max(1500, min(25_000, $0)) }
+        return raw.map { clampTypingMs($0) }
+    }
+
+    /// Copia las partes de la plantilla al formulario; la plantilla en sí no se toca.
+    private func applyTemplate(_ parts: [TemplatePart]) {
+        guard let first = parts.first else { return }
+        text = first.body
+        typingStart = nil
+        textPresetMs = first.typingMs
+        extraParts = parts.dropFirst().map { PartDraft(text: $0.body, presetTypingMs: $0.typingMs) }
     }
 
     private func submit() async {
@@ -383,6 +423,10 @@ struct ComposeView: View {
                 uploading = false
             }
             let typingMs = computedTypingMs()
+            // partes adicionales del split: solo texto, cada una con su propio typingMs
+            let splitParts = extraParts.filter { !$0.isEmpty }.map {
+                MessagePart(type: .TEXT, body: $0.trimmed, mediaId: nil, typingMs: $0.typingMs)
+            }
             // Varios destinatarios (o una lista): misma hora para todos — el worker los envía
             // UNO POR UNO (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente).
             for r in recipients {
@@ -401,7 +445,8 @@ struct ComposeView: View {
                     recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
                     recurrenceUntil: schedule.until,
                     randomDelay: schedule.recurrence != .NONE && schedule.randomDelay,
-                    typingMs: typingMs
+                    typingMs: typingMs,
+                    parts: splitParts
                 )
                 let created = try await APIClient.shared.createMessage(body)
                 if !session.upcoming.contains(where: { $0.id == created.id }) {

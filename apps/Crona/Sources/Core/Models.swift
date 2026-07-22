@@ -10,6 +10,8 @@ enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTH
 enum AutoReplyAction: String, Codable, CaseIterable { case REPLY, NOTIFY }
 enum ScheduleStatus: String, Codable, CaseIterable { case ACTIVE, PAUSED, COMPLETED, CANCELLED, FAILED }
 enum LogStatus: String, Codable, CaseIterable { case SENDING, SENT, DELIVERED, READ, FAILED }
+enum TemplateKind: String, Codable, CaseIterable { case MESSAGE, GROUP_INITIAL }
+enum GroupCreationStatus: String, Codable, CaseIterable { case PENDING, CREATING, DONE, FAILED }
 
 // MARK: - Structs
 
@@ -24,6 +26,7 @@ struct User: Identifiable, Codable, Hashable {
     var chatIncomingCount: Int
     var defaultInstanceId: String?
     var quickHours: QuickHours
+    var defaultGroupPictureMediaId: String?
     let createdAt: Date
 }
 
@@ -186,6 +189,66 @@ struct ScheduledMessage: Identifiable, Codable, Hashable {
     var lastError: String?
     let createdAt: Date
     let updatedAt: Date
+    /// Partes ADICIONALES del split (vacío = mensaje normal). La primera parte son los
+    /// campos type/body/mediaId de arriba.
+    var parts: [MessagePart]?
+
+    /// Cuántos mensajes se enviarán en total (1 = sin split).
+    var partCount: Int { 1 + (parts?.count ?? 0) }
+}
+
+/// Parte adicional de un mensaje con split.
+struct MessagePart: Codable, Hashable {
+    var type: MessageType = .TEXT
+    var body: String?
+    var mediaId: String?
+    var typingMs: Int?
+}
+
+/// Parte de una plantilla o del mensaje inicial de un grupo (solo texto).
+struct TemplatePart: Codable, Hashable {
+    var body: String
+    var typingMs: Int?
+}
+
+struct MessageTemplate: Identifiable, Codable, Hashable {
+    let id: String
+    var name: String
+    var kind: TemplateKind
+    var isPublic: Bool
+    let ownerId: String
+    let ownerName: String?
+    let createdAt: Date
+    var parts: [TemplatePart]
+}
+
+struct GroupParticipant: Codable, Hashable {
+    let jid: String
+    var name: String?
+}
+
+struct GroupCreation: Identifiable, Codable, Hashable {
+    let id: String
+    let instanceId: String
+    var name: String
+    var pictureMediaId: String?
+    var participants: [GroupParticipant]
+    var runAt: Date
+    var status: GroupCreationStatus
+    var groupJid: String?
+    var lastError: String?
+    let createdAt: Date
+    var parts: [TemplatePart]
+}
+
+struct CreateGroupBody: Encodable {
+    var instanceId: String
+    var name: String
+    var pictureMediaId: String?
+    var participants: [GroupParticipant]
+    var parts: [TemplatePart]
+    /// Ausente = crear ya; con fecha = programado.
+    var scheduledAt: Date?
 }
 
 struct MessageLog: Identifiable, Codable, Hashable {
@@ -304,6 +367,8 @@ struct CreateMessageBody: Codable, Hashable {
     var recurrenceUntil: Date?
     var randomDelay: Bool = false
     var typingMs: Int? = nil
+    /// Partes adicionales del split (máx. 9); vacío = mensaje normal.
+    var parts: [MessagePart] = []
 }
 
 struct PatchMessageBody: Codable, Hashable {

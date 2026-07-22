@@ -6,6 +6,8 @@ struct RecipientPickerView: View {
 
     let instanceId: String
     var multiSelect: Bool = false
+    /// false al elegir participantes de un grupo nuevo: un JID de grupo no puede ser miembro.
+    var allowGroups: Bool = true
     let onPick: ([Recipient]) -> Void
 
     enum PickerTab: Hashable { case contacts, groups, lists }
@@ -29,13 +31,22 @@ struct RecipientPickerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Tipo", selection: $tab) {
-                    Text("Contactos").tag(PickerTab.contacts)
-                    Text("Grupos").tag(PickerTab.groups)
-                    Text("Listas").tag(PickerTab.lists)
+                if allowGroups {
+                    Picker("Tipo", selection: $tab) {
+                        Text("Contactos").tag(PickerTab.contacts)
+                        Text("Grupos").tag(PickerTab.groups)
+                        Text("Listas").tag(PickerTab.lists)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding([.horizontal, .top])
+                } else {
+                    Picker("Tipo", selection: $tab) {
+                        Text("Contactos").tag(PickerTab.contacts)
+                        Text("Listas").tag(PickerTab.lists)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding([.horizontal, .top])
                 }
-                .pickerStyle(.segmented)
-                .padding([.horizontal, .top])
 
                 if tab != .lists {
                     // buscador propio: el de .searchable colapsa la barra y esconde Cancelar/Listo

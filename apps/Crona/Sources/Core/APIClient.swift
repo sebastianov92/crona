@@ -158,7 +158,8 @@ extension APIClient {
     func patchMe(name: String? = nil, ntfyTopic: String?? = nil, ntfyToken: String?? = nil,
                  notifyOnSent: Bool? = nil, password: String? = nil,
                  chatListCount: Int? = nil, chatIncomingCount: Int? = nil,
-                 quickHours: QuickHours? = nil, defaultInstanceId: String?? = nil) async throws -> User {
+                 quickHours: QuickHours? = nil, defaultInstanceId: String?? = nil,
+                 defaultGroupPictureMediaId: String?? = nil) async throws -> User {
         struct B: Encodable {
             var name: String?
             var ntfyTopic: String??
@@ -169,6 +170,7 @@ extension APIClient {
             var chatIncomingCount: Int?
             var quickHours: QuickHours?
             var defaultInstanceId: String??
+            var defaultGroupPictureMediaId: String??
             func encode(to encoder: Encoder) throws {
                 var c = encoder.container(keyedBy: K.self)
                 if let name { try c.encode(name, forKey: .name) }
@@ -180,10 +182,11 @@ extension APIClient {
                 if let chatIncomingCount { try c.encode(chatIncomingCount, forKey: .chatIncomingCount) }
                 if let quickHours { try c.encode(quickHours, forKey: .quickHours) }
                 if let defaultInstanceId { try c.encode(defaultInstanceId, forKey: .defaultInstanceId) }
+                if let defaultGroupPictureMediaId { try c.encode(defaultGroupPictureMediaId, forKey: .defaultGroupPictureMediaId) }
             }
-            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours, defaultInstanceId }
+            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours, defaultInstanceId, defaultGroupPictureMediaId }
         }
-        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours, defaultInstanceId: defaultInstanceId))
+        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours, defaultInstanceId: defaultInstanceId, defaultGroupPictureMediaId: defaultGroupPictureMediaId))
     }
 
     // Chats
@@ -299,6 +302,27 @@ extension APIClient {
         struct B: Encodable { let paused: Bool }
         return try await request("POST", "/messages/pause-all", body: B(paused: paused))
     }
+
+    // Plantillas (propias + públicas)
+    func templates(kind: TemplateKind? = nil) async throws -> Paginated<MessageTemplate> {
+        var q: [URLQueryItem] = []
+        if let kind { q.append(.init(name: "kind", value: kind.rawValue)) }
+        return try await request("GET", "/templates", query: q)
+    }
+    func createTemplate(name: String, kind: TemplateKind, isPublic: Bool, parts: [TemplatePart]) async throws -> MessageTemplate {
+        struct B: Encodable { let name: String; let kind: TemplateKind; let isPublic: Bool; let parts: [TemplatePart] }
+        return try await request("POST", "/templates", body: B(name: name, kind: kind, isPublic: isPublic, parts: parts))
+    }
+    func patchTemplate(id: String, name: String? = nil, isPublic: Bool? = nil, parts: [TemplatePart]? = nil) async throws -> MessageTemplate {
+        struct B: Encodable { let name: String?; let isPublic: Bool?; let parts: [TemplatePart]? }
+        return try await request("PATCH", "/templates/\(id)", body: B(name: name, isPublic: isPublic, parts: parts))
+    }
+    func deleteTemplate(id: String) async throws -> OkResponse { try await request("DELETE", "/templates/\(id)") }
+
+    // Creación de grupos
+    func groups() async throws -> Paginated<GroupCreation> { try await request("GET", "/groups") }
+    func createGroup(_ body: CreateGroupBody) async throws -> GroupCreation { try await request("POST", "/groups", body: body) }
+    func deleteGroup(id: String) async throws -> OkResponse { try await request("DELETE", "/groups/\(id)") }
 
     // Respuestas automáticas
     func autoReplies() async throws -> Paginated<AutoReply> { try await request("GET", "/autoreplies") }

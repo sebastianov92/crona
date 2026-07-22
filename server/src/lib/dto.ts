@@ -18,6 +18,7 @@ export const userDTO = (u: User) => ({
   chatListCount: u.chatListCount,
   chatIncomingCount: u.chatIncomingCount,
   defaultInstanceId: u.defaultInstanceId,
+  defaultGroupPictureMediaId: u.defaultGroupPictureMediaId,
   quickHours: (u.quickHours as object | null) ?? DEFAULT_QUICK_HOURS,
   createdAt: u.createdAt,
 });

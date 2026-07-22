@@ -68,6 +68,16 @@ export const evolution = {
     evoFetch(`/chat/findChats/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
   fetchAllGroups: (n: string, k: string) =>
     evoFetch(`/group/fetchAllGroups/${n}?getParticipants=false`, { apikey: k }),
+  // Grupos (v2): create devuelve el jid del grupo creado
+  createGroup: (n: string, k: string, body: { subject: string; description?: string; participants: string[] }) =>
+    evoFetch(`/group/create/${n}`, { method: "POST", body, apikey: k, timeoutMs: 60_000 }),
+  updateGroupPicture: (n: string, k: string, groupJid: string, imageUrlOrBase64: string) =>
+    evoFetch(`/group/updateGroupPicture/${n}?groupJid=${encodeURIComponent(groupJid)}`, {
+      method: "POST",
+      body: { image: imageUrlOrBase64 },
+      apikey: k,
+      timeoutMs: 120_000,
+    }),
   // Reconfigura el webhook de una instancia existente (p. ej. para suscribir MESSAGES_UPSERT)
   setWebhook: async (n: string, url: string, events: string[]) =>
     evoFetch(`/webhook/set/${n}`, {

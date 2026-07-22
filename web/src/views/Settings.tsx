@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { api, ApiError } from "../api";
+import { api, ApiError, uploadMedia } from "../api";
 import { useApp, useTheme } from "../App";
-import { Avatar, DayDots, Sheet, Toggle, dayNames, useAsync } from "../lib";
+import { Avatar, DayDots, MediaImg, Sheet, Toggle, dayNames, useAsync } from "../lib";
 import type { AdminSettings, AutoReply, Instance, Paginated, User } from "../types";
-import { IconCheckCircle, IconChevron, IconPause, IconPencil, IconPlay, IconPlus, IconTrash } from "../icons";
+import { IconCamera, IconCheckCircle, IconChevron, IconPause, IconPencil, IconPlay, IconPlus, IconTrash } from "../icons";
+import { TemplatesSheet } from "./Templates";
 
 export default function Settings() {
   const { user, setUser, instances, upcoming, refreshMessages, logout, toast } = useApp();
   const [theme, setTheme] = useTheme();
-  const [view, setView] = useState<"" | "instances" | "autoreplies" | "ntfy" | "admin" | "users">("");
+  const [view, setView] = useState<
+    "" | "instances" | "autoreplies" | "ntfy" | "admin" | "users" | "templates" | "grouptemplates" | "grouppicture"
+  >("");
 
   const anyActive = upcoming.some((m) => m.status === "ACTIVE");
   const anyPaused = upcoming.some((m) => m.status === "PAUSED");
@@ -50,6 +53,25 @@ export default function Settings() {
         </button>
         <button className="row" onClick={() => setView("autoreplies")}>
           <div className="main">Respuestas automáticas</div><IconChevron size={16} />
+        </button>
+      </div>
+
+      <label className="label">Plantillas</label>
+      <div className="card">
+        <button className="row" onClick={() => setView("templates")}>
+          <div className="main">Plantillas de mensajes</div><IconChevron size={16} />
+        </button>
+      </div>
+
+      <label className="label">Grupos</label>
+      <div className="card">
+        <button className="row" onClick={() => setView("grouppicture")}>
+          <div className="main">Foto por defecto de los grupos</div>
+          {user.defaultGroupPictureMediaId && <span className="badge green">Configurada</span>}
+          <IconChevron size={16} />
+        </button>
+        <button className="row" onClick={() => setView("grouptemplates")}>
+          <div className="main">Plantillas de mensaje inicial</div><IconChevron size={16} />
         </button>
       </div>
 
@@ -129,7 +151,69 @@ export default function Settings() {
       {view === "ntfy" && <NtfySheet onClose={() => setView("")} />}
       {view === "admin" && <AdminSheet onClose={() => setView("")} />}
       {view === "users" && <UsersSheet onClose={() => setView("")} />}
+      {view === "templates" && <TemplatesSheet kind="MESSAGE" onClose={() => setView("")} />}
+      {view === "grouptemplates" && <TemplatesSheet kind="GROUP_INITIAL" onClose={() => setView("")} />}
+      {view === "grouppicture" && <GroupPictureSheet onClose={() => setView("")} />}
     </div>
+  );
+}
+
+// ── Foto por defecto de los grupos ───────────────────────
+
+function GroupPictureSheet({ onClose }: { onClose: () => void }) {
+  const { user, setUser, toast } = useApp();
+  const [busy, setBusy] = useState(false);
+
+  const save = async (mediaId: string | null) => {
+    setBusy(true);
+    try {
+      setUser(await api<User>("PATCH", "/me", { defaultGroupPictureMediaId: mediaId }));
+      toast(mediaId ? "Foto guardada ✓" : "Foto quitada");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Error al guardar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet title="Foto por defecto de los grupos" onClose={onClose}>
+      <p className="hint" style={{ marginBottom: 12 }}>
+        Se usa al crear grupos nuevos. Puedes cambiarla en cada grupo.
+      </p>
+      {user.defaultGroupPictureMediaId && (
+        <div style={{ marginBottom: 12 }}>
+          <MediaImg mediaId={user.defaultGroupPictureMediaId} type="IMAGE" />
+        </div>
+      )}
+      <label className="filebtn">
+        <IconCamera size={16} />
+        {user.defaultGroupPictureMediaId ? "Cambiar foto" : "Elegir foto"}
+        <input
+          type="file"
+          hidden
+          accept="image/jpeg,image/png,image/webp"
+          disabled={busy}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setBusy(true);
+            try {
+              const { mediaId } = await uploadMedia(f);
+              await save(mediaId);
+            } catch (err) {
+              toast(err instanceof ApiError ? err.message : "Error al subir la foto");
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
+      {user.defaultGroupPictureMediaId && (
+        <button className="btn secondary" style={{ marginTop: 10 }} disabled={busy} onClick={() => save(null)}>
+          Quitar foto
+        </button>
+      )}
+    </Sheet>
   );
 }
 

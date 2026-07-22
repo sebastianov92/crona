@@ -6,6 +6,8 @@ export type Recurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type ScheduleStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED" | "FAILED";
 export type LogStatus = "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
 export type AutoReplyAction = "REPLY" | "NOTIFY";
+export type TemplateKind = "MESSAGE" | "GROUP_INITIAL";
+export type GroupJobStatus = "PENDING" | "CREATING" | "DONE" | "FAILED";
 
 export interface User {
   id: string;
@@ -17,8 +19,48 @@ export interface User {
   chatListCount: number;
   chatIncomingCount: number;
   defaultInstanceId: string | null;
+  defaultGroupPictureMediaId: string | null;
   quickHours: QuickHours;
   createdAt: string;
+}
+
+/** Parte adicional de un mensaje dividido (split). */
+export interface MessagePart {
+  type: MessageType;
+  body: string | null;
+  mediaId: string | null;
+  typingMs: number | null;
+}
+
+export interface TemplatePart {
+  body: string;
+  typingMs: number | null;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  kind: TemplateKind;
+  isPublic: boolean;
+  ownerId: string;
+  /** el server manda null si el usuario ya no existe */
+  ownerName: string | null;
+  createdAt: string;
+  parts: TemplatePart[];
+}
+
+export interface GroupJob {
+  id: string;
+  instanceId: string;
+  name: string;
+  pictureMediaId: string | null;
+  participants: { jid: string; name: string | null }[];
+  runAt: string | null;
+  status: GroupJobStatus;
+  groupJid: string | null;
+  lastError: string | null;
+  createdAt: string;
+  parts: TemplatePart[];
 }
 
 export interface QuickRange {
@@ -122,6 +164,8 @@ export interface ScheduledMessage {
   lastError: string | null;
   createdAt: string;
   updatedAt: string;
+  /** partes adicionales (split); vacío o ausente = mensaje normal */
+  parts?: MessagePart[];
 }
 
 export interface MessageLog {

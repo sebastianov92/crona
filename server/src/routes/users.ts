@@ -22,6 +22,8 @@ export function registerUserRoutes(app: FastifyInstance) {
     chatListCount: z.number().int().min(1).max(100).optional(),
     chatIncomingCount: z.number().int().min(0).max(50).optional(),
     defaultInstanceId: z.string().uuid().nullable().optional(),
+    // foto por defecto de los grupos que se crean (mediaId de POST /media)
+    defaultGroupPictureMediaId: z.string().uuid().nullable().optional(),
     quickHours: z
       .object({
         morning: z.object({ start: z.number().int().min(0).max(1439), end: z.number().int().min(0).max(1439) }),
@@ -47,6 +49,15 @@ export function registerUserRoutes(app: FastifyInstance) {
         if (!inst) throw errors.notFound("La instancia");
       }
       data.defaultInstanceId = body.defaultInstanceId;
+    }
+    if (body.defaultGroupPictureMediaId !== undefined) {
+      if (body.defaultGroupPictureMediaId) {
+        const media = await prisma.media.findFirst({
+          where: { id: body.defaultGroupPictureMediaId, userId: req.userId },
+        });
+        if (!media) throw errors.notFound("La foto");
+      }
+      data.defaultGroupPictureMediaId = body.defaultGroupPictureMediaId;
     }
     if (body.password !== undefined) data.passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
     const user = await prisma.user.update({ where: { id: req.userId }, data });

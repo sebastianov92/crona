@@ -73,6 +73,7 @@ model User {
   chatListCount     Int  @default(10) // cuántos chats mostrar en la pestaña Chats
   chatIncomingCount Int  @default(5) // mensajes recibidos visibles por chat (0 = ninguno)
   defaultInstanceId String? // instancia principal: preseleccionada al programar
+  defaultGroupPictureMediaId String? // foto por defecto de los grupos que se crean
   // Botones rápidos Mañana/Tarde/Noche: minutos del día {start,end} por franja.
   // start == end → hora exacta (se envía con +1..5 min aleatorios); si no, hora aleatoria del rango.
   quickHours        Json? // {"morning":{"start":480,"end":540},"afternoon":{...},"evening":{...}}
@@ -84,6 +85,79 @@ model User {
   autoReplies   AutoReply[]
   hiddenChats   HiddenChat[]
   contactLists  ContactList[]
+  templates     Template[]
+  groupCreations GroupCreation[]
+}
+
+enum TemplateKind {
+  MESSAGE      // plantilla para programar un mensaje
+  GROUP_INITIAL // plantilla para el mensaje inicial al crear un grupo
+}
+
+/// Plantilla reutilizable. Puede tener varias partes (split) y guarda el tiempo de
+/// escritura de cada una para reproducir la señal "escribiendo…" al enviarla.
+model Template {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  kind      TemplateKind   @default(MESSAGE)
+  isPublic  Boolean        @default(false) // visible y usable por todos los del servidor
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  parts     TemplatePart[]
+
+  @@index([userId])
+}
+
+model TemplatePart {
+  id         String   @id @default(uuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  order      Int
+  body       String
+  typingMs   Int? // cuánto tardó en escribirse esta parte
+
+  @@index([templateId, order])
+}
+
+enum GroupCreationStatus {
+  PENDING
+  CREATING
+  DONE
+  FAILED
+}
+
+/// Creación de un grupo de WhatsApp: inmediata (runAt = ahora) o programada.
+/// El worker crea el grupo, le pone la foto y envía el mensaje inicial tras 5-10 s.
+model GroupCreation {
+  id             String              @id @default(uuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId     String
+  name           String
+  pictureMediaId String?
+  participants   Json // [{ jid, name }]
+  runAt          DateTime
+  status         GroupCreationStatus @default(PENDING)
+  claimedAt      DateTime?
+  groupJid       String? // se llena al crearse
+  lastError      String?
+  createdAt      DateTime            @default(now())
+  parts          GroupMessagePart[]
+
+  @@index([status, runAt])
+}
+
+model GroupMessagePart {
+  id         String        @id @default(uuid())
+  creationId String
+  creation   GroupCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  order      Int
+  body       String
+  typingMs   Int?
+
+  @@index([creationId, order])
 }
 
 // Chat "eliminado" de la pestaña Chats: se oculta hasta que haya actividad nueva
@@ -278,9 +352,27 @@ model ScheduledMessage {
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   logs                MessageLog[]
+  // Split: si hay partes, el envío son varios mensajes seguidos (con pausa de 1-3 s entre
+  // cada uno). Los campos type/body/mediaId de arriba describen la PRIMERA parte, para que
+  // el historial y las vistas antiguas sigan funcionando igual.
+  parts               MessagePart[]
 
   @@index([status, nextRunAt])
   @@index([userId, status])
+}
+
+/// Parte adicional de un mensaje dividido (la primera vive en ScheduledMessage).
+model MessagePart {
+  id        String           @id @default(uuid())
+  messageId String
+  message   ScheduledMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  order     Int // 1, 2, 3… (la parte 0 es el propio ScheduledMessage)
+  type      MessageType      @default(TEXT)
+  body      String?
+  mediaId   String?
+  typingMs  Int?
+
+  @@index([messageId, order])
 }
 
 // Una fila por cada envío real ejecutado (historial). Estados actualizados por webhooks.

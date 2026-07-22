@@ -37,12 +37,21 @@ struct MessageDetailView: View {
                         }
                     }
 
-                    Section("Mensaje") {
+                    Section(msg.partCount > 1 ? "Mensajes (\(msg.partCount))" : "Mensaje") {
                         if let mediaId = msg.mediaId {
                             MediaPreviewView(mediaId: mediaId, type: msg.type)
                         }
                         if let body = msg.body, !body.isEmpty {
-                            Text(body)
+                            partRow(index: 0, total: msg.partCount, text: body)
+                        }
+                        // split: el resto de partes, en el orden en que se enviarán
+                        ForEach(Array((msg.parts ?? []).enumerated()), id: \.offset) { i, part in
+                            if let mediaId = part.mediaId {
+                                MediaPreviewView(mediaId: mediaId, type: part.type)
+                            }
+                            if let body = part.body, !body.isEmpty {
+                                partRow(index: i + 1, total: msg.partCount, text: body)
+                            }
                         }
                     }
 
@@ -144,6 +153,18 @@ struct MessageDetailView: View {
             Text("Se enviará a \(msg?.recipientName ?? "") en los próximos segundos.")
         }
         .disabled(busy)
+    }
+
+    @ViewBuilder
+    private func partRow(index: Int, total: Int, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if total > 1 {
+                Text("\(index + 1) de \(total)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Text(text)
+        }
     }
 
     private func recurrenceText(_ msg: ScheduledMessage) -> String {

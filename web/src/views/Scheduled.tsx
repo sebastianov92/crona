@@ -4,7 +4,10 @@ import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
 import { quickDate, shownName } from "../types";
 import type { ContactList, MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
-import { IconCheckCircle, IconCircle, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop, IconTrash } from "../icons";
+import { IconCheckCircle, IconCircle, IconLayers, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop, IconTemplate, IconTrash } from "../icons";
+import { MAX_PARTS, PartsEditor, clampTyping, newPart, partTypingMs } from "../parts";
+import type { PartDraft } from "../parts";
+import { TemplatePicker } from "./Templates";
 
 export const QUICK_PERIODS = [
   ["morning", "Mañana"],
@@ -12,8 +15,7 @@ export const QUICK_PERIODS = [
   ["evening", "Noche"],
 ] as const;
 
-export const clampTyping = (ms: number | null): number | null =>
-  ms === null ? null : Math.max(1500, Math.min(25_000, Math.round(ms)));
+export { clampTyping };
 
 /** ¿La hora elegida cae dentro de la franja de este botón rápido? (para pintarlo activo) */
 export const quickActive = (when: string, r: { start: number; end: number }): boolean => {
@@ -78,7 +80,14 @@ export default function Scheduled() {
             <Avatar name={m.recipientName} url={m.recipientPictureUrl} />
             <div className="main">
               <div className="name">{m.recipientName}</div>
-              <div className="sub">{messagePreview(m.type, m.body)}</div>
+              <div className="sub" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                {(m.parts?.length ?? 0) > 0 && (
+                  <span className="splitmark" title={`${(m.parts?.length ?? 0) + 1} mensajes seguidos`}>
+                    <IconLayers size={11} /> {(m.parts?.length ?? 0) + 1}
+                  </span>
+                )}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{messagePreview(m.type, m.body)}</span>
+              </div>
             </div>
             <div className="right">
               <div className="time">
@@ -119,9 +128,9 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [instanceId, setInstanceId] = useState(instances[0]?.id ?? "");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [showPicker, setShowPicker] = useState(false);
-  const [text, setText] = useState("");
+  const [parts, setParts] = useState<PartDraft[]>([newPart()]);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const typingStart = useRef<number | null>(null); // primer caracter escrito
   const voiceMs = useRef<number | null>(null); // duración de la nota de voz grabada
   const [when, setWhen] = useState(() => localInputValue(new Date(Date.now() + 3600_000)));
   const [tz, setTz] = useState(COMMON_TZ[0]);
@@ -131,7 +140,8 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = recipients.length > 0 && instanceId && (text.trim() || file) && !busy;
+  const isAudio = !!file && file.type.startsWith("audio/");
+  const canSubmit = recipients.length > 0 && instanceId && (parts.some((p) => p.body.trim()) || file) && !busy;
 
   const submit = async () => {
     setBusy(true);
@@ -148,9 +158,17 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
             : file.type.startsWith("audio/")
               ? "AUDIO"
               : "DOCUMENT";
-      const typingMs = clampTyping(
-        type === "AUDIO" ? voiceMs.current : typingStart.current ? Date.now() - typingStart.current : null,
-      );
+      // Solo las cajas con texto: si el usuario deja una vacía en medio no se envía vacía.
+      const filled = parts.filter((p) => p.body.trim());
+      // Nota de voz: la parte 0 es el audio (sin texto) y TODO el texto va como partes extra.
+      const isVoice = type === "AUDIO";
+      const first: PartDraft | null = isVoice ? null : filled[0] ?? null;
+      const rest = isVoice ? filled : filled.slice(1);
+      const typingMs = isVoice ? clampTyping(voiceMs.current) : first ? partTypingMs(first) : null;
+      // El resto de partes van en "parts" (máx. 9 adicionales) — el server las envía en orden
+      const extraParts = rest
+        .slice(0, 9)
+        .map((p) => ({ type: "TEXT" as const, body: p.body.trim(), mediaId: null, typingMs: partTypingMs(p) }));
       // Varios destinatarios: misma hora para todos — el worker los envía UNO POR UNO
       // (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente), nunca dos a la vez.
       for (const r of recipients) {
@@ -158,8 +176,9 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           instanceId,
           recipient: { jid: r.jid, name: shownName(r), kind: r.kind, pictureUrl: r.pictureUrl },
           type,
-          body: type === "AUDIO" ? null : text.trim() || null,
+          body: type === "AUDIO" ? null : first?.body.trim() || null,
           mediaId: mediaId ?? null,
+          parts: extraParts,
           scheduledAt: new Date(when).toISOString(),
           timezone: tz,
           recurrence,
@@ -205,23 +224,19 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      <label className="label">Mensaje</label>
-      {file?.type.startsWith("audio/") ? (
-        <div className="hint">Las notas de voz se envían solas, sin texto.</div>
-      ) : (
-        <>
-          <textarea
-            className="field"
-            placeholder="Escribe un mensaje"
-            value={text}
-            onChange={(e) => {
-              if (!typingStart.current && e.target.value) typingStart.current = Date.now();
-              setText(e.target.value);
-            }}
-          />
-          <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
-        </>
-      )}
+      <div className="labelrow">
+        <label className="label" style={{ margin: 0 }}>Mensaje</label>
+        <button className="btn small secondary" onClick={() => setShowTemplates(true)}>
+          <IconTemplate size={14} /> Usar plantilla
+        </button>
+      </div>
+      <PartsEditor
+        parts={parts}
+        onChange={setParts}
+        note={isAudio ? "La nota de voz se envía sola, sin texto. Lo que escribas aquí se envía después, como mensajes aparte." : undefined}
+        max={isAudio ? MAX_PARTS - 1 : MAX_PARTS}
+      />
+      <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
 
       <label className="label">Adjunto (foto, video, PDF o audio)</label>
       {file ? (
@@ -299,6 +314,16 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
             setShowPicker(false);
           }}
           onClose={() => setShowPicker(false)}
+        />
+      )}
+      {showTemplates && (
+        <TemplatePicker
+          kind="MESSAGE"
+          onPick={(p) => {
+            setParts(p);
+            setShowTemplates(false);
+          }}
+          onClose={() => setShowTemplates(false)}
         />
       )}
     </Sheet>
@@ -457,7 +482,18 @@ function ManualNumberForm({ onAdd }: { onAdd: (r: Recipient) => void }) {
   );
 }
 
-function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; onDone: (r: Recipient[]) => void; onClose: () => void }) {
+export function RecipientPicker({
+  instanceId,
+  onDone,
+  onClose,
+  onlyContacts = false,
+}: {
+  instanceId: string;
+  onDone: (r: Recipient[]) => void;
+  onClose: () => void;
+  /** sin pestaña de grupos: para elegir participantes de un grupo nuevo */
+  onlyContacts?: boolean;
+}) {
   const { toast } = useApp();
   const [tab, setTab] = useState<"CONTACT" | "GROUP" | "LISTS">("CONTACT");
   const kind: RecipientKind = tab === "GROUP" ? "GROUP" : "CONTACT";
@@ -561,7 +597,7 @@ function RecipientPicker({ instanceId, onDone, onClose }: { instanceId: string; 
     >
       <div className="seg" style={{ marginBottom: 10 }}>
         <button className={tab === "CONTACT" ? "active" : ""} onClick={() => setTab("CONTACT")}>Contactos</button>
-        <button className={tab === "GROUP" ? "active" : ""} onClick={() => setTab("GROUP")}>Grupos</button>
+        {!onlyContacts && <button className={tab === "GROUP" ? "active" : ""} onClick={() => setTab("GROUP")}>Grupos</button>}
         <button className={tab === "LISTS" ? "active" : ""} onClick={() => setTab("LISTS")}>Listas</button>
       </div>
       {tab === "LISTS" ? (
@@ -808,7 +844,20 @@ function DetailSheet({ id, onClose }: { id: string; onClose: () => void }) {
       {m.lastError && <div className="error">Último error: {m.lastError}</div>}
 
       {m.mediaId && <div style={{ margin: "12px 0" }}><MediaImg mediaId={m.mediaId} type={m.type} /></div>}
-      {m.body && <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>{m.body}</p>}
+      {(m.parts?.length ?? 0) > 0 ? (
+        <>
+          <label className="label">Mensajes ({(m.parts?.length ?? 0) + 1} seguidos)</label>
+          {[{ type: m.type, body: m.body, mediaId: m.mediaId, typingMs: null }, ...(m.parts ?? [])].map((p, i) => (
+            <div key={i} className="partbox">
+              <div className="parthead"><span>Mensaje {i + 1}</span></div>
+              {p.type !== "TEXT" && <div className="hint" style={{ marginTop: 0 }}>{messagePreview(p.type, null)}</div>}
+              {p.body && <p style={{ whiteSpace: "pre-wrap" }}>{p.body}</p>}
+            </div>
+          ))}
+        </>
+      ) : (
+        m.body && <p style={{ margin: "12px 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
+      )}
 
       {detail.logs.length > 0 && (
         <>

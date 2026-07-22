@@ -6,6 +6,7 @@ import { quickDate } from "../types";
 import type { ChatBubble, ChatSummary, Paginated } from "../types";
 import { IconCheck, IconChevron, IconPaperclip, IconSend, IconTrash } from "../icons";
 import { clampTyping, QUICK_PERIODS, quickActive, VoiceRecorderButton } from "./Scheduled";
+import { GroupsButton } from "./Groups";
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -44,7 +45,10 @@ export default function Chats() {
 
   return (
     <div className="page">
-      <h1 className="pagetitle">Chats</h1>
+      <div className="labelrow" style={{ marginBottom: 14 }}>
+        <h1 className="pagetitle" style={{ margin: 0 }}>Chats</h1>
+        <GroupsButton />
+      </div>
       <div className="card">
         {!loading && (chats ?? []).length === 0 && (
           <div className="empty">

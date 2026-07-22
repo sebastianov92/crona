@@ -32,6 +32,19 @@ const CreateBody = z.object({
   randomDelay: z.boolean().default(false),
   // cuánto tardó el usuario redactando: se muestra "escribiendo…/grabando audio…" ese tiempo antes de enviar
   typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
+  // Split: partes ADICIONALES (la primera son los campos de arriba). Se envían seguidas,
+  // con pausa de 1-3 s entre cada una y su propio "escribiendo…".
+  parts: z
+    .array(
+      z.object({
+        type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO"]).default("TEXT"),
+        body: z.string().max(4096).nullable().optional(),
+        mediaId: z.string().uuid().nullable().optional(),
+        typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
+      }),
+    )
+    .max(9)
+    .default([]),
 });
 
 function validateContent(input: {
@@ -80,6 +93,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
     if (q.filter === "upcoming") {
       const rows = await prisma.scheduledMessage.findMany({
         where: { userId: req.userId, status: { in: ["ACTIVE", "PAUSED"] } },
+        include: { parts: true },
         orderBy: [{ nextRunAt: "asc" }, { id: "asc" }],
         take: q.limit + 1,
         ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
@@ -113,6 +127,11 @@ export function registerMessageRoutes(app: FastifyInstance) {
     const instance = await prisma.instance.findFirst({ where: { id: body.instanceId, userId: req.userId } });
     if (!instance) throw errors.notFound("La instancia");
     if (body.mediaId) await assertOwnMedia(req.userId, body.mediaId);
+    for (const p of body.parts) {
+      if (p.type === "TEXT" && !p.body?.trim()) throw errors.validation("Ninguna parte del mensaje puede estar vacía.");
+      if (p.type !== "TEXT" && !p.mediaId) throw errors.validation("Las partes con adjunto necesitan un archivo.");
+      if (p.mediaId) await assertOwnMedia(req.userId, p.mediaId);
+    }
 
     const msg = await prisma.scheduledMessage.create({
       data: {
@@ -133,7 +152,17 @@ export function registerMessageRoutes(app: FastifyInstance) {
         randomDelay: body.randomDelay,
         typingMs: body.typingMs ?? null,
         nextRunAt: body.scheduledAt,
+        parts: {
+          create: body.parts.map((p, i) => ({
+            order: i + 1, // la 0 es el propio mensaje
+            type: p.type,
+            body: p.body ?? null,
+            mediaId: p.mediaId ?? null,
+            typingMs: p.typingMs ?? null,
+          })),
+        },
       },
+      include: { parts: true },
     });
     broadcast(req.userId, "message.updated", messageDTO(msg));
     return reply.status(201).send(messageDTO(msg));
@@ -142,11 +171,11 @@ export function registerMessageRoutes(app: FastifyInstance) {
   app.get("/messages/:id", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
     const msg = await ownMessage(req.userId, id);
-    const logs = await prisma.messageLog.findMany({
-      where: { scheduledMessageId: msg.id },
-      orderBy: { runAt: "desc" },
-    });
-    return { message: messageDTO(msg), logs: logs.map(logDTO) };
+    const [full, logs] = await Promise.all([
+      prisma.scheduledMessage.findUnique({ where: { id: msg.id }, include: { parts: true } }),
+      prisma.messageLog.findMany({ where: { scheduledMessageId: msg.id }, orderBy: { runAt: "desc" } }),
+    ]);
+    return { message: messageDTO(full ?? msg), logs: logs.map(logDTO) };
   });
 
   const PatchBody = z.object({
@@ -255,9 +284,23 @@ export function registerMessageRoutes(app: FastifyInstance) {
       msg.scheduledAt.getTime() > Date.now() + MIN_LEAD_MS
         ? msg.scheduledAt
         : new Date(Date.now() + 3600_000);
+    // el split viaja con la copia: duplicar un mensaje de varias partes debe conservarlas
+    const srcParts = await prisma.messagePart.findMany({
+      where: { messageId: msg.id },
+      orderBy: { order: "asc" },
+    });
     const copy = await prisma.scheduledMessage.create({
       data: {
         userId: req.userId,
+        parts: {
+          create: srcParts.map((p) => ({
+            order: p.order,
+            type: p.type,
+            body: p.body,
+            mediaId: p.mediaId,
+            typingMs: p.typingMs,
+          })),
+        },
         instanceId: msg.instanceId,
         recipientJid: msg.recipientJid,
         recipientName: msg.recipientName,
@@ -274,6 +317,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         nextRunAt: scheduledAt,
         status: "PAUSED",
       },
+      include: { parts: true },
     });
     broadcast(req.userId, "message.updated", messageDTO(copy));
     return reply.status(201).send(messageDTO(copy));

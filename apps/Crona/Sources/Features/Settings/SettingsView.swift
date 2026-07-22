@@ -31,6 +31,8 @@ struct SettingsView: View {
                 Section("WhatsApp") {
                     NavigationLink("Conectar a WhatsApp") { InstanceListView() }
                     NavigationLink("Respuestas automáticas") { AutoRepliesView() }
+                    NavigationLink("Plantillas") { TemplatesView() }
+                    NavigationLink("Creación de grupos") { GroupSettingsView() }
                 }
 
                 if let user = session.user {

@@ -112,6 +112,11 @@ struct MessageRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if message.partCount > 1 {
+                    Label("1 de \(message.partCount) mensajes", systemImage: "rectangle.stack")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {

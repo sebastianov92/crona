@@ -9,6 +9,7 @@ import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
 import { buildAudioPayload, buildMediaPayload, deleteMediaFile } from "./media.js";
 import { cleanupAutoReplyHits, cleanupChatMessages } from "./autoreply.js";
+import { groupTick, recoverGroupsOnBoot } from "./groups.js";
 import { renderVariables } from "../lib/variables.js";
 
 const TICK_MS = 30_000;
@@ -157,6 +158,36 @@ async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAIL
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
+/// Envía una parte concreta y devuelve el id de Evolution.
+/// `part` null = la parte 0 (los campos del propio ScheduledMessage).
+async function sendPart(
+  msg: FullMessage,
+  key: string,
+  part: { type: string; body: string | null; mediaId: string | null; typingMs: number | null } | null,
+): Promise<string | undefined> {
+  const type = part ? part.type : msg.type;
+  const body = part ? part.body : msg.body;
+  const delay = (part ? part.typingMs : msg.typingMs) ?? 1800; // "escribiendo…" el tiempo real de redacción
+  // buildMediaPayload/buildAudioPayload leen del mensaje: para partes con adjunto propio
+  // se les pasa una copia con el mediaId y el texto de esa parte
+  const asMessage = part
+    ? ({ ...msg, type: part.type, body: part.body, mediaId: part.mediaId, typingMs: part.typingMs } as FullMessage)
+    : msg;
+
+  const res =
+    type === "TEXT"
+      ? await evolution.sendText(msg.instance.instanceName, key, {
+          number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
+          text: renderVariables(body ?? "", msg),
+          delay,
+        })
+      : type === "AUDIO"
+        ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(asMessage))
+        : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(asMessage));
+
+  return res?.key?.id ?? res?.response?.key?.id;
+}
+
 async function sendOne(msg: FullMessage): Promise<void> {
   const state = await evolution.cachedState(msg.instance.instanceName).catch(() => "close");
   if (state !== "open") {
@@ -168,17 +199,19 @@ async function sendOne(msg: FullMessage): Promise<void> {
   const key = decrypt(msg.instance.tokenEnc);
   const log = await createLog(msg);
   try {
-    const res =
-      msg.type === "TEXT"
-        ? await evolution.sendText(msg.instance.instanceName, key, {
-            number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
-            text: renderVariables(msg.body ?? "", msg),
-            delay: msg.typingMs ?? 1800, // "escribiendo…" el tiempo real de redacción
-          })
-        : msg.type === "AUDIO"
-          ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(msg))
-          : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(msg));
-    const keyId: string | undefined = res?.key?.id ?? res?.response?.key?.id;
+    const keyId = await sendPart(msg, key, null);
+
+    // Split: el resto de partes salen seguidas, con pausa aleatoria de 1-3 s entre cada una
+    // (cada parte muestra su propio "escribiendo…" antes de enviarse).
+    const parts = await prisma.messagePart.findMany({
+      where: { messageId: msg.id },
+      orderBy: { order: "asc" },
+    });
+    for (const p of parts) {
+      await sleep(1000 + rand(0, 2000));
+      await sendPart(msg, key, p);
+    }
+
     await markLog(msg, log, "SENT", keyId);
     await onOccurrenceSuccess(msg);
     if (msg.user.notifyOnSent) {
@@ -262,6 +295,9 @@ async function cleanupRawWebhooks() {
 export function start() {
   void tick(); // ejecución inmediata al arrancar
   setInterval(() => void tick(), TICK_MS).unref();
+  // creación de grupos: ciclo propio y más frecuente (los "al instante" no deben esperar 30 s)
+  void recoverGroupsOnBoot().then(() => groupTick());
+  setInterval(() => void groupTick(), 5_000).unref();
   void cleanupRawWebhooks();
   void cleanupMedia();
   void cleanupAutoReplyHits();

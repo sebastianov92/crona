@@ -7,6 +7,8 @@ struct ChatsView: View {
     @State private var loading = true
     @State private var selected: ChatSummary?
     @State private var search = ""
+    @State private var showCreateGroup = false
+    @State private var showGroups = false
 
     private var filtered: [ChatSummary] {
         search.isEmpty ? chats : chats.filter { $0.name.localizedCaseInsensitiveContains(search) }
@@ -74,6 +76,18 @@ struct ChatsView: View {
             .listStyle(.plain)
             .overlay { if loading && chats.isEmpty { ProgressView() } }
             .navigationTitle("Chats")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button { showCreateGroup = true } label: { Label("Crear grupo", systemImage: "person.3") }
+                        Button { showGroups = true } label: { Label("Grupos creados", systemImage: "list.bullet") }
+                    } label: {
+                        Label("Crear grupo", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showCreateGroup) { CreateGroupView() }
+            .navigationDestination(isPresented: $showGroups) { GroupsListView() }
             .searchable(text: $search, prompt: "Buscar")
             .refreshable { await load() }
             .task { await load() }

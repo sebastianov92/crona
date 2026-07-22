@@ -1,6 +1,6 @@
-import type { MessageLog, ScheduledMessage } from "@prisma/client";
+import type { MessageLog, MessagePart, ScheduledMessage } from "@prisma/client";
 
-export const messageDTO = (m: ScheduledMessage) => ({
+export const messageDTO = (m: ScheduledMessage & { parts?: MessagePart[] }) => ({
   id: m.id,
   instanceId: m.instanceId,
   recipientJid: m.recipientJid,
@@ -24,6 +24,10 @@ export const messageDTO = (m: ScheduledMessage) => ({
   lastError: m.lastError,
   createdAt: m.createdAt,
   updatedAt: m.updatedAt,
+  // partes adicionales del split (vacío = mensaje normal de una sola parte)
+  parts: [...(m.parts ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .map((p) => ({ type: p.type, body: p.body, mediaId: p.mediaId, typingMs: p.typingMs })),
 });
 
 export const logDTO = (l: MessageLog) => ({
