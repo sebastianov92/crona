@@ -61,6 +61,18 @@ const extractQr = (res: any) => ({
   pairingCode: res?.qrcode?.pairingCode ?? res?.pairingCode ?? null,
 });
 
+/** Dos instancias del mismo usuario no pueden llamarse igual (ignorando mayúsculas y espacios). */
+async function assertNameFree(userId: string, name: string, exceptId?: string) {
+  const clash = await prisma.instance.findFirst({
+    where: {
+      userId,
+      name: { equals: name.trim(), mode: "insensitive" },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+  });
+  if (clash) throw errors.validation(`Ya tienes una instancia llamada "${clash.name}". Usa otro nombre.`);
+}
+
 export function registerInstanceRoutes(app: FastifyInstance) {
   app.get("/instances", { preHandler: authenticate }, async (req) => {
     // orden manual del usuario; la PRIMERA es la instancia principal (default al programar)
@@ -98,6 +110,7 @@ export function registerInstanceRoutes(app: FastifyInstance) {
 
   app.post("/instances", { preHandler: authenticate }, async (req, reply) => {
     const body = CreateBody.parse(req.body);
+    await assertNameFree(req.userId, body.name);
     const instanceName = `u${shortid()}-${slug(body.name)}`;
 
     const res = await evolution.createInstance({
@@ -150,7 +163,8 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     const Body = z.object({ name: z.string().min(1).max(40) });
     const body = Body.parse(req.body);
     const inst = await ownInstance(req.userId, id);
-    const updated = await prisma.instance.update({ where: { id: inst.id }, data: { name: body.name } });
+    await assertNameFree(req.userId, body.name, inst.id);
+    const updated = await prisma.instance.update({ where: { id: inst.id }, data: { name: body.name.trim() } });
     return instanceDTO(updated);
   });
 

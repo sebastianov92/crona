@@ -179,16 +179,28 @@ struct MacMainView: View {
     private var sidebar: some View {
         VStack(spacing: 4) {
             // expandida: logo completo · colapsada: isotipo
+            // Los SVG traen el arte dentro de un lienzo 1920×1080 casi vacío (el logo ocupa
+            // ~33% del alto), así que hay que agrandar la imagen y recortar el aire sobrante.
             Group {
                 if collapsed {
-                    Image("CronaIcon").resizable().scaledToFit().frame(width: 30, height: 30)
+                    Image("CronaIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 68, height: 38)   // lienzo escalado
+                        .frame(width: 48, height: 34)   // ventana visible
+                        .clipped()
                 } else {
-                    Image("CronaLogo").resizable().scaledToFit().frame(height: 30)
+                    Image("CronaLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 204, height: 115)
+                        .frame(width: 184, height: 40)
+                        .clipped()
                 }
             }
-            .frame(height: 38)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .frame(height: 44)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
 
             ForEach(Section.allCases) { s in
                 Button {
