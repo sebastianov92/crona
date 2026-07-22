@@ -115,10 +115,8 @@ function localInputValue(d: Date): string {
 
 function ComposeSheet({ onClose }: { onClose: () => void }) {
   const { user, instances, refreshMessages, toast } = useApp();
-  // la instancia principal del usuario va preseleccionada
-  const [instanceId, setInstanceId] = useState(
-    () => instances.find((i) => i.id === user.defaultInstanceId)?.id ?? instances[0]?.id ?? "",
-  );
+  // el server devuelve las instancias en el orden del usuario: la primera es la principal
+  const [instanceId, setInstanceId] = useState(instances[0]?.id ?? "");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [text, setText] = useState("");

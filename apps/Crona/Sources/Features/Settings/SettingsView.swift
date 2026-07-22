@@ -4,6 +4,9 @@ struct SettingsView: View {
     @Environment(SessionStore.self) private var session
     @AppStorage("appearance") private var appearance = Appearance.system.rawValue
     @AppStorage("localNotifications") private var localNotifications = true
+    #if os(macOS)
+    @AppStorage("autoUpdate") private var autoUpdate = false
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -107,6 +110,34 @@ struct SettingsView: View {
                         NavigationLink("Usuarios e invitaciones") { AdminUsersView() }
                     }
                 }
+
+                #if os(macOS)
+                Section {
+                    LabeledContent("Versión instalada", value: "v" + Updater.currentVersion)
+                    Toggle(isOn: $autoUpdate) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Actualizar automáticamente")
+                            Text("Al abrir la app, si hay versión nueva se descarga e instala sola.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Button {
+                        Task { await Updater.shared.checkManually() }
+                    } label: {
+                        if Updater.shared.checking { ProgressView().controlSize(.small) }
+                        else { Text("Buscar actualizaciones") }
+                    }
+                    .disabled(Updater.shared.checking)
+                    if let status = Updater.shared.status {
+                        Text(status).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Actualizaciones")
+                } footer: {
+                    Text("Sin la opción automática, cuando haya versión nueva aparece un aviso con las novedades y las opciones Actualizar, Recordármelo más tarde o Saltar esta versión.")
+                }
+                #endif
 
                 Section {
                     LabeledContent("Servidor", value: session.serverURL?.absoluteString ?? "—")

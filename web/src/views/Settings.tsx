@@ -213,7 +213,7 @@ function QuickHoursEditor() {
 // ── Instancias + vinculación ─────────────────────────────
 
 function InstancesSheet({ onClose }: { onClose: () => void }) {
-  const { user, setUser, instances, refreshInstances, toast } = useApp();
+  const { instances, refreshInstances, toast } = useApp();
   const [linking, setLinking] = useState(false);
 
   const rename = async (i: Instance) => {
@@ -227,21 +227,29 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const setPrimary = async (i: Instance) => {
+  // subir una posición: el orden manda — la primera de la lista es la principal
+  const moveUp = async (i: Instance) => {
+    const ids = instances.map((x) => x.id);
+    const idx = ids.indexOf(i.id);
+    if (idx <= 0) return;
+    [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
     try {
-      setUser(await api<User>("PATCH", "/me", { defaultInstanceId: i.id }));
-      toast(`${i.name} es ahora la instancia principal`);
+      await api("PUT", "/instances/order", { ids });
+      await refreshInstances();
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Error");
+      toast(e instanceof ApiError ? e.message : "Error al reordenar");
     }
   };
 
   return (
     <Sheet title="Conectar a WhatsApp" onClose={onClose} actions={<button className="btn small" onClick={() => setLinking(true)}><IconPlus size={14} /> Vincular</button>}>
+      {instances.length > 1 && (
+        <div className="hint" style={{ marginBottom: 8 }}>La primera instancia es la principal: sale por defecto al programar. Usa ↑ para reordenar.</div>
+      )}
       <div className="card">
         {instances.length === 0 && <div className="empty">Vincula tu número de WhatsApp para empezar.</div>}
-        {instances.map((i) => {
-          const primary = user.defaultInstanceId === i.id;
+        {instances.map((i, idx) => {
+          const primary = idx === 0 && instances.length > 1;
           return (
           <div key={i.id} className="row" style={{ cursor: "default" }}>
             <Avatar name={i.name} url={i.profilePicUrl} />
@@ -255,8 +263,8 @@ function InstancesSheet({ onClose }: { onClose: () => void }) {
             <span className={`badge ${i.status === "CONNECTED" ? "green" : ""}`}>
               {i.status === "CONNECTED" ? "Conectado" : i.status === "CONNECTING" ? "Conectando…" : "Desconectado"}
             </span>
-            {!primary && instances.length > 1 && (
-              <button className="btn small secondary" title="Usar como principal" onClick={() => setPrimary(i)}>★</button>
+            {idx > 0 && (
+              <button className="btn small secondary" title="Subir (la primera es la principal)" onClick={() => moveUp(i)}>↑</button>
             )}
             <button className="btn small secondary" title="Renombrar" onClick={() => rename(i)}>
               <IconPencil size={14} />

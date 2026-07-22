@@ -13,7 +13,18 @@ struct CronaApp: App {
                 .task {
                     await session.bootstrap()
                     LocalNotifications.setup()
+                    #if os(macOS)
+                    await Updater.shared.checkAtLaunch()
+                    #endif
                 }
+                #if os(macOS)
+                .sheet(item: Binding(
+                    get: { Updater.shared.pending },
+                    set: { Updater.shared.pending = $0 }
+                )) { rel in
+                    UpdateSheet(release: rel)
+                }
+                #endif
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, session.phase == .ready {
                         Task { await session.refreshAll() }   // re-sync al volver a primer plano (§9.5)

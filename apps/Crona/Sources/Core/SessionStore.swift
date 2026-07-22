@@ -26,10 +26,9 @@ final class SessionStore {
     private let ws = WebSocketClient()
 
     var activeInstance: Instance? {
-        // prioridad: la elegida en esta sesión → la principal del usuario → la primera
-        instances.first { $0.id == activeInstanceId }
-            ?? instances.first { $0.id == user?.defaultInstanceId }
-            ?? instances.first
+        // prioridad: la elegida en esta sesión → la primera de la lista (orden del usuario;
+        // el server ya la devuelve ordenada y la primera es la principal)
+        instances.first { $0.id == activeInstanceId } ?? instances.first
     }
     var isAdmin: Bool { user?.role == .ADMIN }
     var hasDisconnectedInstance: Bool {

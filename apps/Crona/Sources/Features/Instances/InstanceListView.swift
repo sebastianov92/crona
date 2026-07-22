@@ -24,11 +24,11 @@ struct InstanceListView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 5) {
                             Text(inst.name).font(.headline)
-                            if session.user?.defaultInstanceId == inst.id {
+                            if session.instances.first?.id == inst.id && session.instances.count > 1 {
                                 Image(systemName: "star.fill")
                                     .font(.caption)
                                     .foregroundStyle(.yellow)
-                                    .help("Instancia principal")
+                                    .help("Instancia principal (la primera de la lista)")
                             }
                         }
                         HStack(spacing: 6) {
@@ -67,9 +67,12 @@ struct InstanceListView: View {
                         renameText = inst.name
                         renaming = inst
                     }
-                    if session.user?.defaultInstanceId != inst.id {
-                        Button("Usar como principal") {
-                            Task { session.user = try? await APIClient.shared.patchMe(defaultInstanceId: .some(inst.id)) }
+                    if session.instances.first?.id != inst.id {
+                        Button("Hacer principal (mover al inicio)") {
+                            var ids = session.instances.map(\.id)
+                            ids.removeAll { $0 == inst.id }
+                            ids.insert(inst.id, at: 0)
+                            Task { await reorder(ids) }
                         }
                     }
                     Divider()
@@ -84,9 +87,26 @@ struct InstanceListView: View {
                     Button("Eliminar", role: .destructive) { confirmDelete = inst }
                 }
             }
+            .onMove { from, to in
+                var ids = session.instances.map(\.id)
+                ids.move(fromOffsets: from, toOffset: to)
+                Task { await reorder(ids) }
+            }
+
+            if session.instances.count > 1 {
+                Text("Arrastra para ordenar: la primera instancia es la principal y sale por defecto al programar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .listRowSeparator(.hidden)
+            }
         }
         .navigationTitle("Instancias")
         .toolbar {
+            #if os(iOS)
+            if session.instances.count > 1 {
+                ToolbarItem(placement: .cancellationAction) { EditButton() } // habilita arrastrar para ordenar
+            }
+            #endif
             ToolbarItem {
                 Button { showCreate = true } label: { Label("Vincular número", systemImage: "plus") }
             }
@@ -132,6 +152,16 @@ struct InstanceListView: View {
         }
         .refreshable { await session.refreshInstances() }
         .task { await session.refreshInstances() }
+    }
+
+    private func reorder(_ ids: [String]) async {
+        // optimista: reordenar local ya mismo; el server confirma y devuelve el orden final
+        session.instances.sort { a, b in
+            (ids.firstIndex(of: a.id) ?? 0) < (ids.firstIndex(of: b.id) ?? 0)
+        }
+        do {
+            session.instances = try await APIClient.shared.reorderInstances(ids: ids).items
+        } catch { session.report(error) }
     }
 
     private func refreshStatus(_ inst: Instance) async {

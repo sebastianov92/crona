@@ -63,9 +63,29 @@ const extractQr = (res: any) => ({
 
 export function registerInstanceRoutes(app: FastifyInstance) {
   app.get("/instances", { preHandler: authenticate }, async (req) => {
+    // orden manual del usuario; la PRIMERA es la instancia principal (default al programar)
     const items = await prisma.instance.findMany({
       where: { userId: req.userId },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+    return { items: items.map(instanceDTO), nextCursor: null };
+  });
+
+  // Reordenar: recibe TODOS los ids del usuario en el orden deseado
+  app.put("/instances/order", { preHandler: authenticate }, async (req) => {
+    const Body = z.object({ ids: z.array(z.string().uuid()).min(1).max(50) });
+    const body = Body.parse(req.body);
+    const own = await prisma.instance.findMany({ where: { userId: req.userId }, select: { id: true } });
+    const ownIds = new Set(own.map((i) => i.id));
+    if (body.ids.length !== ownIds.size || !body.ids.every((id) => ownIds.has(id))) {
+      throw errors.validation("La lista debe incluir todas tus instancias, sin repetidos.");
+    }
+    await prisma.$transaction(
+      body.ids.map((id, i) => prisma.instance.update({ where: { id }, data: { sortOrder: i } })),
+    );
+    const items = await prisma.instance.findMany({
+      where: { userId: req.userId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
     return { items: items.map(instanceDTO), nextCursor: null };
   });

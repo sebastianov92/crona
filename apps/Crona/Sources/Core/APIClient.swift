@@ -240,6 +240,11 @@ extension APIClient {
         struct B: Encodable { let name: String }
         return try await request("PATCH", "/instances/\(id)", body: B(name: name))
     }
+    /// Reordena las instancias; la primera pasa a ser la principal.
+    func reorderInstances(ids: [String]) async throws -> Paginated<Instance> {
+        struct B: Encodable { let ids: [String] }
+        return try await request("PUT", "/instances/order", body: B(ids: ids))
+    }
     func syncInstance(id: String) async throws -> SyncResult { try await request("POST", "/instances/\(id)/sync") }
     func deleteInstance(id: String) async throws -> OkResponse { try await request("DELETE", "/instances/\(id)") }
     func recipients(instanceId: String, kind: RecipientKind?, search: String, cursor: String? = nil) async throws -> Paginated<Recipient> {

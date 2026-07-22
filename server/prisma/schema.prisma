@@ -160,6 +160,7 @@ model Instance {
   profilePicUrl   String?
   status          InstanceStatus @default(CREATED)
   lastConnectedAt DateTime?
+  sortOrder       Int            @default(0) // posición en la lista; la primera es la principal
   createdAt       DateTime       @default(now())
   recipients      Recipient[]
   messages        ScheduledMessage[]
