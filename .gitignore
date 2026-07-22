@@ -1,8 +1,21 @@
 node_modules/
 dist/
-.env
 data/
 *.xcodeproj
 .DS_Store
-apps/CatchApp/DerivedData/
-dist/
+**/DerivedData/
+
+# Variables de entorno: nunca versionar valores reales, sí las plantillas
+.env
+.env.*
+!.env.example
+!.env.full.example
+
+# Material de firma y certificados: jamás al repo (es público)
+*.p12
+*.pem
+*.cer
+*.p8
+*.key
+*.mobileprovision
+*.keystore
