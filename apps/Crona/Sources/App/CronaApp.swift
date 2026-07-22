@@ -190,11 +190,13 @@ struct MacMainView: View {
                         .frame(width: 48, height: 34)   // ventana visible
                         .clipped()
                 } else {
+                    // el arte ocupa solo el 33% del alto del lienzo: se escala y se recorta el
+                    // aire, dejando margen suficiente para que no se corte por arriba
                     Image("CronaLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 150, height: 84)   // lienzo escalado
-                        .frame(width: 184, height: 30)   // ventana visible (recorta el aire)
+                        .frame(width: 119, height: 67)   // lienzo escalado → arte ≈ 22pt de alto
+                        .frame(width: 184, height: 32)   // ventana visible (5pt de aire arriba y abajo)
                         .clipped()
                 }
             }
