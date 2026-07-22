@@ -6,7 +6,6 @@ struct InstanceListView: View {
     @State private var qrInstance: Instance?
     @State private var confirmDelete: Instance?
     @State private var renaming: Instance?
-    @State private var renameText = ""
 
     var body: some View {
         List {
@@ -46,6 +45,16 @@ struct InstanceListView: View {
                             .controlSize(.small)
                     }
                     Button {
+                        renaming = inst
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Renombrar instancia")
+                    Button {
                         confirmDelete = inst
                     } label: {
                         Image(systemName: "trash")
@@ -61,12 +70,13 @@ struct InstanceListView: View {
                         Label("Eliminar", systemImage: "trash")
                     }
                     .tint(.red)
+                    Button { renaming = inst } label: {
+                        Label("Renombrar", systemImage: "pencil")
+                    }
+                    .tint(.gray)
                 }
                 .contextMenu {
-                    Button("Renombrar…") {
-                        renameText = inst.name
-                        renaming = inst
-                    }
+                    Button("Renombrar…") { renaming = inst }
                     if session.instances.first?.id != inst.id {
                         Button("Hacer principal (mover al inicio)") {
                             var ids = session.instances.map(\.id)
@@ -113,23 +123,16 @@ struct InstanceListView: View {
         }
         .sheet(isPresented: $showCreate) { CreateInstanceView() }
         .sheet(item: $qrInstance) { inst in QRLinkView(instance: inst) }
-        .alert("Renombrar instancia", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField("Nombre", text: $renameText)
-            Button("Guardar") {
-                if let inst = renaming {
-                    let name = renameText.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty {
-                        Task {
-                            if let updated = try? await APIClient.shared.renameInstance(id: inst.id, name: name),
-                               let i = session.instances.firstIndex(where: { $0.id == inst.id }) {
-                                session.instances[i] = updated
-                            }
-                        }
+        // hoja (no alert): dos .alert en la misma vista se pisan entre sí en macOS
+        .sheet(item: $renaming) { inst in
+            RenameInstanceSheet(instance: inst) { newName in
+                do {
+                    let updated = try await APIClient.shared.renameInstance(id: inst.id, name: newName)
+                    if let i = session.instances.firstIndex(where: { $0.id == inst.id }) {
+                        session.instances[i] = updated
                     }
-                }
-                renaming = nil
+                } catch { session.report(error) }
             }
-            Button("Cancelar", role: .cancel) { renaming = nil }
         }
         .alert(
             "¿Eliminar instancia?",
@@ -190,3 +193,62 @@ struct InstanceListView: View {
     }
 }
 
+
+/// Renombrar una instancia. Va en hoja y no en alert: dos `.alert` en la misma vista
+/// se pisan entre sí en macOS y el segundo nunca aparece.
+struct RenameInstanceSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let instance: Instance
+    let onSave: (String) async -> Void
+
+    @State private var name = ""
+    @State private var busy = false
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { name.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Nombre", text: $name)
+                        .focused($focused)
+                        .onSubmit { if !trimmed.isEmpty { Task { await save() } } }
+                } footer: {
+                    Text("Solo cambia el nombre que ves en Crona; tu número de WhatsApp no se toca.")
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Renombrar instancia")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if busy { ProgressView().controlSize(.small) } else { Text("Guardar") }
+                    }
+                    .disabled(trimmed.isEmpty || busy)
+                }
+            }
+            .onAppear {
+                name = instance.name
+                focused = true
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 380, minHeight: 200)
+        #endif
+    }
+
+    private func save() async {
+        busy = true
+        defer { busy = false }
+        await onSave(trimmed)
+        dismiss()
+    }
+}

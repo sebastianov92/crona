@@ -154,21 +154,86 @@ struct MacMainView: View {
     }
 
     @State private var section: Section = .scheduled
+    @AppStorage("sidebarCollapsed") private var collapsed = false
+
+    private var sidebarWidth: CGFloat { collapsed ? 64 : 200 }
 
     var body: some View {
-        NavigationSplitView {
-            List(Section.allCases, selection: $section) { s in
-                Label(s.rawValue, systemImage: s.icon).tag(s)
+        // Barra propia en vez de NavigationSplitView: al colapsar queremos que queden los
+        // iconos, no que la barra desaparezca por completo.
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
+            Group {
+                switch section {
+                case .scheduled: ScheduledListView()
+                case .chats: ChatsView()
+                case .history: HistoryView()
+                case .settings: SettingsView()
+                }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-        } detail: {
-            switch section {
-            case .scheduled: ScheduledListView()
-            case .chats: ChatsView()
-            case .history: HistoryView()
-            case .settings: SettingsView()
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var sidebar: some View {
+        VStack(spacing: 4) {
+            // expandida: logo completo · colapsada: isotipo
+            Group {
+                if collapsed {
+                    Image("CronaIcon").resizable().scaledToFit().frame(width: 30, height: 30)
+                } else {
+                    Image("CronaLogo").resizable().scaledToFit().frame(height: 30)
+                }
+            }
+            .frame(height: 38)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            ForEach(Section.allCases) { s in
+                Button {
+                    section = s
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: s.icon)
+                            .font(.system(size: 15))
+                            .frame(width: 22)
+                        if !collapsed {
+                            Text(s.rawValue).font(.subheadline)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .foregroundStyle(section == s ? Theme.accent : .primary)
+                    .padding(.horizontal, collapsed ? 0 : 10)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .background(section == s ? Theme.accent.opacity(0.15) : .clear,
+                                in: RoundedRectangle(cornerRadius: 8))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .help(s.rawValue) // tooltip: imprescindible cuando solo se ve el icono
+            }
+
+            Spacer()
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { collapsed.toggle() }
+            } label: {
+                Image(systemName: collapsed ? "sidebar.left" : "sidebar.leading")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(collapsed ? "Expandir barra lateral" : "Colapsar barra lateral")
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 8)
+        .frame(width: sidebarWidth)
+        .background(.ultraThinMaterial)
     }
 }
 #endif
