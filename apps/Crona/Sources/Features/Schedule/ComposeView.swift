@@ -27,8 +27,9 @@ struct ComposeView: View {
 
     @State private var instanceId: String?
     @State private var recipients: [Recipient] = []
-    @State private var text = ""
-    @State private var attachment: Attachment?
+    // Lista homogénea de partes: cada una de cualquier tipo, en el orden que el usuario quiera.
+    @State private var parts: [ComposePart] = [ComposePart(kind: .text)]
+    @State private var focusRequest: UUID? // pide enfocar una parte concreta (al agregar texto)
     @State private var schedule = ScheduleConfig()
 
     @State private var showPicker = false
@@ -47,19 +48,17 @@ struct ComposeView: View {
     @State private var showStickerPicker = false
     @State private var showRecorder = false
     @State private var showTemplates = false
-    @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
-    @State private var textPresetMs: Int? // typingMs que trajo la plantilla para la primera parte
-    @State private var extraParts: [PartDraft] = [] // split: mensajes que salen después del primero
-    @State private var voiceMs: Int? // duración de la nota de voz grabada
-    @FocusState private var messageFocused: Bool
+
+    /// Total de partes (la parte 0 va en los campos raíz; el resto en "parts", máx. 9 adicionales).
+    private let maxParts = 10
 
     private var canSubmit: Bool {
-        !recipients.isEmpty && instanceId != nil && !sending &&
-        (attachment != nil || !text.trimmingCharacters(in: .whitespaces).isEmpty)
+        !recipients.isEmpty && instanceId != nil && !sending && parts.contains { $0.isSendable }
     }
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 if session.instances.count > 1 {
                     Section("Instancia") {
@@ -101,119 +100,11 @@ struct ComposeView: View {
                 }
 
                 Section("Mensaje") {
-                    // burbuja de preview estilo chat
-                    if !text.isEmpty || attachment != nil {
-                        HStack {
-                            Spacer(minLength: 40)
-                            VStack(alignment: .trailing, spacing: 6) {
-                                if let attachment {
-                                    AttachmentThumb(attachment: attachment) { self.attachment = nil }
-                                }
-                                if !text.isEmpty {
-                                    Text(text)
-                                        .padding(10)
-                                        .background(Theme.accent.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
-                                }
-                                // el split se ve como lo verá quien lo reciba: una burbuja por parte
-                                ForEach(extraParts.filter { !$0.isEmpty }) { part in
-                                    Text(part.trimmed)
-                                        .padding(10)
-                                        .background(Theme.accent.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
-                                }
-                            }
-                        }
-                        .listRowSeparator(.hidden)
-                    }
+                    // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
+                    ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
 
-                    HStack(alignment: .bottom, spacing: 8) {
-                        #if os(iOS)
-                        Menu {
-                            Button {
-                                showPhotoPicker = true
-                            } label: {
-                                Label("Foto o video", systemImage: "photo")
-                            }
-                            Button {
-                                showFileImporter = true
-                            } label: {
-                                Label("Audio o archivo", systemImage: "waveform")
-                            }
-                            Button {
-                                showStickerPicker = true
-                            } label: {
-                                Label("Mis stickers", systemImage: "square.grid.2x2")
-                            }
-                            Button {
-                                showStickerImporter = true
-                            } label: {
-                                Label("Sticker desde archivo", systemImage: "face.smiling")
-                            }
-                        } label: {
-                            Image(systemName: "paperclip")
-                                .font(.title3)
-                                .frame(width: 36, height: 36)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        #else
-                        Menu {
-                            Button {
-                                showFileImporter = true
-                            } label: {
-                                Label("Foto, video, PDF o audio", systemImage: "paperclip")
-                            }
-                            Button {
-                                showStickerPicker = true
-                            } label: {
-                                Label("Mis stickers", systemImage: "square.grid.2x2")
-                            }
-                            Button {
-                                showStickerImporter = true
-                            } label: {
-                                Label("Sticker desde archivo", systemImage: "face.smiling")
-                            }
-                        } label: {
-                            Image(systemName: "paperclip")
-                                .font(.title3)
-                                .frame(width: 36, height: 36)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Adjuntar foto, video, PDF, nota de voz o sticker")
-                        #endif
-
-                        Button {
-                            showRecorder = true
-                        } label: {
-                            Image(systemName: "mic.fill")
-                                .font(.title3)
-                                .frame(width: 36, height: 36)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Grabar nota de voz")
-
-                        if attachmentIsTextless {
-                            Text(attachment?.messageType == .STICKER ? "El sticker se envía solo." : "La nota de voz se envía sin texto.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-                        } else {
-                            // tope de 4 líneas: más allá scrollea por dentro y el cursor nunca queda
-                            // tapado (por el teclado en iOS o el borde de la ventana en Mac)
-                            TextField("Escribe un mensaje", text: $text, axis: .vertical)
-                                .lineLimit(1...4)
-                                .textFieldStyle(.plain)
-                                .focused($messageFocused)
-                                .padding(8)
-                                .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
-                                .contentShape(RoundedRectangle(cornerRadius: 18))
-                                .onTapGesture { messageFocused = true } // toda la burbuja enfoca, no solo la línea de texto
-                        }
-                    }
-                    // Split: cada parte se envía por separado, con su propio "escribiendo…".
-                    PartsEditor(parts: $extraParts, minParts: 0, maxParts: 9,
-                                placeholder: "Otro mensaje", addLabel: "Agregar otro mensaje")
+                    // "+" al final: elige el tipo de la nueva parte.
+                    addPartMenu
 
                     Button {
                         showTemplates = true
@@ -224,13 +115,13 @@ struct ComposeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if !attachmentIsTextless {
+                    if parts.contains(where: { $0.hasTextField }) {
                         Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    if !extraParts.isEmpty {
-                        Text("Se enviarán \(extraParts.filter { !$0.isEmpty }.count + 1) mensajes seguidos, con una pausa corta entre cada uno.")
+                    if sendableCount > 1 {
+                        Text("Se enviarán \(sendableCount) mensajes seguidos, con una pausa corta entre cada uno.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -267,6 +158,9 @@ struct ComposeView: View {
                 }
             }
             .formStyle(.grouped)
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            #endif
             .navigationTitle("Nuevo mensaje")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
@@ -310,19 +204,17 @@ struct ComposeView: View {
             }
             .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
             .sheet(isPresented: $showRecorder) {
+                // Nota de voz: agrega una parte de audio con su duración.
                 VoiceRecorderSheet { att, durationMs in
-                    attachment = att
-                    voiceMs = durationMs
+                    addPart(ComposePart(kind: .audio, attachment: att, durationMs: durationMs))
                 }
             }
             .sheet(isPresented: $showTemplates) {
-                TemplatePickerSheet(kind: .MESSAGE) { parts in applyTemplate(parts) }
+                TemplatePickerSheet(kind: .MESSAGE) { tplParts in applyTemplate(tplParts) }
             }
             .sheet(isPresented: $showStickerPicker) {
-                StickerPickerView { att in attachment = att }
-            }
-            .onChange(of: text) { _, t in
-                if typingStart == nil && !t.isEmpty { typingStart = .now }
+                // Sticker de la biblioteca: agrega una parte de sticker.
+                StickerPickerView { att in addPart(ComposePart(kind: .sticker, attachment: att)) }
             }
             #if os(iOS)
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
@@ -331,8 +223,9 @@ struct ComposeView: View {
                 Task { await loadPhoto(item) }
             }
             #endif
+            // Foto/video (macOS): solo imágenes y videos; el audio va por la grabadora.
             .fileImporter(isPresented: $showFileImporter,
-                          allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie, .pdf, .audio]) { result in
+                          allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie]) { result in
                 if case .success(let url) = result { loadFile(url) }
             }
             // Sticker: solo imágenes; se marca asSticker para enviarlo como sticker y no como foto
@@ -344,10 +237,77 @@ struct ComposeView: View {
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
             }
+            } // ScrollViewReader
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 560)
         #endif
+    }
+
+    /// Menú "+" para agregar una parte de cualquier tipo, al final de la lista.
+    @ViewBuilder private var addPartMenu: some View {
+        Menu {
+            Button {
+                addTextPart()
+            } label: {
+                Label("Texto", systemImage: "text.bubble")
+            }
+            Button {
+                #if os(iOS)
+                showPhotoPicker = true
+                #else
+                showFileImporter = true
+                #endif
+            } label: {
+                Label("Foto o video", systemImage: "photo")
+            }
+            Button {
+                showRecorder = true
+            } label: {
+                Label("Nota de voz", systemImage: "mic.fill")
+            }
+            Button {
+                showStickerPicker = true
+            } label: {
+                Label("Mis stickers", systemImage: "square.grid.2x2")
+            }
+            Button {
+                showStickerImporter = true
+            } label: {
+                Label("Sticker desde archivo", systemImage: "face.smiling")
+            }
+        } label: {
+            Label("Agregar parte", systemImage: "plus.circle")
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(parts.count >= maxParts)
+    }
+
+    /// Cuántas partes se enviarán realmente (las que tienen contenido).
+    private var sendableCount: Int { parts.filter { $0.isSendable }.count }
+
+    /// Agrega una parte de texto y le pide el foco. Si solo hay una parte de texto vacía, la reutiliza.
+    private func addTextPart() {
+        if parts.count == 1, parts[0].kind == .text, parts[0].trimmed.isEmpty {
+            focusRequest = parts[0].id
+        } else {
+            let p = ComposePart(kind: .text)
+            parts.append(p)
+            focusRequest = p.id
+        }
+    }
+
+    /// Agrega una parte de media. Si la única parte es un texto vacío sin usar, la sustituye
+    /// para no dejar un campo de texto vacío colgando arriba.
+    private func addPart(_ part: ComposePart) {
+        if parts.count == 1, parts[0].kind == .text, parts[0].trimmed.isEmpty, parts[0].attachment == nil {
+            parts[0] = part
+        } else {
+            parts.append(part)
+        }
     }
 
     private var recurrenceLabel: String {
@@ -379,8 +339,15 @@ struct ComposeView: View {
         instanceId = p.instanceId
         recipients = [Recipient(id: p.recipientJid, jid: p.recipientJid, displayName: p.recipientName,
                                 alias: nil, pictureUrl: p.recipientPictureUrl, kind: p.recipientKind, phoneNumber: nil)]
-        text = p.body ?? ""
-        extraParts = (p.parts ?? []).map { PartDraft(text: $0.body ?? "", presetTypingMs: $0.typingMs) }
+        // Se reconstruyen solo las partes de texto; los adjuntos se re-adjuntan a mano al duplicar.
+        var rebuilt: [ComposePart] = []
+        if p.type == .TEXT, let b = p.body, !b.isEmpty {
+            rebuilt.append(ComposePart(kind: .text, text: b))
+        }
+        for part in (p.parts ?? []) where part.type == .TEXT {
+            rebuilt.append(ComposePart(kind: .text, text: part.body ?? "", presetTypingMs: part.typingMs))
+        }
+        parts = rebuilt.isEmpty ? [ComposePart(kind: .text)] : rebuilt
         schedule.date = max(p.scheduledAt, Date().addingTimeInterval(3600))
         schedule.recurrence = p.recurrence
         schedule.recurrenceDays = Set(p.recurrenceDays)
@@ -392,10 +359,13 @@ struct ComposeView: View {
         do {
             if let movie = try await item.loadTransferable(type: MovieFile.self) {
                 let data = try Data(contentsOf: movie.url)
-                attachment = Attachment(data: data, fileName: movie.url.lastPathComponent, mimeType: "video/quicktime")
+                addPart(ComposePart(kind: .photoVideo,
+                                    attachment: Attachment(data: data, fileName: movie.url.lastPathComponent,
+                                                           mimeType: "video/quicktime")))
                 try? FileManager.default.removeItem(at: movie.url)
             } else if let data = try await item.loadTransferable(type: Data.self) {
-                attachment = Attachment(data: data, fileName: "foto.jpg", mimeType: "image/jpeg")
+                addPart(ComposePart(kind: .photoVideo,
+                                    attachment: Attachment(data: data, fileName: "foto.jpg", mimeType: "image/jpeg")))
             }
             photoItem = nil
         } catch {
@@ -413,7 +383,8 @@ struct ComposeView: View {
         do {
             let data = try Data(contentsOf: url)
             let mime = mimeType(for: url)
-            attachment = Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)
+            let att = Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)
+            addPart(ComposePart(kind: asSticker ? .sticker : .photoVideo, attachment: att))
         } catch {
             self.error = "No se pudo leer el archivo: \(error.localizedDescription)"
         }
@@ -423,51 +394,36 @@ struct ComposeView: View {
         UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
     }
 
-    /// Audio y sticker se envían solos, sin texto acompañante.
-    private var attachmentIsTextless: Bool {
-        attachment?.messageType == .AUDIO || attachment?.messageType == .STICKER
-    }
-
-    /// Tiempo real de redacción (texto) o duración de la grabación (audio), acotado 1.5–25 s.
-    private func computedTypingMs() -> Int? {
-        let raw: Int?
-        if attachment?.messageType == .AUDIO {
-            raw = voiceMs
-        } else {
-            let measured = typingStart.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0
-            let value = max(measured, textPresetMs ?? 0)
-            raw = value > 0 ? value : nil
-        }
-        return raw.map { clampTypingMs($0) }
-    }
-
-    /// Copia las partes de la plantilla al formulario; la plantilla en sí no se toca.
-    private func applyTemplate(_ parts: [TemplatePart]) {
-        guard let first = parts.first else { return }
-        text = first.body
-        typingStart = nil
-        textPresetMs = first.typingMs
-        extraParts = parts.dropFirst().map { PartDraft(text: $0.body, presetTypingMs: $0.typingMs) }
+    /// Copia las partes de la plantilla como partes de texto; la plantilla en sí no se toca.
+    private func applyTemplate(_ tplParts: [TemplatePart]) {
+        let mapped = tplParts.map { ComposePart(kind: .text, text: $0.body, presetTypingMs: $0.typingMs) }
+        parts = mapped.isEmpty ? [ComposePart(kind: .text)] : mapped
     }
 
     private func submit() async {
         guard let instanceId, !recipients.isEmpty else { return }
+        let sendParts = parts.filter { $0.isSendable }
+        guard let firstPart = sendParts.first else { return }
         error = nil; sending = true
         defer { sending = false }
         do {
-            var mediaId: String?
-            if let attachment {
+            // Sube el media de CADA parte que lo tenga; guarda el mediaId por id de parte.
+            var mediaIds: [UUID: String] = [:]
+            let partsWithMedia = sendParts.filter { $0.attachment != nil }
+            if !partsWithMedia.isEmpty {
                 uploading = true
-                // un solo upload, compartido por todos los mensajes
-                mediaId = try await APIClient.shared.uploadMedia(
-                    data: attachment.data, fileName: attachment.fileName, mimeType: attachment.mimeType
-                ).mediaId
+                for part in partsWithMedia {
+                    guard let att = part.attachment else { continue }
+                    mediaIds[part.id] = try await APIClient.shared.uploadMedia(
+                        data: att.data, fileName: att.fileName, mimeType: att.mimeType
+                    ).mediaId
+                }
                 uploading = false
             }
-            let typingMs = computedTypingMs()
-            // partes adicionales del split: solo texto, cada una con su propio typingMs
-            let splitParts = extraParts.filter { !$0.isEmpty }.map {
-                MessagePart(type: .TEXT, body: $0.trimmed, mediaId: nil, typingMs: $0.typingMs)
+            // Partes adicionales (la parte 0 va en los campos raíz): cada una con su tipo, adjunto y typingMs.
+            let extraParts = sendParts.dropFirst().map { part in
+                MessagePart(type: part.messageType, body: part.bodyText,
+                            mediaId: mediaIds[part.id], typingMs: part.typingMs)
             }
             // Varios destinatarios (o una lista): misma hora para todos — el worker los envía
             // UNO POR UNO (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente).
@@ -476,19 +432,17 @@ struct ComposeView: View {
                     instanceId: instanceId,
                     recipient: RecipientInput(jid: r.jid, name: r.shownName,
                                               kind: r.kind, pictureUrl: r.pictureUrl),
-                    type: attachment?.messageType ?? .TEXT,
-                    body: attachmentIsTextless
-                        ? nil
-                        : (text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text),
-                    mediaId: mediaId,
+                    type: firstPart.messageType,
+                    body: firstPart.bodyText,
+                    mediaId: mediaIds[firstPart.id],
                     scheduledAt: schedule.date,
                     timezone: schedule.timezone,
                     recurrence: schedule.recurrence,
                     recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
                     recurrenceUntil: schedule.until,
                     randomDelay: schedule.recurrence != .NONE && schedule.randomDelay,
-                    typingMs: typingMs,
-                    parts: splitParts
+                    typingMs: firstPart.typingMs,
+                    parts: Array(extraParts)
                 )
                 let created = try await APIClient.shared.createMessage(body)
                 if !session.upcoming.contains(where: { $0.id == created.id }) {
@@ -517,52 +471,3 @@ struct MovieFile: Transferable {
 }
 #endif
 
-struct AttachmentThumb: View {
-    let attachment: Attachment
-    let onRemove: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Group {
-                // el sticker es una imagen (webp): se ve como miniatura (scaledToFit para que se
-                // note que es un sticker, no una foto a sangre)
-                if (attachment.messageType == .IMAGE || attachment.messageType == .STICKER),
-                   let img = platformImage(attachment.data) {
-                    img.resizable()
-                        .aspectRatio(contentMode: attachment.messageType == .STICKER ? .fit : .fill)
-                } else {
-                    VStack(spacing: 6) {
-                        Image(systemName: attachment.messageType == .VIDEO ? "video.fill"
-                              : attachment.messageType == .AUDIO ? "waveform" : "doc.fill")
-                            .font(.title2)
-                        Text(attachment.fileName).font(.caption2).lineLimit(1)
-                        Text(sizeLabel).font(.caption2).foregroundStyle(.secondary)
-                    }
-                    .padding(8)
-                }
-            }
-            .frame(width: 120, height: 90)
-            .background(Color.gray.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.white, .black.opacity(0.6))
-            }
-            .buttonStyle(.plain)
-            .padding(4)
-        }
-    }
-
-    private var sizeLabel: String {
-        ByteCountFormatter.string(fromByteCount: Int64(attachment.data.count), countStyle: .file)
-    }
-
-    private func platformImage(_ data: Data) -> Image? {
-        #if os(macOS)
-        NSImage(data: data).map(Image.init(nsImage:))
-        #else
-        UIImage(data: data).map(Image.init(uiImage:))
-        #endif
-    }
-}

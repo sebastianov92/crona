@@ -3,9 +3,9 @@ import { api, ApiError, fetchAll, uploadMedia } from "../api";
 import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
 import { quickDate, shownName } from "../types";
-import type { ContactList, MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
-import { IconCheckCircle, IconCircle, IconLayers, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconSticker, IconStop, IconTemplate, IconTrash } from "../icons";
-import { MAX_PARTS, PartsEditor, clampTyping, newPart, partTypingMs } from "../parts";
+import type { ContactList, MessageLog, MessageType, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
+import { IconCheckCircle, IconCircle, IconLayers, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconTemplate, IconTrash } from "../icons";
+import { MAX_PARTS, PartsComposer, VoiceRecorderButton, clampTyping, newMediaPart, newPart, partMessageType, partReady, partTypingMs } from "../parts";
 import type { PartDraft } from "../parts";
 import { TemplatePicker } from "./Templates";
 import { StickersSheet } from "./Stickers";
@@ -16,7 +16,7 @@ export const QUICK_PERIODS = [
   ["evening", "Noche"],
 ] as const;
 
-export { clampTyping };
+export { clampTyping, VoiceRecorderButton };
 
 /** ¿La hora elegida cae dentro de la franja de este botón rápido? (para pintarlo activo) */
 export const quickActive = (when: string, r: { start: number; end: number }): boolean => {
@@ -131,10 +131,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [showPicker, setShowPicker] = useState(false);
   const [parts, setParts] = useState<PartDraft[]>([newPart()]);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [fileIsSticker, setFileIsSticker] = useState(false); // el archivo se envía como sticker, no como foto
-  const [showStickers, setShowStickers] = useState(false); // menú "Mis stickers" (biblioteca)
-  const voiceMs = useRef<number | null>(null); // duración de la nota de voz grabada
+  const [showStickers, setShowStickers] = useState(false); // biblioteca "Mis stickers"
   const [when, setWhen] = useState(() => localInputValue(new Date(Date.now() + 3600_000)));
   const [tz, setTz] = useState(COMMON_TZ[0]);
   const [recurrence, setRecurrence] = useState<Recurrence>("NONE");
@@ -143,54 +140,46 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const isAudio = !!file && file.type.startsWith("audio/");
-  const isSticker = !!file && fileIsSticker;
-  const canSubmit = recipients.length > 0 && instanceId && (parts.some((p) => p.body.trim()) || file) && !busy;
+  const canSubmit = recipients.length > 0 && !!instanceId && parts.some(partReady) && !busy;
 
   const submit = async () => {
     setBusy(true);
     setError("");
     try {
-      let mediaId: string | undefined;
-      if (file) mediaId = (await uploadMedia(file)).mediaId;
-      const type = !file
-        ? "TEXT"
-        : fileIsSticker
-          ? "STICKER"
-          : file.type.startsWith("image/")
-            ? "IMAGE"
-            : file.type.startsWith("video/")
-              ? "VIDEO"
-              : file.type.startsWith("audio/")
-                ? "AUDIO"
-                : "DOCUMENT";
-      // Solo las cajas con texto: si el usuario deja una vacía en medio no se envía vacía.
-      const filled = parts.filter((p) => p.body.trim());
-      // Nota de voz y sticker: la parte 0 es el adjunto (sin texto) y TODO el texto va como partes extra.
-      const isVoice = type === "AUDIO" || type === "STICKER";
-      const first: PartDraft | null = isVoice ? null : filled[0] ?? null;
-      const rest = isVoice ? filled : filled.slice(1);
-      const typingMs = type === "AUDIO" ? clampTyping(voiceMs.current) : type === "STICKER" ? null : first ? partTypingMs(first) : null;
-      // El resto de partes van en "parts" (máx. 9 adicionales) — el server las envía en orden
-      const extraParts = rest
-        .slice(0, 9)
-        .map((p) => ({ type: "TEXT" as const, body: p.body.trim(), mediaId: null, typingMs: partTypingMs(p) }));
+      // Solo las partes listas (texto con cuerpo, media con archivo), en orden.
+      const ready = parts.filter(partReady).slice(0, MAX_PARTS);
+      // Sube el media de CADA parte una sola vez y arma las partes del envío.
+      // Foto/video pueden llevar caption; audio y sticker van sin texto.
+      const wire: { type: MessageType; body: string | null; mediaId: string | null; typingMs: number | null }[] = [];
+      for (const p of ready) {
+        const mediaId = p.file ? (await uploadMedia(p.file)).mediaId : null;
+        const withText = p.kind === "text" || p.kind === "photo";
+        wire.push({
+          type: partMessageType(p),
+          body: withText ? p.body.trim() || null : null,
+          mediaId,
+          typingMs: partTypingMs(p),
+        });
+      }
+      // Parte 0 en los campos { type, body, mediaId, typingMs }; el resto (máx. 9) en "parts".
+      const [first, ...rest] = wire;
+      const extraParts = rest.slice(0, 9);
       // Varios destinatarios: misma hora para todos — el worker los envía UNO POR UNO
       // (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente), nunca dos a la vez.
       for (const r of recipients) {
         await api("POST", "/messages", {
           instanceId,
           recipient: { jid: r.jid, name: shownName(r), kind: r.kind, pictureUrl: r.pictureUrl },
-          type,
-          body: isVoice ? null : first?.body.trim() || null,
-          mediaId: mediaId ?? null,
+          type: first.type,
+          body: first.body,
+          mediaId: first.mediaId,
           parts: extraParts,
           scheduledAt: new Date(when).toISOString(),
           timezone: tz,
           recurrence,
           recurrenceDays: recurrence === "WEEKLY" ? [...days].sort() : [],
           randomDelay: recurrence !== "NONE" && randomDelay,
-          typingMs,
+          typingMs: first.typingMs,
         });
       }
       await refreshMessages();
@@ -236,57 +225,8 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           <IconTemplate size={14} /> Usar plantilla
         </button>
       </div>
-      <PartsEditor
-        parts={parts}
-        onChange={setParts}
-        note={
-          isAudio
-            ? "La nota de voz se envía sola, sin texto. Lo que escribas aquí se envía después, como mensajes aparte."
-            : isSticker
-              ? "El sticker se envía solo. Lo que escribas aquí se envía después, como mensajes aparte."
-              : undefined
-        }
-        max={isAudio || isSticker ? MAX_PARTS - 1 : MAX_PARTS}
-      />
+      <PartsComposer parts={parts} onChange={setParts} onAddFromLibrary={() => setShowStickers(true)} />
       <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
-
-      <label className="label">Adjunto (foto, video, PDF, audio o sticker)</label>
-      {file ? (
-        <div className="kv">
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {isSticker ? <IconSticker size={14} /> : <IconPaperclip size={14} />} {isSticker ? "Sticker · " : ""}{file.name}
-          </span>
-          <button className="btn small secondary" onClick={() => { setFile(null); setFileIsSticker(false); }}>Quitar</button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <label className="filebtn">
-            <IconPaperclip size={16} />
-            Adjuntar archivo
-            <input
-              type="file"
-              hidden
-              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/webm,audio/wav"
-              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setFileIsSticker(false); }}
-            />
-          </label>
-          <label className="filebtn" style={{ maxWidth: 140 }}>
-            <IconSticker size={16} />
-            Sticker
-            <input
-              type="file"
-              hidden
-              accept="image/webp,image/png,image/jpeg"
-              onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileIsSticker(!!f); }}
-            />
-          </label>
-          <button type="button" className="filebtn" style={{ maxWidth: 150 }} onClick={() => setShowStickers(true)}>
-            <IconSticker size={16} />
-            Mis stickers
-          </button>
-          <VoiceRecorderButton onDone={(f, dur) => { setFile(f); setFileIsSticker(false); voiceMs.current = dur ?? null; }} />
-        </div>
-      )}
 
       <label className="label">Fecha y hora</label>
       <div className="chips" style={{ paddingBottom: 8 }}>
@@ -357,83 +297,10 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       {showStickers && (
         <StickersSheet
           onClose={() => setShowStickers(false)}
-          onPick={(f) => { setFile(f); setFileIsSticker(true); }}
+          onPick={(f) => setParts((prev) => [...prev, newMediaPart("sticker", f)])}
         />
       )}
     </Sheet>
-  );
-}
-
-// ── Grabador de notas de voz ─────────────────────────────
-
-export function VoiceRecorderButton({ onDone, compact = false }: { onDone: (f: File, durationMs?: number) => void; compact?: boolean }) {
-  const { toast } = useApp();
-  const [rec, setRec] = useState<MediaRecorder | null>(null);
-  const [secs, setSecs] = useState(0);
-  const startedAt = useRef(0);
-
-  useEffect(() => {
-    if (!rec) return;
-    const t = setInterval(() => setSecs((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [rec]);
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Chrome/Firefox: webm/opus · Safari: mp4 (aac)
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/mp4")
-          ? "audio/mp4"
-          : "";
-      const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      const chunks: Blob[] = [];
-      r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      r.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const type = (r.mimeType || "audio/webm").split(";")[0];
-        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-        onDone(new File(chunks, `nota-de-voz.${ext}`, { type }), Date.now() - startedAt.current);
-      };
-      r.start();
-      startedAt.current = Date.now();
-      setSecs(0);
-      setRec(r);
-    } catch {
-      toast("No se pudo acceder al micrófono. Revisa los permisos del navegador.");
-    }
-  };
-
-  const stop = () => {
-    rec?.stop();
-    setRec(null);
-  };
-
-  const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-  if (compact) {
-    return (
-      <button
-        type="button"
-        className="btn small secondary"
-        style={rec ? { color: "var(--danger)" } : undefined}
-        onClick={() => (rec ? stop() : start())}
-      >
-        {rec ? <IconStop size={16} /> : <IconMic size={16} />}
-        {rec && mmss}
-      </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className="filebtn"
-      style={rec ? { borderColor: "var(--danger)", color: "var(--danger)" } : undefined}
-      onClick={() => (rec ? stop() : start())}
-    >
-      {rec ? <IconStop size={16} /> : <IconMic size={16} />}
-      {rec ? `Detener (${mmss})` : "Grabar nota de voz"}
-    </button>
   );
 }
 

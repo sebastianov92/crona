@@ -237,6 +237,14 @@ export const IconSticker = (p: P) => (
   </svg>
 );
 
+export const IconText = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 7V5h16v2" />
+    <path d="M12 5v14" />
+    <path d="M9 19h6" />
+  </svg>
+);
+
 export const IconPhonePlus = (p: P) => (
   <svg {...base(p)}>
     <path d="M22 16.9v2a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.4 19.4 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 1h2a2 2 0 0 1 2 1.7c.13.96.36 1.9.7 2.8a2 2 0 0 1-.45 2.1L7.1 8.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.45c.9.34 1.84.57 2.8.7A2 2 0 0 1 22 16.9z" />
