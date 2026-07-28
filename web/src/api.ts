@@ -1,6 +1,8 @@
 // Cliente API — mismo origen (la web la sirve el propio servidor Crona).
 // accessToken en memoria; refreshToken en localStorage con rotación single-flight.
 
+import type { Paginated, StickerAsset } from "./types";
+
 let accessToken: string | null = null;
 let refreshing: Promise<void> | null = null;
 
@@ -122,6 +124,48 @@ export async function uploadMedia(file: File): Promise<{ mediaId: string }> {
   if (res.status === 401) {
     await refreshSession();
     return uploadMedia(file);
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(data?.error?.code ?? "HTTP", data?.error?.message ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Descarga el blob crudo de un media (sin caché compartida): el llamador es dueño del blob. */
+export async function fetchMediaBlob(mediaId: string, retry = true): Promise<Blob | null> {
+  try {
+    const res = await fetch(`/media/${mediaId}`, {
+      headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+    });
+    if (res.status === 401 && retry) {
+      await refreshSession();
+      return fetchMediaBlob(mediaId, false);
+    }
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
+  }
+}
+
+// ── Biblioteca de stickers ─────────────────────────────
+export const listStickers = () => api<Paginated<StickerAsset>>("GET", "/stickers");
+export const markStickerUsed = (id: string) => api<{ ok: true }>("POST", `/stickers/${id}/used`);
+export const deleteSticker = (id: string) => api<{ ok: true }>("DELETE", `/stickers/${id}`);
+
+/** Sube un sticker (multipart, campo "file"); si ya existía por hash el server devuelve el mismo id. */
+export async function uploadSticker(file: File, retry = true): Promise<StickerAsset> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/stickers", {
+    method: "POST",
+    headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+    body: form,
+  });
+  if (res.status === 401 && retry) {
+    await refreshSession();
+    return uploadSticker(file, false);
   }
   if (!res.ok) {
     const data = await res.json().catch(() => null);

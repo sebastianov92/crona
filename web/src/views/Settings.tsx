@@ -129,6 +129,24 @@ export default function Settings() {
         {!anyActive && !anyPaused && <div className="row" style={{ cursor: "default", color: "var(--text2)" }}>Sin mensajes pendientes.</div>}
       </div>
 
+      <label className="label">Stickers</label>
+      <div className="card" style={{ padding: 14 }}>
+        <div className="kv" style={{ borderBottom: "none" }}>
+          <span className="k">Guardar mis stickers</span>
+          <Toggle
+            on={user.captureStickers}
+            onChange={async (v) => {
+              try {
+                setUser(await api<User>("PATCH", "/me", { captureStickers: v }));
+              } catch { toast("Error al guardar"); }
+            }}
+          />
+        </div>
+        <p className="hint" style={{ margin: 0 }}>
+          Cuando está activo, los stickers que te envíes a ti mismo por WhatsApp se guardan automáticamente en tu biblioteca.
+        </p>
+      </div>
+
       <label className="label">Notificaciones</label>
       <div className="card">
         <button className="row" onClick={() => setView("ntfy")}><div className="main">Notificaciones (ntfy)</div><IconChevron size={16} /></button>

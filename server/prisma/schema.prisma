@@ -75,6 +75,7 @@ model User {
   chatIncomingCount Int  @default(5) // mensajes recibidos visibles por chat (0 = ninguno)
   defaultInstanceId String? // instancia principal: preseleccionada al programar
   defaultGroupPictureMediaId String? // foto por defecto de los grupos que se crean
+  captureStickers Boolean @default(false) // modo buzón: guarda los stickers que te envías a ti mismo
   // Botones rápidos Mañana/Tarde/Noche: minutos del día {start,end} por franja.
   // start == end → hora exacta (se envía con +1..5 min aleatorios); si no, hora aleatoria del rango.
   quickHours        Json? // {"morning":{"start":480,"end":540},"afternoon":{...},"evening":{...}}
@@ -88,6 +89,23 @@ model User {
   contactLists  ContactList[]
   templates     Template[]
   groupCreations GroupCreation[]
+  stickers      StickerAsset[]
+}
+
+/// Sticker guardado en la biblioteca del usuario (buzón). El webp vive como Media;
+/// `hash` (sha256 del archivo) evita guardar el mismo sticker dos veces.
+model StickerAsset {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaId    String   @unique
+  media      Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  hash       String
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, hash]) // un mismo sticker no se duplica por usuario
+  @@index([userId, createdAt])
 }
 
 enum TemplateKind {
@@ -319,6 +337,7 @@ model Media {
   sizeBytes   Int
   storagePath String // relativo a MEDIA_DIR
   createdAt   DateTime @default(now())
+  stickerAsset StickerAsset?
 }
 
 model ScheduledMessage {

@@ -115,6 +115,38 @@ actor APIClient {
         return try Self.decoder.decode(MediaUpload.self, from: respData)
     }
 
+    /// Subida multipart de un sticker a la biblioteca (POST /stickers). Igual que uploadMedia
+    /// pero contra otro endpoint; si el sticker ya existía por hash, el server devuelve el mismo.
+    func uploadSticker(data: Data, fileName: String, mimeType: String, retryOn401: Bool = true) async throws -> StickerAsset {
+        guard let baseURL else { throw APIError.notConfigured }
+        let boundary = "crona-\(UUID().uuidString)"
+        var req = URLRequest(url: baseURL.appending(path: "/stickers"))
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let accessToken { req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization") }
+
+        var form = Data()
+        form.append(Data("--\(boundary)\r\n".utf8))
+        form.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".utf8))
+        form.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
+        form.append(data)
+        form.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        let (respData, resp) = try await URLSession.shared.upload(for: req, from: form)
+        let status = (resp as! HTTPURLResponse).statusCode
+        if status == 401, retryOn401 {
+            try await refreshSession()
+            return try await uploadSticker(data: data, fileName: fileName, mimeType: mimeType, retryOn401: false)
+        }
+        guard (200..<300).contains(status) else {
+            if let env = try? Self.decoder.decode(ErrorEnvelope.self, from: respData) {
+                throw APIError.server(code: env.error.code, message: env.error.message)
+            }
+            throw APIError.http(status)
+        }
+        return try Self.decoder.decode(StickerAsset.self, from: respData)
+    }
+
     /// Descarga autenticada de un media (preview).
     func mediaData(id: String, retryOn401: Bool = true) async throws -> Data {
         guard let baseURL else { throw APIError.notConfigured }
@@ -159,7 +191,7 @@ extension APIClient {
                  notifyOnSent: Bool? = nil, password: String? = nil,
                  chatListCount: Int? = nil, chatIncomingCount: Int? = nil,
                  quickHours: QuickHours? = nil, defaultInstanceId: String?? = nil,
-                 defaultGroupPictureMediaId: String?? = nil) async throws -> User {
+                 defaultGroupPictureMediaId: String?? = nil, captureStickers: Bool? = nil) async throws -> User {
         struct B: Encodable {
             var name: String?
             var ntfyTopic: String??
@@ -171,6 +203,7 @@ extension APIClient {
             var quickHours: QuickHours?
             var defaultInstanceId: String??
             var defaultGroupPictureMediaId: String??
+            var captureStickers: Bool?
             func encode(to encoder: Encoder) throws {
                 var c = encoder.container(keyedBy: K.self)
                 if let name { try c.encode(name, forKey: .name) }
@@ -183,10 +216,11 @@ extension APIClient {
                 if let quickHours { try c.encode(quickHours, forKey: .quickHours) }
                 if let defaultInstanceId { try c.encode(defaultInstanceId, forKey: .defaultInstanceId) }
                 if let defaultGroupPictureMediaId { try c.encode(defaultGroupPictureMediaId, forKey: .defaultGroupPictureMediaId) }
+                if let captureStickers { try c.encode(captureStickers, forKey: .captureStickers) }
             }
-            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours, defaultInstanceId, defaultGroupPictureMediaId }
+            enum K: String, CodingKey { case name, ntfyTopic, ntfyToken, notifyOnSent, password, chatListCount, chatIncomingCount, quickHours, defaultInstanceId, defaultGroupPictureMediaId, captureStickers }
         }
-        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours, defaultInstanceId: defaultInstanceId, defaultGroupPictureMediaId: defaultGroupPictureMediaId))
+        return try await request("PATCH", "/me", body: B(name: name, ntfyTopic: ntfyTopic, ntfyToken: ntfyToken, notifyOnSent: notifyOnSent, password: password, chatListCount: chatListCount, chatIncomingCount: chatIncomingCount, quickHours: quickHours, defaultInstanceId: defaultInstanceId, defaultGroupPictureMediaId: defaultGroupPictureMediaId, captureStickers: captureStickers))
     }
 
     // Chats
@@ -337,4 +371,9 @@ extension APIClient {
     func duplicateMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/duplicate") }
     func deleteMessage(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/\(id)") }
     func deleteLog(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/logs/\(id)") }
+
+    // Biblioteca de stickers
+    func stickers() async throws -> Paginated<StickerAsset> { try await request("GET", "/stickers") }
+    func markStickerUsed(id: String) async throws -> OkResponse { try await request("POST", "/stickers/\(id)/used") }
+    func deleteSticker(id: String) async throws -> OkResponse { try await request("DELETE", "/stickers/\(id)") }
 }

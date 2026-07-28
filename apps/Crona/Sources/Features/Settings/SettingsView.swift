@@ -59,6 +59,24 @@ struct SettingsView: View {
                     } footer: {
                         Text("Los botones rápidos al programar usan estas horas.")
                     }
+
+                    Section {
+                        Toggle(isOn: Binding(
+                            get: { user.captureStickers },
+                            set: { on in Task { session.user = try? await APIClient.shared.patchMe(captureStickers: on) } }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Guardar mis stickers")
+                                Text("Los stickers que te envíes a ti mismo por WhatsApp se guardan en tu biblioteca para reenviarlos luego.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } header: {
+                        Text("Stickers")
+                    } footer: {
+                        Text("WhatsApp no deja leer directamente tus stickers ni tus packs; por eso el método es enviártelos a ti mismo (chat contigo mismo) con esta opción activada.")
+                    }
                 }
 
                 Section("Envíos") {

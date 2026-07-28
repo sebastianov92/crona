@@ -21,6 +21,15 @@ export interface User {
   defaultInstanceId: string | null;
   defaultGroupPictureMediaId: string | null;
   quickHours: QuickHours;
+  /** Buzón: cuando está activo, el server guarda los stickers que el usuario se envía a sí mismo. */
+  captureStickers: boolean;
+  createdAt: string;
+}
+
+/** Sticker guardado en la biblioteca del usuario (un webp referenciado por su mediaId). */
+export interface StickerAsset {
+  id: string;
+  mediaId: string;
   createdAt: string;
 }
 

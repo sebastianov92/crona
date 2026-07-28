@@ -44,6 +44,7 @@ struct ComposeView: View {
     #endif
     @State private var showFileImporter = false
     @State private var showStickerImporter = false
+    @State private var showStickerPicker = false
     @State private var showRecorder = false
     @State private var showTemplates = false
     @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
@@ -138,9 +139,14 @@ struct ComposeView: View {
                                 Label("Audio o archivo", systemImage: "waveform")
                             }
                             Button {
+                                showStickerPicker = true
+                            } label: {
+                                Label("Mis stickers", systemImage: "square.grid.2x2")
+                            }
+                            Button {
                                 showStickerImporter = true
                             } label: {
-                                Label("Sticker", systemImage: "face.smiling")
+                                Label("Sticker desde archivo", systemImage: "face.smiling")
                             }
                         } label: {
                             Image(systemName: "paperclip")
@@ -157,9 +163,14 @@ struct ComposeView: View {
                                 Label("Foto, video, PDF o audio", systemImage: "paperclip")
                             }
                             Button {
+                                showStickerPicker = true
+                            } label: {
+                                Label("Mis stickers", systemImage: "square.grid.2x2")
+                            }
+                            Button {
                                 showStickerImporter = true
                             } label: {
-                                Label("Sticker", systemImage: "face.smiling")
+                                Label("Sticker desde archivo", systemImage: "face.smiling")
                             }
                         } label: {
                             Image(systemName: "paperclip")
@@ -306,6 +317,9 @@ struct ComposeView: View {
             }
             .sheet(isPresented: $showTemplates) {
                 TemplatePickerSheet(kind: .MESSAGE) { parts in applyTemplate(parts) }
+            }
+            .sheet(isPresented: $showStickerPicker) {
+                StickerPickerView { att in attachment = att }
             }
             .onChange(of: text) { _, t in
                 if typingStart == nil && !t.isEmpty { typingStart = .now }

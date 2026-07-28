@@ -27,6 +27,16 @@ struct User: Identifiable, Codable, Hashable {
     var defaultInstanceId: String?
     var quickHours: QuickHours
     var defaultGroupPictureMediaId: String?
+    /// Buzón: cuando está activo, el servidor guarda en la biblioteca los stickers que el
+    /// usuario se envía a sí mismo por WhatsApp.
+    var captureStickers: Bool
+    let createdAt: Date
+}
+
+/// Sticker guardado en la biblioteca del usuario (un webp referenciado por su mediaId).
+struct StickerAsset: Identifiable, Codable, Hashable {
+    let id: String
+    let mediaId: String
     let createdAt: Date
 }
 

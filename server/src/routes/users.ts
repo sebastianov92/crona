@@ -21,6 +21,7 @@ export function registerUserRoutes(app: FastifyInstance) {
     password: z.string().min(8).optional(),
     chatListCount: z.number().int().min(1).max(100).optional(),
     chatIncomingCount: z.number().int().min(0).max(50).optional(),
+    captureStickers: z.boolean().optional(),
     defaultInstanceId: z.string().uuid().nullable().optional(),
     // foto por defecto de los grupos que se crean (mediaId de POST /media)
     defaultGroupPictureMediaId: z.string().uuid().nullable().optional(),
@@ -42,6 +43,7 @@ export function registerUserRoutes(app: FastifyInstance) {
     if (body.notifyOnSent !== undefined) data.notifyOnSent = body.notifyOnSent;
     if (body.chatListCount !== undefined) data.chatListCount = body.chatListCount;
     if (body.chatIncomingCount !== undefined) data.chatIncomingCount = body.chatIncomingCount;
+    if (body.captureStickers !== undefined) data.captureStickers = body.captureStickers;
     if (body.quickHours !== undefined) data.quickHours = body.quickHours;
     if (body.defaultInstanceId !== undefined) {
       if (body.defaultInstanceId) {

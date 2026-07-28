@@ -21,6 +21,7 @@ import { registerChatRoutes } from "./routes/chats.js";
 import { registerListRoutes } from "./routes/lists.js";
 import { registerTemplateRoutes } from "./routes/templates.js";
 import { registerGroupRoutes } from "./routes/groups.js";
+import { registerStickerRoutes } from "./routes/stickers.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerWsRoutes } from "./routes/ws.js";
 import { registerAutoReplyRoutes } from "./routes/autoreplies.js";
@@ -66,6 +67,7 @@ async function main() {
   registerListRoutes(app);
   registerTemplateRoutes(app);
   registerGroupRoutes(app);
+  registerStickerRoutes(app);
   registerMediaRoutes(app);
   registerWsRoutes(app);
   registerAutoReplyRoutes(app);

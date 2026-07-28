@@ -8,6 +8,7 @@ import { IconCheckCircle, IconCircle, IconLayers, IconMic, IconPaperclip, IconPe
 import { MAX_PARTS, PartsEditor, clampTyping, newPart, partTypingMs } from "../parts";
 import type { PartDraft } from "../parts";
 import { TemplatePicker } from "./Templates";
+import { StickersSheet } from "./Stickers";
 
 export const QUICK_PERIODS = [
   ["morning", "Mañana"],
@@ -132,6 +133,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileIsSticker, setFileIsSticker] = useState(false); // el archivo se envía como sticker, no como foto
+  const [showStickers, setShowStickers] = useState(false); // menú "Mis stickers" (biblioteca)
   const voiceMs = useRef<number | null>(null); // duración de la nota de voz grabada
   const [when, setWhen] = useState(() => localInputValue(new Date(Date.now() + 3600_000)));
   const [tz, setTz] = useState(COMMON_TZ[0]);
@@ -257,7 +259,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           <button className="btn small secondary" onClick={() => { setFile(null); setFileIsSticker(false); }}>Quitar</button>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <label className="filebtn">
             <IconPaperclip size={16} />
             Adjuntar archivo
@@ -278,6 +280,10 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
               onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileIsSticker(!!f); }}
             />
           </label>
+          <button type="button" className="filebtn" style={{ maxWidth: 150 }} onClick={() => setShowStickers(true)}>
+            <IconSticker size={16} />
+            Mis stickers
+          </button>
           <VoiceRecorderButton onDone={(f, dur) => { setFile(f); setFileIsSticker(false); voiceMs.current = dur ?? null; }} />
         </div>
       )}
@@ -346,6 +352,12 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
             setShowTemplates(false);
           }}
           onClose={() => setShowTemplates(false)}
+        />
+      )}
+      {showStickers && (
+        <StickersSheet
+          onClose={() => setShowStickers(false)}
+          onPick={(f) => { setFile(f); setFileIsSticker(true); }}
         />
       )}
     </Sheet>
