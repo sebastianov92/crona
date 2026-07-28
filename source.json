@@ -18,11 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.2.3",
+          "version": "1.3.0",
           "date": "2026-07-28",
-          "size": 5124875,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.2.3/Crona.ipa",
-          "localizedDescription": "Actualización v1.2.3",
+          "size": 5117550,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.3.0/Crona.ipa",
+          "localizedDescription": "Actualización v1.3.0",
           "minOSVersion": "17.0"
         }
       ],
