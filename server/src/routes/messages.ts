@@ -21,7 +21,7 @@ const CreateBody = z.object({
     kind: z.enum(["CONTACT", "GROUP"]),
     pictureUrl: z.string().nullable().optional(),
   }),
-  type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO"]),
+  type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]),
   body: z.string().max(4096).nullable().optional(),
   mediaId: z.string().uuid().nullable().optional(),
   scheduledAt: z.coerce.date(),
@@ -37,7 +37,7 @@ const CreateBody = z.object({
   parts: z
     .array(
       z.object({
-        type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO"]).default("TEXT"),
+        type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]).default("TEXT"),
         body: z.string().max(4096).nullable().optional(),
         mediaId: z.string().uuid().nullable().optional(),
         typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
@@ -62,7 +62,7 @@ function validateContent(input: {
     throw errors.validation("El mensaje de texto no puede estar vacío.");
   }
   if (input.type !== "TEXT" && !input.mediaId) {
-    throw errors.validation("Los mensajes con foto, video, documento o audio necesitan un archivo adjunto.");
+    throw errors.validation("Los mensajes con foto, video, documento, audio o sticker necesitan un archivo adjunto.");
   }
   if (input.recurrence === "WEEKLY" && input.recurrenceDays.length === 0) {
     throw errors.validation("La recurrencia semanal necesita al menos un día.");

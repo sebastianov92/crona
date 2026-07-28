@@ -1,7 +1,7 @@
 export type Role = "ADMIN" | "USER";
 export type InstanceStatus = "CREATED" | "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 export type RecipientKind = "CONTACT" | "GROUP";
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "AUDIO";
+export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "AUDIO" | "STICKER";
 export type Recurrence = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type ScheduleStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED" | "FAILED";
 export type LogStatus = "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";

@@ -6,8 +6,11 @@ struct Attachment: Equatable {
     let data: Data
     let fileName: String
     let mimeType: String
+    // el usuario eligió "Sticker": una imagen (webp/png/jpg) se envía como sticker, no como foto
+    var asSticker: Bool = false
 
     var messageType: MessageType {
+        if asSticker { return .STICKER }
         if mimeType.hasPrefix("image/") { return .IMAGE }
         if mimeType.hasPrefix("video/") { return .VIDEO }
         if mimeType.hasPrefix("audio/") { return .AUDIO }
@@ -40,6 +43,7 @@ struct ComposeView: View {
     @State private var showPhotoPicker = false
     #endif
     @State private var showFileImporter = false
+    @State private var showStickerImporter = false
     @State private var showRecorder = false
     @State private var showTemplates = false
     @State private var typingStart: Date? // primer caracter escrito — alimenta la señal "escribiendo…"
@@ -133,6 +137,11 @@ struct ComposeView: View {
                             } label: {
                                 Label("Audio o archivo", systemImage: "waveform")
                             }
+                            Button {
+                                showStickerImporter = true
+                            } label: {
+                                Label("Sticker", systemImage: "face.smiling")
+                            }
                         } label: {
                             Image(systemName: "paperclip")
                                 .font(.title3)
@@ -141,8 +150,17 @@ struct ComposeView: View {
                         }
                         .buttonStyle(.plain)
                         #else
-                        Button {
-                            showFileImporter = true
+                        Menu {
+                            Button {
+                                showFileImporter = true
+                            } label: {
+                                Label("Foto, video, PDF o audio", systemImage: "paperclip")
+                            }
+                            Button {
+                                showStickerImporter = true
+                            } label: {
+                                Label("Sticker", systemImage: "face.smiling")
+                            }
                         } label: {
                             Image(systemName: "paperclip")
                                 .font(.title3)
@@ -150,7 +168,7 @@ struct ComposeView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("Adjuntar foto, video, PDF o nota de voz")
+                        .help("Adjuntar foto, video, PDF, nota de voz o sticker")
                         #endif
 
                         Button {
@@ -164,8 +182,8 @@ struct ComposeView: View {
                         .buttonStyle(.plain)
                         .help("Grabar nota de voz")
 
-                        if attachment?.messageType == .AUDIO {
-                            Text("La nota de voz se envía sin texto.")
+                        if attachmentIsTextless {
+                            Text(attachment?.messageType == .STICKER ? "El sticker se envía solo." : "La nota de voz se envía sin texto.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
@@ -195,7 +213,7 @@ struct ComposeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if attachment?.messageType != .AUDIO {
+                    if !attachmentIsTextless {
                         Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -303,6 +321,11 @@ struct ComposeView: View {
                           allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie, .pdf, .audio]) { result in
                 if case .success(let url) = result { loadFile(url) }
             }
+            // Sticker: solo imágenes; se marca asSticker para enviarlo como sticker y no como foto
+            .fileImporter(isPresented: $showStickerImporter,
+                          allowedContentTypes: [.webP, .png, .jpeg]) { result in
+                if case .success(let url) = result { loadFile(url, asSticker: true) }
+            }
             .onAppear { applyPrefill() }
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
@@ -367,7 +390,7 @@ struct ComposeView: View {
     }
     #endif
 
-    private func loadFile(_ url: URL) {
+    private func loadFile(_ url: URL, asSticker: Bool = false) {
         guard url.startAccessingSecurityScopedResource() else {
             error = "Sin permiso para leer el archivo seleccionado."
             return
@@ -376,7 +399,7 @@ struct ComposeView: View {
         do {
             let data = try Data(contentsOf: url)
             let mime = mimeType(for: url)
-            attachment = Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime)
+            attachment = Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)
         } catch {
             self.error = "No se pudo leer el archivo: \(error.localizedDescription)"
         }
@@ -384,6 +407,11 @@ struct ComposeView: View {
 
     private func mimeType(for url: URL) -> String {
         UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+    }
+
+    /// Audio y sticker se envían solos, sin texto acompañante.
+    private var attachmentIsTextless: Bool {
+        attachment?.messageType == .AUDIO || attachment?.messageType == .STICKER
     }
 
     /// Tiempo real de redacción (texto) o duración de la grabación (audio), acotado 1.5–25 s.
@@ -435,7 +463,7 @@ struct ComposeView: View {
                     recipient: RecipientInput(jid: r.jid, name: r.shownName,
                                               kind: r.kind, pictureUrl: r.pictureUrl),
                     type: attachment?.messageType ?? .TEXT,
-                    body: attachment?.messageType == .AUDIO
+                    body: attachmentIsTextless
                         ? nil
                         : (text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text),
                     mediaId: mediaId,
@@ -482,8 +510,12 @@ struct AttachmentThumb: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
-                if attachment.messageType == .IMAGE, let img = platformImage(attachment.data) {
-                    img.resizable().scaledToFill()
+                // el sticker es una imagen (webp): se ve como miniatura (scaledToFit para que se
+                // note que es un sticker, no una foto a sangre)
+                if (attachment.messageType == .IMAGE || attachment.messageType == .STICKER),
+                   let img = platformImage(attachment.data) {
+                    img.resizable()
+                        .aspectRatio(contentMode: attachment.messageType == .STICKER ? .fit : .fill)
                 } else {
                     VStack(spacing: 6) {
                         Image(systemName: attachment.messageType == .VIDEO ? "video.fill"

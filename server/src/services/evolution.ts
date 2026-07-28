@@ -62,6 +62,9 @@ export const evolution = {
   // Nota de voz (ptt): body { number, audio, delay, encoding }
   sendAudio: (n: string, k: string, body: unknown) =>
     evoFetch(`/message/sendWhatsAppAudio/${n}`, { method: "POST", body, apikey: k, timeoutMs: 180_000 }),
+  // Sticker: body { number, sticker } (webp base64 o URL; Evolution convierte png/jpg a webp)
+  sendSticker: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendSticker/${n}`, { method: "POST", body, apikey: k, timeoutMs: 120_000 }),
   findContacts: (n: string, k: string) =>
     evoFetch(`/chat/findContacts/${n}`, { method: "POST", body: { where: {} }, apikey: k }),
   findChats: (n: string, k: string) =>

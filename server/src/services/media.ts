@@ -131,3 +131,21 @@ export async function buildAudioPayload(msg: ScheduledMessage): Promise<Record<s
     encoding: true, // Evolution convierte a ogg/opus → llega como nota de voz real
   };
 }
+
+// Sticker: sendSticker usa campo `sticker` (imagen webp/png/jpg; Evolution la convierte a webp)
+export async function buildStickerPayload(msg: ScheduledMessage): Promise<Record<string, unknown>> {
+  if (!msg.mediaId) throw errors.validation("El mensaje no tiene sticker adjunto.");
+  const media = await prisma.media.findUnique({ where: { id: msg.mediaId } });
+  if (!media) throw errors.notFound("El archivo adjunto");
+
+  const stickerField =
+    media.sizeBytes <= BASE64_MAX
+      ? (await readFile(mediaAbsPath(media))).toString("base64")
+      : `${config.INTERNAL_URL}/internal/media/${signMediaToken(media.id)}`;
+
+  return {
+    number: msg.recipientJid,
+    sticker: stickerField,
+    delay: msg.typingMs ?? 1200,
+  };
+}

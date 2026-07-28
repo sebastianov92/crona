@@ -49,9 +49,9 @@ struct MediaPreviewView: View {
                 Image(platform: image)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxHeight: 240)
+                    .frame(maxHeight: type == .STICKER ? 120 : 240)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-            } else if loading && type == .IMAGE {
+            } else if loading && (type == .IMAGE || type == .STICKER) {
                 ProgressView().frame(height: 120)
             } else {
                 HStack(spacing: 10) {
@@ -67,7 +67,8 @@ struct MediaPreviewView: View {
         }
         .task(id: mediaId) {
             loading = true
-            if type == .IMAGE { image = await MediaCache.image(for: mediaId) }
+            // el sticker es una imagen (webp), se previsualiza igual que una foto
+            if type == .IMAGE || type == .STICKER { image = await MediaCache.image(for: mediaId) }
             loading = false
         }
     }

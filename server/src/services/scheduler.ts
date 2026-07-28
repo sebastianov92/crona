@@ -7,7 +7,7 @@ import { nextOccurrence } from "./recurrence.js";
 import { ntfyPublish } from "./ntfy.js";
 import { broadcast } from "../ws/hub.js";
 import { messageDTO, logDTO } from "../lib/message-dto.js";
-import { buildAudioPayload, buildMediaPayload, deleteMediaFile } from "./media.js";
+import { buildAudioPayload, buildMediaPayload, buildStickerPayload, deleteMediaFile } from "./media.js";
 import { cleanupAutoReplyHits, cleanupChatMessages } from "./autoreply.js";
 import { groupTick, recoverGroupsOnBoot } from "./groups.js";
 import { renderVariables } from "../lib/variables.js";
@@ -183,7 +183,9 @@ async function sendPart(
         })
       : type === "AUDIO"
         ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(asMessage))
-        : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(asMessage));
+        : type === "STICKER"
+          ? await evolution.sendSticker(msg.instance.instanceName, key, await buildStickerPayload(asMessage))
+          : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(asMessage));
 
   return res?.key?.id ?? res?.response?.key?.id;
 }

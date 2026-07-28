@@ -4,7 +4,7 @@ import { useApp } from "../App";
 import { Avatar, DayDots, MediaImg, Sheet, Toggle, logLabel, messagePreview, recurrenceLabel, scheduleLabel, statusLabel } from "../lib";
 import { quickDate, shownName } from "../types";
 import type { ContactList, MessageLog, Paginated, Recipient, RecipientKind, Recurrence, ScheduledMessage } from "../types";
-import { IconCheckCircle, IconCircle, IconLayers, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconStop, IconTemplate, IconTrash } from "../icons";
+import { IconCheckCircle, IconCircle, IconLayers, IconMic, IconPaperclip, IconPencil, IconPhonePlus, IconPlus, IconRefresh, IconRepeat, IconReply, IconSticker, IconStop, IconTemplate, IconTrash } from "../icons";
 import { MAX_PARTS, PartsEditor, clampTyping, newPart, partTypingMs } from "../parts";
 import type { PartDraft } from "../parts";
 import { TemplatePicker } from "./Templates";
@@ -131,6 +131,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [parts, setParts] = useState<PartDraft[]>([newPart()]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [fileIsSticker, setFileIsSticker] = useState(false); // el archivo se envía como sticker, no como foto
   const voiceMs = useRef<number | null>(null); // duración de la nota de voz grabada
   const [when, setWhen] = useState(() => localInputValue(new Date(Date.now() + 3600_000)));
   const [tz, setTz] = useState(COMMON_TZ[0]);
@@ -141,6 +142,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("");
 
   const isAudio = !!file && file.type.startsWith("audio/");
+  const isSticker = !!file && fileIsSticker;
   const canSubmit = recipients.length > 0 && instanceId && (parts.some((p) => p.body.trim()) || file) && !busy;
 
   const submit = async () => {
@@ -151,20 +153,22 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       if (file) mediaId = (await uploadMedia(file)).mediaId;
       const type = !file
         ? "TEXT"
-        : file.type.startsWith("image/")
-          ? "IMAGE"
-          : file.type.startsWith("video/")
-            ? "VIDEO"
-            : file.type.startsWith("audio/")
-              ? "AUDIO"
-              : "DOCUMENT";
+        : fileIsSticker
+          ? "STICKER"
+          : file.type.startsWith("image/")
+            ? "IMAGE"
+            : file.type.startsWith("video/")
+              ? "VIDEO"
+              : file.type.startsWith("audio/")
+                ? "AUDIO"
+                : "DOCUMENT";
       // Solo las cajas con texto: si el usuario deja una vacía en medio no se envía vacía.
       const filled = parts.filter((p) => p.body.trim());
-      // Nota de voz: la parte 0 es el audio (sin texto) y TODO el texto va como partes extra.
-      const isVoice = type === "AUDIO";
+      // Nota de voz y sticker: la parte 0 es el adjunto (sin texto) y TODO el texto va como partes extra.
+      const isVoice = type === "AUDIO" || type === "STICKER";
       const first: PartDraft | null = isVoice ? null : filled[0] ?? null;
       const rest = isVoice ? filled : filled.slice(1);
-      const typingMs = isVoice ? clampTyping(voiceMs.current) : first ? partTypingMs(first) : null;
+      const typingMs = type === "AUDIO" ? clampTyping(voiceMs.current) : type === "STICKER" ? null : first ? partTypingMs(first) : null;
       // El resto de partes van en "parts" (máx. 9 adicionales) — el server las envía en orden
       const extraParts = rest
         .slice(0, 9)
@@ -176,7 +180,7 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
           instanceId,
           recipient: { jid: r.jid, name: shownName(r), kind: r.kind, pictureUrl: r.pictureUrl },
           type,
-          body: type === "AUDIO" ? null : first?.body.trim() || null,
+          body: isVoice ? null : first?.body.trim() || null,
           mediaId: mediaId ?? null,
           parts: extraParts,
           scheduledAt: new Date(when).toISOString(),
@@ -233,16 +237,24 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
       <PartsEditor
         parts={parts}
         onChange={setParts}
-        note={isAudio ? "La nota de voz se envía sola, sin texto. Lo que escribas aquí se envía después, como mensajes aparte." : undefined}
-        max={isAudio ? MAX_PARTS - 1 : MAX_PARTS}
+        note={
+          isAudio
+            ? "La nota de voz se envía sola, sin texto. Lo que escribas aquí se envía después, como mensajes aparte."
+            : isSticker
+              ? "El sticker se envía solo. Lo que escribas aquí se envía después, como mensajes aparte."
+              : undefined
+        }
+        max={isAudio || isSticker ? MAX_PARTS - 1 : MAX_PARTS}
       />
       <div className="hint">Variables: {"{nombre}"} nombre · {"{primer_nombre}"} primer nombre · {"{fecha}"} fecha · {"{dia}"} día</div>
 
-      <label className="label">Adjunto (foto, video, PDF o audio)</label>
+      <label className="label">Adjunto (foto, video, PDF, audio o sticker)</label>
       {file ? (
         <div className="kv">
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}><IconPaperclip size={14} /> {file.name}</span>
-          <button className="btn small secondary" onClick={() => setFile(null)}>Quitar</button>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {isSticker ? <IconSticker size={14} /> : <IconPaperclip size={14} />} {isSticker ? "Sticker · " : ""}{file.name}
+          </span>
+          <button className="btn small secondary" onClick={() => { setFile(null); setFileIsSticker(false); }}>Quitar</button>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
@@ -253,10 +265,20 @@ function ComposeSheet({ onClose }: { onClose: () => void }) {
               type="file"
               hidden
               accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/webm,audio/wav"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setFileIsSticker(false); }}
             />
           </label>
-          <VoiceRecorderButton onDone={(f, dur) => { setFile(f); voiceMs.current = dur ?? null; }} />
+          <label className="filebtn" style={{ maxWidth: 140 }}>
+            <IconSticker size={16} />
+            Sticker
+            <input
+              type="file"
+              hidden
+              accept="image/webp,image/png,image/jpeg"
+              onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileIsSticker(!!f); }}
+            />
+          </label>
+          <VoiceRecorderButton onDone={(f, dur) => { setFile(f); setFileIsSticker(false); voiceMs.current = dur ?? null; }} />
         </div>
       )}
 

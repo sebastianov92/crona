@@ -5,7 +5,7 @@ import Foundation
 enum Role: String, Codable, CaseIterable { case ADMIN, USER }
 enum InstanceStatus: String, Codable, CaseIterable { case CREATED, CONNECTING, CONNECTED, DISCONNECTED }
 enum RecipientKind: String, Codable, CaseIterable { case CONTACT, GROUP }
-enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO }
+enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER }
 enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
 enum AutoReplyAction: String, Codable, CaseIterable { case REPLY, NOTIFY }
 enum ScheduleStatus: String, Codable, CaseIterable { case ACTIVE, PAUSED, COMPLETED, CANCELLED, FAILED }

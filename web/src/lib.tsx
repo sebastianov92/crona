@@ -51,17 +51,23 @@ export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) =
 
 export function MediaImg({ mediaId, type }: { mediaId: string; type: MessageType }) {
   const [url, setUrl] = useState<string | null>(null);
+  // el sticker es una imagen (webp): se previsualiza igual que una foto
+  const isImage = type === "IMAGE" || type === "STICKER";
   useEffect(() => {
-    if (type === "IMAGE") mediaBlobURL(mediaId).then(setUrl);
-  }, [mediaId, type]);
-  if (type !== "IMAGE")
+    if (isImage) mediaBlobURL(mediaId).then(setUrl);
+  }, [mediaId, isImage]);
+  if (!isImage)
     return (
       <div className="hint" style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <IconPaperclip size={14} />{" "}
         {type === "VIDEO" ? "Video adjunto" : type === "AUDIO" ? "Nota de voz adjunta" : "Documento adjunto"}
       </div>
     );
-  return url ? <img className="mediathumb" src={url} alt="adjunto" /> : <div className="hint">Cargando adjunto…</div>;
+  return url ? (
+    <img className="mediathumb" src={url} alt="adjunto" style={type === "STICKER" ? { maxHeight: 120 } : undefined} />
+  ) : (
+    <div className="hint">Cargando adjunto…</div>
+  );
 }
 
 export function scheduleLabel(iso: string): string {
@@ -79,7 +85,7 @@ export function scheduleLabel(iso: string): string {
 }
 
 export function messagePreview(type: MessageType, body: string | null): string {
-  const labels: Record<MessageType, string> = { TEXT: "", IMAGE: "Foto", VIDEO: "Video", DOCUMENT: "Documento", AUDIO: "Nota de voz" };
+  const labels: Record<MessageType, string> = { TEXT: "", IMAGE: "Foto", VIDEO: "Video", DOCUMENT: "Documento", AUDIO: "Nota de voz", STICKER: "Sticker" };
   if (type === "TEXT") return body ?? "";
   return body ? `${labels[type]} · ${body}` : labels[type];
 }

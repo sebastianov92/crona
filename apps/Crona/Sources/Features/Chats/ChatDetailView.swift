@@ -387,6 +387,7 @@ private struct BubbleView: View {
         case .VIDEO: return "Video"
         case .DOCUMENT: return "Documento"
         case .AUDIO: return "Nota de voz"
+        case .STICKER: return "Sticker"
         case .TEXT: return ""
         }
     }
@@ -397,6 +398,7 @@ private struct BubbleView: View {
         case .VIDEO: return "video.fill"
         case .DOCUMENT: return "doc.fill"
         case .AUDIO: return "waveform"
+        case .STICKER: return "face.smiling"
         case .TEXT: return "bubble"
         }
     }
