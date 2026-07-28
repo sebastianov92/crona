@@ -51,6 +51,9 @@ export const evolution = {
       apikey: await GLOBAL(),
     }),
   state: async (n: string) => evoFetch(`/instance/connectionState/${n}`, { apikey: await GLOBAL() }),
+  // Datos de la instancia, incluido el número propio (ownerJid) del WhatsApp conectado
+  fetchInstance: async (n: string) =>
+    evoFetch(`/instance/fetchInstances?instanceName=${encodeURIComponent(n)}`, { apikey: await GLOBAL() }),
   logout: async (n: string) => evoFetch(`/instance/logout/${n}`, { method: "DELETE", apikey: await GLOBAL() }),
   remove: async (n: string) => evoFetch(`/instance/delete/${n}`, { method: "DELETE", apikey: await GLOBAL() }),
   // timeout 60 s: el body lleva delay (señal "escribiendo…") de hasta 25 s y Evolution

@@ -30,9 +30,18 @@ async function handleConnectionUpdate(instanceName: string, data: any) {
   if (!inst) return;
   evolution.invalidateStateCache(instanceName);
 
+  // al conectar, guardar el número propio si el payload lo trae (lo necesita el buzón de stickers
+  // para reconocer el self-chat). Si no viene aquí, se obtiene on-demand en la captura.
+  const ownerRaw = String(data?.wuid ?? data?.ownerJid ?? data?.owner ?? "");
+  const ownNumber = ownerRaw.split("@")[0].split(":")[0].replace(/\D/g, "");
+
   const updated = await prisma.instance.update({
     where: { id: inst.id },
-    data: { status, ...(status === "CONNECTED" ? { lastConnectedAt: new Date() } : {}) },
+    data: {
+      status,
+      ...(status === "CONNECTED" ? { lastConnectedAt: new Date() } : {}),
+      ...(ownNumber.length >= 8 && !inst.phoneNumber ? { phoneNumber: ownNumber } : {}),
+    },
   });
   broadcast(inst.userId, "instance.updated", instanceDTO(updated));
 
