@@ -19,12 +19,11 @@ targets:
     type: application
     supportedDestinations: [iOS, macOS]
     sources: [Sources]
-    dependencies:
-      # el widget solo se embebe en iOS: en Mac la app va sin sandbox y el App Group
-      # dispararía el aviso de "acceder a datos de otras apps" en cada actualización
-      - target: CronaWidget
-        embed: true
-        platformFilter: iOS
+    # Widget DESHABILITADO en el build de distribución: al firmar el IPA con un Apple ID
+    # personal, SideStore/AltStore no logra reescribir el bundle ID de la app-extension
+    # ("Failed to set app extension placeholders / Mismatched bundle IDs") y la app no
+    # instala. Sin el widget embebido, el sideload es limpio. (El target CronaWidget sigue
+    # definido abajo para poder reactivarlo en el futuro.)
     info:
       path: Sources/Info.plist
       properties:
