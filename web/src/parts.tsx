@@ -3,6 +3,7 @@
 // las envía una tras otra, cada una con su "escribiendo…" y una pausa corta entre ellas.
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "./App";
+import { Toggle } from "./lib";
 import { IconCamera, IconMic, IconPlus, IconSticker, IconStop, IconText, IconTrash, IconVideo } from "./icons";
 import type { MessageType, TemplatePart } from "./types";
 
@@ -28,6 +29,8 @@ export interface PartDraft {
   file: File | null;
   /** duración de la nota de voz grabada */
   durationMs: number | null;
+  /** foto/video: enviar como archivo (documento) para que WhatsApp no lo recomprima */
+  asFile?: boolean;
 }
 
 let seq = 0;
@@ -56,9 +59,11 @@ export const partMessageType = (p: PartDraft): MessageType =>
     : p.kind === "sticker"
       ? "STICKER"
       : p.kind === "photo"
-        ? p.file?.type.startsWith("video/")
-          ? "VIDEO"
-          : "IMAGE"
+        ? p.asFile // como archivo → documento (WhatsApp no lo recomprime, llega en calidad original)
+          ? "DOCUMENT"
+          : p.file?.type.startsWith("video/")
+            ? "VIDEO"
+            : "IMAGE"
         : "TEXT";
 
 /** typingMs de la parte: texto = escritura real; audio = duración; foto/video = caption o corto; sticker = nada. */
@@ -251,11 +256,20 @@ export function PartsComposer({
           )}
 
           {p.kind === "photo" && p.file && (
-            <div className="partmedia">
-              <LocalThumb file={p.file} />
-              <div style={{ flex: 1 }}>
-                <AutoTextArea value={p.body} onChange={(v) => setText(i, v)} placeholder="Texto opcional…" />
+            <div>
+              <div className="partmedia">
+                <LocalThumb file={p.file} />
+                <div style={{ flex: 1 }}>
+                  <AutoTextArea value={p.body} onChange={(v) => setText(i, v)} placeholder="Texto opcional…" />
+                </div>
               </div>
+              {/* enviar como archivo: WhatsApp no recomprime documentos → calidad original */}
+              {!p.file.type.startsWith("video/") && (
+                <label className="kv" style={{ alignItems: "center", borderBottom: "none", cursor: "pointer" }}>
+                  <span className="k">Enviar en calidad original (como archivo)</span>
+                  <Toggle on={!!p.asFile} onChange={(v) => update(i, { asFile: v })} />
+                </label>
+              )}
             </div>
           )}
 

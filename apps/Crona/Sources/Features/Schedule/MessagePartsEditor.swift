@@ -112,6 +112,8 @@ struct ComposePart: Identifiable, Equatable {
     var attachment: Attachment?
     /// Duración de la grabación en ms (solo audio) — alimenta "grabando audio…".
     var durationMs: Int?
+    /// Foto: enviar como archivo (documento) para que WhatsApp no la recomprima.
+    var asFile: Bool = false
 
     /// Valor corto por defecto de "escribiendo…" para partes de solo media sin texto.
     static let defaultMediaTypingMs = 2000
@@ -142,7 +144,8 @@ struct ComposePart: Identifiable, Equatable {
     var messageType: MessageType {
         switch kind {
         case .text: return .TEXT
-        case .photoVideo: return attachment?.messageType ?? .IMAGE
+        // como archivo → documento: WhatsApp no lo recomprime (calidad original)
+        case .photoVideo: return asFile ? .DOCUMENT : (attachment?.messageType ?? .IMAGE)
         case .audio: return .AUDIO
         case .sticker: return .STICKER
         }
@@ -234,6 +237,16 @@ private struct ComposePartRow: View {
                 case .photoVideo:
                     ComposeAttachmentThumb(attachment: part.attachment)
                     textField(placeholder: "Añade un texto (opcional)")
+                    // solo para fotos (no video): enviarla como archivo evita la recompresión de WhatsApp
+                    if part.attachment?.messageType == .IMAGE {
+                        Toggle(isOn: $part.asFile) {
+                            Text("Enviar en calidad original (como archivo)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                    }
                 case .audio:
                     audioRow
                 case .sticker:
