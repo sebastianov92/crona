@@ -6,7 +6,7 @@ import { mediaAbsPath } from "./media.js";
 import { broadcast } from "../ws/hub.js";
 
 /// Crea grupos de WhatsApp pendientes: grupo → foto → espera 5-10 s → mensaje inicial
-/// (cada parte con su "escribiendo…" y pausa de 1-3 s entre partes, igual que el split).
+/// (cada parte con su "escribiendo…" y pausa de 0.5-1 s entre partes, igual que el split).
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const rand = (min: number, max: number) => min + Math.floor(Math.random() * (max - min));
@@ -84,7 +84,7 @@ async function createOne(id: string): Promise<void> {
     if (gc.parts.length > 0) {
       await sleep(5000 + rand(0, 5000));
       for (const [i, part] of gc.parts.entries()) {
-        if (i > 0) await sleep(1000 + rand(0, 2000)); // pausa entre partes del split
+        if (i > 0) await sleep(500 + rand(0, 500)); // pausa 0.5-1 s entre partes del split
         await evolution.sendText(instance.instanceName, key, {
           number: groupJid,
           text: part.body,

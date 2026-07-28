@@ -203,14 +203,14 @@ async function sendOne(msg: FullMessage): Promise<void> {
   try {
     const keyId = await sendPart(msg, key, null);
 
-    // Split: el resto de partes salen seguidas, con pausa aleatoria de 1-3 s entre cada una
+    // Split: el resto de partes salen seguidas, con pausa aleatoria de 0.5-1 s entre cada una
     // (cada parte muestra su propio "escribiendo…" antes de enviarse).
     const parts = await prisma.messagePart.findMany({
       where: { messageId: msg.id },
       orderBy: { order: "asc" },
     });
     for (const p of parts) {
-      await sleep(1000 + rand(0, 2000));
+      await sleep(500 + rand(0, 500));
       await sendPart(msg, key, p);
     }
 
