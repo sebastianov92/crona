@@ -277,7 +277,7 @@ struct ComposeView: View {
                 Label("Sticker desde archivo", systemImage: "face.smiling")
             }
         } label: {
-            Label("Agregar parte", systemImage: "plus.circle")
+            Label("Agregar mensaje", systemImage: "plus.circle")
                 .foregroundStyle(Theme.accent)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())

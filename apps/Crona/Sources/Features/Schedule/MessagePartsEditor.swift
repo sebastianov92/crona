@@ -239,13 +239,18 @@ private struct ComposePartRow: View {
                     textField(placeholder: "Añade un texto (opcional)")
                     // solo para fotos (no video): enviarla como archivo evita la recompresión de WhatsApp
                     if part.attachment?.messageType == .IMAGE {
-                        Toggle(isOn: $part.asFile) {
+                        HStack(spacing: 8) {
                             Text("Enviar en calidad original (como archivo)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Toggle("", isOn: $part.asFile)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .tint(Theme.accent)
                         }
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
+                        .frame(maxWidth: .infinity)
                     }
                 case .audio:
                     audioRow

@@ -298,7 +298,7 @@ export function PartsComposer({
       {parts.length < max && (
         <>
           <button type="button" className="btn ghost" style={{ padding: "6px 0" }} onClick={() => setMenu((v) => !v)}>
-            <IconPlus size={15} /> Agregar parte
+            <IconPlus size={15} /> Agregar mensaje
           </button>
           {menu && (
             <div className="addmenu">
