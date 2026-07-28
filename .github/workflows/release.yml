@@ -12,6 +12,14 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      # El icono usa el formato .icon de Icon Composer (Xcode 26+); con Xcode más viejo
+      # el asset catalog no encuentra "AppIcon" y el build iOS falla.
+      - name: Seleccionar la Xcode más reciente
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          [ -z "$LATEST" ] && LATEST=/Applications/Xcode.app
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Build DMG + IPA
