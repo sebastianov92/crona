@@ -113,14 +113,27 @@ struct MessageDetailView: View {
                             }
                         }
                         if editable {
-                            Button(msg.status == .PAUSED ? "Reanudar" : "Pausar") {
+                            Button {
                                 Task { await toggle() }
+                            } label: {
+                                Label(msg.status == .PAUSED ? "Reanudar" : "Pausar",
+                                      systemImage: msg.status == .PAUSED ? "play.fill" : "pause.fill")
                             }
-                            Button("Cancelar envío", role: .destructive) { confirmCancel = true }
+                            Button(role: .destructive) { confirmCancel = true } label: {
+                                Label("Cancelar envío", systemImage: "xmark.circle")
+                            }
                         }
-                        Button("Duplicar") { Task { await duplicate() } }
+                        Button {
+                            Task { await duplicate() }
+                        } label: {
+                            Label("Duplicar", systemImage: "plus.square.on.square")
+                        }
                         if [.CANCELLED, .COMPLETED, .FAILED].contains(msg.status) {
-                            Button("Eliminar", role: .destructive) { Task { await remove() } }
+                            Button(role: .destructive) {
+                                Task { await remove() }
+                            } label: {
+                                Label("Eliminar", systemImage: "trash")
+                            }
                         }
                     }
                 }

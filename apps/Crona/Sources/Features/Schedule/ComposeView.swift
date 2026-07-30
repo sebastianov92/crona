@@ -33,6 +33,7 @@ struct ComposeView: View {
     @State private var schedule = ScheduleConfig()
 
     @State private var showPicker = false
+    @State private var didAutoOpenPicker = false
     @State private var showSchedule = false
     @State private var showConfirm = false
     @State private var sending = false
@@ -260,7 +261,17 @@ struct ComposeView: View {
                           allowedContentTypes: [.webP, .png, .jpeg]) { result in
                 if case .success(let url) = result { loadFile(url, asSticker: true) }
             }
-            .onAppear { applyPrefill() }
+            .onAppear {
+                applyPrefill()
+                // Mensaje nuevo (no edición/duplicado): abrir el selector de contacto de una vez.
+                if prefill == nil, recipients.isEmpty, !didAutoOpenPicker {
+                    didAutoOpenPicker = true
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350)) // deja asentar la hoja antes de abrir otra
+                        if recipients.isEmpty { showPicker = true }
+                    }
+                }
+            }
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
             }

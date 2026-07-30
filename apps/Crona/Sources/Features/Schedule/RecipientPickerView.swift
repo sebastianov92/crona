@@ -81,6 +81,27 @@ struct RecipientPickerView: View {
                     listsBody
                 } else {
                 List {
+                    // Sincronizar (contactos o grupos): fila propia para no confundirse con "Varios".
+                    Button {
+                        Task { await sync() }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Group {
+                                if syncing { ProgressView() }
+                                else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 18)) }
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.accent.opacity(0.15), in: Circle())
+                            Text(kind == .CONTACT ? "Sincronizar contactos" : "Sincronizar grupos").font(.body)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(syncing)
+
                     if kind == .CONTACT {
                         Button {
                             showManualNumber = true
@@ -180,17 +201,7 @@ struct RecipientPickerView: View {
             .navigationTitle(multi ? "Destinatarios" : "Destinatario")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    // sincronizar siempre disponible (icono compacto)
-                    Button {
-                        Task { await sync() }
-                    } label: {
-                        if syncing { ProgressView().controlSize(.small) }
-                        else { Image(systemName: "arrow.triangle.2.circlepath") }
-                    }
-                    .help("Sincronizar contactos")
-                    .disabled(syncing)
-
+                ToolbarItem(placement: .primaryAction) {
                     if multi {
                         // en multi: confirmar la selección
                         Button("Listo (\(selected.count))") {
