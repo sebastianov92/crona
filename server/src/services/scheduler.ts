@@ -266,6 +266,18 @@ async function cleanupMedia() {
     const media = await prisma.media.findMany();
     const now = Date.now();
     for (const m of media) {
+      // Media referenciado por algo que NO es el mediaId raíz de un ScheduledMessage NUNCA es
+      // huérfano: stickers del buzón, partes de un split, foto de un grupo por crear, o la foto
+      // de grupo por defecto del usuario. (Antes solo se contaban ScheduledMessage.mediaId, así
+      // que estos medios se borraban a las 24 h y el sticker/parte desaparecía por cascade.)
+      const [stickerRefs, partRefs, groupRefs, userRefs] = await Promise.all([
+        prisma.stickerAsset.count({ where: { mediaId: m.id } }),
+        prisma.messagePart.count({ where: { mediaId: m.id } }),
+        prisma.groupCreation.count({ where: { pictureMediaId: m.id } }),
+        prisma.user.count({ where: { defaultGroupPictureMediaId: m.id } }),
+      ]);
+      if (stickerRefs + partRefs + groupRefs + userRefs > 0) continue;
+
       const refs = await prisma.scheduledMessage.findMany({
         where: { mediaId: m.id },
         select: { status: true, updatedAt: true },
