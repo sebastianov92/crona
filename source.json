@@ -20,9 +20,17 @@
         {
           "version": "1.4.0",
           "date": "2026-07-30",
-          "size": 5194868,
+          "size": 5209887,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.0/Crona.ipa",
-          "localizedDescription": "Actualización v1.4.0",
+          "localizedDescription": "Mejoras de UX: elegir destinatario con un toque (botón \"Varios\" para elegir a varios), franjas Mañana/Tarde/Noche directas al programar, barra rápida para agregar foto/voz/sticker, deslizar en Programados (cancelar/pausar/duplicar) y en Historial (reintentar envíos fallidos), y arranque que no te saca de sesión si el servidor tarda en responder.",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "1.3.2",
+          "date": "2026-07-28",
+          "size": 5139455,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.3.2/Crona.ipa",
+          "localizedDescription": "Actualización v1.3.2",
           "minOSVersion": "17.0"
         }
       ],
