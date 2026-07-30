@@ -9,19 +9,33 @@ struct RegisterView: View {
     @State private var inviteCode = ""
     @State private var busy = false
     @State private var error: String?
+    @FocusState private var focus: Field?
+
+    private enum Field { case name, email, password }
+
+    private var canSubmit: Bool { !name.isEmpty && !email.isEmpty && password.count >= 8 && !busy }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Tu cuenta") {
                     TextField("Nombre", text: $name)
+                        .focused($focus, equals: .name)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .email }
                     TextField("Email", text: $email)
                         .autocorrectionDisabled()
+                        .focused($focus, equals: .email)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .password }
                         #if os(iOS)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         #endif
                     SecureField("Contraseña (mínimo 8)", text: $password)
+                        .focused($focus, equals: .password)
+                        .submitLabel(.go)
+                        .onSubmit { if canSubmit { Task { await register() } } }
                 }
                 Section {
                     TextField("Código de invitación", text: $inviteCode)
@@ -45,9 +59,10 @@ struct RegisterView: View {
                     } label: {
                         if busy { ProgressView().controlSize(.small) } else { Text("Crear") }
                     }
-                    .disabled(name.isEmpty || email.isEmpty || password.count < 8 || busy)
+                    .disabled(!canSubmit)
                 }
             }
+            .onAppear { focus = .name }
         }
         #if os(macOS)
         .frame(minWidth: 420, minHeight: 380)

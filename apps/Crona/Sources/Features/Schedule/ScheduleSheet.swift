@@ -1,12 +1,63 @@
 import SwiftUI
 
 struct ScheduleConfig: Equatable {
-    var date = Date().addingTimeInterval(3600)
+    var date = defaultScheduleDate()
     var recurrence: Recurrence = .NONE
     var recurrenceDays: Set<Int> = []
     var until: Date? = nil
     var timezone: String = TimeZone.current.identifier
     var randomDelay = false
+}
+
+/// Default al programar: mañana a las 9:00. Programar casi nunca es dentro de la próxima hora.
+func defaultScheduleDate() -> Date {
+    let cal = Calendar.current
+    let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    return cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+}
+
+/// Chips Mañana/Tarde/Noche reutilizables: fijan la fecha a la franja elegida (inline, sin abrir hoja).
+/// Antes de la hora configurada → hoy; dentro del rango o después → mañana.
+struct QuickHourChips: View {
+    @Environment(SessionStore.self) private var session
+    @Binding var date: Date
+
+    private var hours: QuickHours { session.user?.quickHours ?? .default }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            chip("Mañana", icon: "sunrise", hours.morning)
+            chip("Tarde", icon: "sun.max", hours.afternoon)
+            chip("Noche", icon: "moon", hours.evening)
+        }
+    }
+
+    /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
+    private func chip(_ label: String, icon: String, _ range: QuickRange) -> some View {
+        let cal = Calendar.current
+        let minuteOfDay = cal.component(.hour, from: date) * 60 + cal.component(.minute, from: date)
+        let selected = minuteOfDay >= range.start && minuteOfDay <= max(range.start + 5, range.end)
+        return Button {
+            date = quickDate(range)
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.subheadline)
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(selected ? Theme.accent.opacity(0.22) : Color.gray.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(selected ? Theme.accent : Color.gray.opacity(0.25), lineWidth: 1))
+            .foregroundStyle(selected ? Theme.accent : .primary)
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // Zonas comunes + la del dispositivo (lista completa sería inmanejable en un Picker)
@@ -35,7 +86,6 @@ func timezoneLabel(_ id: String) -> String {
 
 struct ScheduleSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SessionStore.self) private var session
     @Binding var config: ScheduleConfig
 
     private static let dayNames = [(1, "L"), (2, "M"), (3, "X"), (4, "J"), (5, "V"), (6, "S"), (7, "D")]
@@ -44,13 +94,9 @@ struct ScheduleSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack(spacing: 8) {
-                        quickChip("Mañana", icon: "sunrise", hours.morning)
-                        quickChip("Tarde", icon: "sun.max", hours.afternoon)
-                        quickChip("Noche", icon: "moon", hours.evening)
-                    }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                    .listRowBackground(Color.clear)
+                    QuickHourChips(date: $config.date)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                        .listRowBackground(Color.clear)
                 } footer: {
                     Text("Las horas de cada franja se configuran en Ajustes.")
                 }
@@ -132,38 +178,7 @@ struct ScheduleSheet: View {
         #endif
     }
 
-    private var hours: QuickHours { session.user?.quickHours ?? .default }
-
     private var tzOptions: [String] {
         commonTimezones.contains(config.timezone) ? commonTimezones : [config.timezone] + commonTimezones
     }
-
-    /// Chips uniformes: mismo alto, una sola línea, ancho repartido en partes iguales.
-    /// Antes de la hora configurada → hoy; dentro del rango o después → mañana.
-    private func quickChip(_ label: String, icon: String, _ range: QuickRange) -> some View {
-        let cal = Calendar.current
-        let minuteOfDay = cal.component(.hour, from: config.date) * 60 + cal.component(.minute, from: config.date)
-        let selected = minuteOfDay >= range.start && minuteOfDay <= max(range.start + 5, range.end)
-        return Button {
-            config.date = quickDate(range)
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.subheadline)
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(selected ? Theme.accent.opacity(0.22) : Color.gray.opacity(0.1),
-                        in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(selected ? Theme.accent : Color.gray.opacity(0.25), lineWidth: 1))
-            .foregroundStyle(selected ? Theme.accent : .primary)
-            .contentShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-
 }

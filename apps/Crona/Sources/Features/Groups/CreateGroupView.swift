@@ -68,7 +68,8 @@ struct CreateGroupView: View {
                 if let iid = instanceId ?? session.activeInstance?.id {
                     // allowGroups: false — un grupo no puede ser participante de otro grupo.
                     // El filtro por .CONTACT cubre además las listas, que sí pueden traer grupos.
-                    RecipientPickerView(instanceId: iid, multiSelect: true, allowGroups: false) { picked in
+                    RecipientPickerView(instanceId: iid, startInMulti: true,
+                                        preselected: participants, allowGroups: false) { picked in
                         for r in picked where r.kind == .CONTACT
                             && !participants.contains(where: { $0.jid == r.jid }) {
                             participants.append(r)

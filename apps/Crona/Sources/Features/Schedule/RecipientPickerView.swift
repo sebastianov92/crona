@@ -5,13 +5,20 @@ struct RecipientPickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     let instanceId: String
-    var multiSelect: Bool = false
+    /// Modo con el que abre: false = un solo destinatario (tocar elige y cierra). El usuario
+    /// puede pasar a multi con el botón "Varios". Al reabrir para "agregar más" se pasa true.
+    var startInMulti: Bool = false
+    /// Destinatarios ya elegidos: en modo multi se pre-marcan al abrir.
+    var preselected: [Recipient] = []
     /// false al elegir participantes de un grupo nuevo: un JID de grupo no puede ser miembro.
     var allowGroups: Bool = true
     let onPick: ([Recipient]) -> Void
 
     enum PickerTab: Hashable { case contacts, groups, lists }
 
+    /// Modo actual (arranca en startInMulti, alternable con "Varios").
+    @State private var multi = false
+    @State private var didSeed = false
     @State private var tab: PickerTab = .contacts
     private var kind: RecipientKind { tab == .groups ? .GROUP : .CONTACT }
     @State private var search = ""
@@ -105,7 +112,7 @@ struct RecipientPickerView: View {
                                         Text("Número escrito a mano").font(.caption).foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    if multiSelect {
+                                    if multi {
                                         Image(systemName: isSelected(r) ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(isSelected(r) ? Theme.accent : .secondary)
                                     }
@@ -140,7 +147,7 @@ struct RecipientPickerView: View {
                                     }
                                 }
                                 Spacer()
-                                if multiSelect {
+                                if multi {
                                     Image(systemName: isSelected(r) ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(isSelected(r) ? Theme.accent : .secondary)
                                 }
@@ -170,29 +177,41 @@ struct RecipientPickerView: View {
                 .overlay { if loading { ProgressView() } }
                 }
             }
-            .navigationTitle("Destinatario")
+            .navigationTitle(multi ? "Destinatarios" : "Destinatario")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                // un solo botón que se transforma: 🔄 sin selección → "Listo (N)" con selección
-                ToolbarItem(placement: .primaryAction) {
-                    if multiSelect && !selected.isEmpty {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    // sincronizar siempre disponible (icono compacto)
+                    Button {
+                        Task { await sync() }
+                    } label: {
+                        if syncing { ProgressView().controlSize(.small) }
+                        else { Image(systemName: "arrow.triangle.2.circlepath") }
+                    }
+                    .help("Sincronizar contactos")
+                    .disabled(syncing)
+
+                    if multi {
+                        // en multi: confirmar la selección
                         Button("Listo (\(selected.count))") {
                             onPick(selected)
                             dismiss()
                         }
                         .fontWeight(.semibold)
                         .foregroundStyle(Theme.accent)
+                        .disabled(selected.isEmpty)
                     } else {
-                        Button {
-                            Task { await sync() }
-                        } label: {
-                            if syncing { ProgressView().controlSize(.small) }
-                            else { Image(systemName: "arrow.triangle.2.circlepath") }
-                        }
-                        .help("Sincronizar contactos")
-                        .disabled(syncing)
+                        // en single: pasar a selección múltiple con casillas
+                        Button("Varios") { multi = true }
+                            .help("Elegir varios con casillas")
                     }
                 }
+            }
+            .onAppear {
+                guard !didSeed else { return }
+                didSeed = true
+                multi = startInMulti
+                if selected.isEmpty { selected = preselected }
             }
             .task(id: tab) {
                 if tab == .lists { await loadLists() } else { await load() }
@@ -211,7 +230,7 @@ struct RecipientPickerView: View {
             }
             .sheet(isPresented: $showManualNumber) {
                 ManualNumberSheet { recipient in
-                    if multiSelect {
+                    if multi {
                         if !manualItems.contains(where: { $0.jid == recipient.jid }) { manualItems.append(recipient) }
                         if !selected.contains(where: { $0.jid == recipient.jid }) { selected.append(recipient) }
                     } else {
@@ -282,7 +301,7 @@ struct RecipientPickerView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if multiSelect {
+                        if multi {
                             Image(systemName: allSelected(list) ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(allSelected(list) ? Theme.accent : .secondary)
                         }
@@ -323,7 +342,7 @@ struct RecipientPickerView: View {
 
     private func tapList(_ list: ContactList) {
         let rs = list.members.map(memberRecipient)
-        if multiSelect {
+        if multi {
             if allSelected(list) {
                 selected.removeAll { r in list.members.contains { $0.jid == r.jid } }
             } else {
@@ -348,7 +367,7 @@ struct RecipientPickerView: View {
     }
 
     private func tap(_ r: Recipient) {
-        if multiSelect {
+        if multi {
             if let i = selected.firstIndex(where: { $0.jid == r.jid }) { selected.remove(at: i) }
             else { selected.append(r) }
         } else {

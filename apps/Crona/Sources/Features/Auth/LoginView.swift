@@ -7,6 +7,9 @@ struct LoginView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var showRegister = false
+    @FocusState private var focus: Field?
+
+    private enum Field { case email, password }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -21,12 +24,17 @@ struct LoginView: View {
                 TextField("Email", text: $email)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
+                    .focused($focus, equals: .email)
+                    .submitLabel(.next)
+                    .onSubmit { focus = .password }
                     #if os(iOS)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     #endif
                 SecureField("Contraseña", text: $password)
                     .textFieldStyle(.roundedBorder)
+                    .focused($focus, equals: .password)
+                    .submitLabel(.go)
                     .onSubmit { Task { await login() } }
                 if let error {
                     Text(error).font(.caption).foregroundStyle(.red)
@@ -59,6 +67,7 @@ struct LoginView: View {
         }
         .padding()
         .sheet(isPresented: $showRegister) { RegisterView() }
+        .onAppear { if email.isEmpty { focus = .email } }
     }
 
     private func login() async {

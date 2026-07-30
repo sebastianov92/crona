@@ -10,6 +10,7 @@ struct ScheduledListView: View {
     @State private var filter: Filter = .all
     @State private var search = ""
     @State private var showCompose = false
+    @State private var showInstances = false
     @State private var selected: ScheduledMessage?
 
     private var filtered: [ScheduledMessage] {
@@ -33,7 +34,8 @@ struct ScheduledListView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if session.hasDisconnectedInstance {
-                    DisconnectedBanner()
+                    Button { showInstances = true } label: { DisconnectedBanner() }
+                        .buttonStyle(.plain)
                 }
                 filterChips
                 List {
@@ -49,6 +51,27 @@ struct ScheduledListView: View {
                     ForEach(filtered) { msg in
                         Button { selected = msg } label: { MessageRow(message: msg) }
                             .buttonStyle(.plain)
+                            // Acciones rápidas sin abrir el detalle. Cancelar no es full-swipe:
+                            // hace falta tocar el botón (evita cancelar por un arrastre accidental).
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                if msg.status == .ACTIVE || msg.status == .PAUSED {
+                                    Button(role: .destructive) { Task { await cancelMsg(msg) } } label: {
+                                        Label("Cancelar", systemImage: "xmark.circle")
+                                    }
+                                    .tint(.red)
+                                    Button { Task { await toggleMsg(msg) } } label: {
+                                        Label(msg.status == .PAUSED ? "Reanudar" : "Pausar",
+                                              systemImage: msg.status == .PAUSED ? "play.fill" : "pause.fill")
+                                    }
+                                    .tint(.orange)
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button { Task { await duplicateMsg(msg) } } label: {
+                                    Label("Duplicar", systemImage: "plus.square.on.square")
+                                }
+                                .tint(Theme.accent)
+                            }
                     }
                 }
                 .listStyle(.plain)
@@ -61,6 +84,17 @@ struct ScheduledListView: View {
                 }
             }
             .sheet(isPresented: $showCompose) { ComposeView() }
+            .sheet(isPresented: $showInstances) {
+                NavigationStack {
+                    InstanceListView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { showInstances = false } }
+                        }
+                }
+                #if os(macOS)
+                .frame(minWidth: 480, minHeight: 520)
+                #endif
+            }
             .sheet(item: $selected) { msg in
                 NavigationStack { MessageDetailView(messageId: msg.id) }
                     #if os(macOS)
@@ -75,6 +109,30 @@ struct ScheduledListView: View {
             }
             #endif
         }
+    }
+
+    // MARK: - Acciones rápidas (swipe) — reusan la API del detalle
+
+    private func cancelMsg(_ msg: ScheduledMessage) async {
+        do {
+            _ = try await APIClient.shared.cancelMessage(id: msg.id)
+            await session.refreshMessages()
+        } catch { session.report(error) }
+    }
+
+    private func toggleMsg(_ msg: ScheduledMessage) async {
+        do {
+            _ = try await APIClient.shared.patchMessage(
+                id: msg.id, PatchMessageBody(status: msg.status == .PAUSED ? .ACTIVE : .PAUSED))
+            await session.refreshMessages()
+        } catch { session.report(error) }
+    }
+
+    private func duplicateMsg(_ msg: ScheduledMessage) async {
+        do {
+            _ = try await APIClient.shared.duplicateMessage(id: msg.id)
+            await session.refreshMessages()
+        } catch { session.report(error) }
     }
 
     private var filterChips: some View {

@@ -1,8 +1,12 @@
 import SwiftUI
 
+/// Referencia a un mensaje por id para abrir su detalle desde el historial.
+private struct MsgRef: Identifiable { let id: String }
+
 struct HistoryView: View {
     @Environment(SessionStore.self) private var session
     @State private var search = ""
+    @State private var openMsg: MsgRef?
 
     private var filtered: [HistoryItem] {
         session.history.filter {
@@ -24,30 +28,43 @@ struct HistoryView: View {
                     .listRowSeparator(.hidden)
                 }
                 ForEach(filtered) { item in
-                    HStack(spacing: 12) {
-                        AvatarView(name: item.recipientName, pictureUrl: item.recipientPictureUrl)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.recipientName).font(.headline)
-                            Text(item.error ?? messagePreview(type: item.type, body: item.body))
-                                .font(.subheadline)
-                                .foregroundStyle(item.error != nil ? .red : .secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if item.type == .IMAGE, let mediaId = item.mediaId {
-                            MediaThumbView(mediaId: mediaId)
-                        }
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(scheduleLabel(item.runAt)).font(.caption).foregroundStyle(.secondary)
-                            HStack(spacing: 3) {
-                                Image(systemName: item.status.systemImage)
-                                Text(item.status.label).font(.caption2)
+                    Button { openMsg = MsgRef(id: item.scheduledMessageId) } label: {
+                        HStack(spacing: 12) {
+                            AvatarView(name: item.recipientName, pictureUrl: item.recipientPictureUrl)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.recipientName).font(.headline)
+                                Text(item.error ?? messagePreview(type: item.type, body: item.body))
+                                    .font(.subheadline)
+                                    .foregroundStyle(item.error != nil ? .red : .secondary)
+                                    .lineLimit(1)
                             }
-                            .font(.caption)
-                            .foregroundStyle(item.status.tint)
+                            Spacer()
+                            if item.type == .IMAGE, let mediaId = item.mediaId {
+                                MediaThumbView(mediaId: mediaId)
+                            }
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text(scheduleLabel(item.runAt)).font(.caption).foregroundStyle(.secondary)
+                                HStack(spacing: 3) {
+                                    Image(systemName: item.status.systemImage)
+                                    Text(item.status.label).font(.caption2)
+                                }
+                                .font(.caption)
+                                .foregroundStyle(item.status.tint)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // Reenviar un envío fallido sin buscar el mensaje: 1 swipe.
+                    .swipeActions(edge: .leading) {
+                        if item.status == .FAILED {
+                            Button { Task { await retry(item) } } label: {
+                                Label("Reintentar", systemImage: "arrow.clockwise")
+                            }
+                            .tint(Theme.accent)
                         }
                     }
-                    .padding(.vertical, 2)
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
                             Task { await delete(item) }
@@ -63,7 +80,22 @@ struct HistoryView: View {
             .searchable(text: $search, prompt: "Buscar")
             .refreshable { await session.refreshHistory() }
             .task { await session.refreshHistory() }
+            .sheet(item: $openMsg) { ref in
+                NavigationStack { MessageDetailView(messageId: ref.id) }
+                    #if os(macOS)
+                    .frame(minWidth: 480, minHeight: 520)
+                    #endif
+            }
         }
+    }
+
+    /// Reenvía un envío fallido: reusa "enviar ahora" del mensaje padre.
+    private func retry(_ item: HistoryItem) async {
+        do {
+            _ = try await APIClient.shared.sendNow(id: item.scheduledMessageId)
+            await session.refreshMessages()
+            await session.refreshHistory()
+        } catch { session.report(error) }
     }
 
     private func delete(_ item: HistoryItem) async {

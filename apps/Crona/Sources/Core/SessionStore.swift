@@ -4,7 +4,7 @@ import Observation
 /// Fuente de verdad = servidor (SPEC §9.5). Cache en memoria, sin DB local en v1.
 @Observable @MainActor
 final class SessionStore {
-    enum Phase { case loading, needsServer, needsLogin, ready }
+    enum Phase { case loading, needsServer, connectionError, needsLogin, ready }
 
     var phase: Phase = .loading   // splash hasta saber si hay sesión válida (evita flash del login)
     var serverURL: URL?
@@ -48,8 +48,10 @@ final class SessionStore {
             _ = try await APIClient.shared.health()
             serverError = nil
         } catch {
-            serverError = "No se pudo conectar al servidor. Revisa la dirección o que esté encendido."
-            phase = .needsServer
+            serverError = "No se pudo conectar al servidor. Revisa tu conexión o que esté encendido."
+            // Un corte transitorio no debe expulsar a un usuario ya logueado al editor de URL:
+            // si hay sesión, mostrar pantalla de reintento; si es alta nueva, pedir el servidor.
+            phase = Keychain.get("refreshToken") != nil ? .connectionError : .needsServer
             return
         }
         guard Keychain.get("refreshToken") != nil else { phase = .needsLogin; return }

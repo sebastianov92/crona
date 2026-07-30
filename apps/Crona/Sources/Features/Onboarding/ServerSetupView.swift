@@ -5,6 +5,7 @@ struct ServerSetupView: View {
     @State private var urlText = ""
     @State private var checking = false
     @State private var error: String?
+    @FocusState private var focused: Bool
 
     private var isHTTP: Bool { urlText.lowercased().hasPrefix("http://") }
 
@@ -22,6 +23,9 @@ struct ServerSetupView: View {
                 TextField("https://crona.midominio.com", text: $urlText)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
+                    .focused($focused)
+                    .submitLabel(.go)
+                    .onSubmit { if !urlText.isEmpty { Task { await connect() } } }
                     #if os(iOS)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
@@ -41,6 +45,7 @@ struct ServerSetupView: View {
                 // servidor guardado que no respondió al arrancar: prellenar y mostrar el motivo
                 if urlText.isEmpty, let saved = session.serverURL?.absoluteString { urlText = saved }
                 if error == nil { error = session.serverError }
+                focused = true
             }
 
             Button {

@@ -48,6 +48,8 @@ struct ComposeView: View {
     @State private var showStickerPicker = false
     @State private var showRecorder = false
     @State private var showTemplates = false
+    // plantilla pendiente de aplicar cuando ya hay contenido: pregunta añadir o reemplazar
+    @State private var pendingTemplate: [TemplatePart]?
 
     /// Total de partes (la parte 0 va en los campos raíz; el resto en "parts", máx. 9 adicionales).
     private let maxParts = 10
@@ -103,8 +105,8 @@ struct ComposeView: View {
                     // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
                     ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
 
-                    // "+" al final: elige el tipo de la nueva parte.
-                    addPartMenu
+                    // Barra inline: 1 tap por tipo (texto, foto/video, voz, sticker).
+                    addPartBar
 
                     Button {
                         showTemplates = true
@@ -128,6 +130,10 @@ struct ComposeView: View {
                 }
 
                 Section("Envío") {
+                    // Franja rápida inline: 1 tap fija la hora, sin abrir la hoja.
+                    QuickHourChips(date: $schedule.date)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                    // Fecha/hora exacta, recurrencia y zona horaria → hoja completa.
                     Button {
                         showSchedule = true
                     } label: {
@@ -142,6 +148,7 @@ struct ComposeView: View {
                                 .font(.caption)
                                 .foregroundStyle(Theme.accent)
                             }
+                            Text("Otra fecha").font(.caption).foregroundStyle(.secondary)
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -185,10 +192,12 @@ struct ComposeView: View {
             .sheet(isPresented: $showPicker) {
                 // instanceId puede estar nil si las instancias aún no cargaron al abrir la app
                 if let iid = instanceId ?? session.activeInstance?.id {
-                    RecipientPickerView(instanceId: iid, multiSelect: true) { picked in
-                        for r in picked where !recipients.contains(where: { $0.jid == r.jid }) {
-                            recipients.append(r)
-                        }
+                    // Sin destinatarios → single (tocar elige y cierra); "Agregar más" → multi
+                    // con casillas y los ya elegidos pre-marcados. Devuelve el set completo.
+                    RecipientPickerView(instanceId: iid,
+                                        startInMulti: !recipients.isEmpty,
+                                        preselected: recipients) { picked in
+                        recipients = picked
                     }
                 } else {
                     VStack(spacing: 14) {
@@ -211,6 +220,24 @@ struct ComposeView: View {
             }
             .sheet(isPresented: $showTemplates) {
                 TemplatePickerSheet(kind: .MESSAGE) { tplParts in applyTemplate(tplParts) }
+            }
+            .confirmationDialog(
+                "Ya escribiste contenido",
+                isPresented: Binding(get: { pendingTemplate != nil },
+                                     set: { if !$0 { pendingTemplate = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Añadir al final") {
+                    if let t = pendingTemplate { appendTemplate(t) }
+                    pendingTemplate = nil
+                }
+                Button("Reemplazar", role: .destructive) {
+                    if let t = pendingTemplate { parts = mappedTemplate(t) }
+                    pendingTemplate = nil
+                }
+                Button("Cancelar", role: .cancel) { pendingTemplate = nil }
+            } message: {
+                Text("La plantilla puede añadirse a lo que ya tienes o reemplazarlo.")
             }
             .sheet(isPresented: $showStickerPicker) {
                 // Sticker de la biblioteca: agrega una parte de sticker.
@@ -244,46 +271,45 @@ struct ComposeView: View {
         #endif
     }
 
-    /// Menú "+" para agregar una parte de cualquier tipo, al final de la lista.
-    @ViewBuilder private var addPartMenu: some View {
-        Menu {
-            Button {
-                addTextPart()
-            } label: {
-                Label("Texto", systemImage: "text.bubble")
-            }
-            Button {
+    /// Barra inline para agregar una parte de cualquier tipo — 1 tap por tipo, estilo WhatsApp.
+    /// (El sticker abre un menú con "Mis stickers" / "Desde archivo".)
+    @ViewBuilder private var addPartBar: some View {
+        HStack(spacing: 6) {
+            partButton("Texto", "text.bubble") { addTextPart() }
+            partButton("Foto", "photo") {
                 #if os(iOS)
                 showPhotoPicker = true
                 #else
                 showFileImporter = true
                 #endif
-            } label: {
-                Label("Foto o video", systemImage: "photo")
             }
-            Button {
-                showRecorder = true
+            partButton("Voz", "mic.fill") { showRecorder = true }
+            Menu {
+                Button { showStickerPicker = true } label: { Label("Mis stickers", systemImage: "square.grid.2x2") }
+                Button { showStickerImporter = true } label: { Label("Desde archivo", systemImage: "face.smiling") }
             } label: {
-                Label("Nota de voz", systemImage: "mic.fill")
+                partButtonLabel("Sticker", "face.smiling")
             }
-            Button {
-                showStickerPicker = true
-            } label: {
-                Label("Mis stickers", systemImage: "square.grid.2x2")
-            }
-            Button {
-                showStickerImporter = true
-            } label: {
-                Label("Sticker desde archivo", systemImage: "face.smiling")
-            }
-        } label: {
-            Label("Agregar mensaje", systemImage: "plus.circle")
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
         .disabled(parts.count >= maxParts)
+    }
+
+    private func partButton(_ label: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) { partButtonLabel(label, icon) }
+            .buttonStyle(.plain)
+    }
+
+    private func partButtonLabel(_ label: String, _ icon: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: icon).font(.system(size: 17))
+            Text(label).font(.caption2)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 48)
+        .background(Theme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .foregroundStyle(Theme.accent)
+        .contentShape(RoundedRectangle(cornerRadius: 10))
     }
 
     /// Cuántas partes se enviarán realmente (las que tienen contenido).
@@ -395,9 +421,26 @@ struct ComposeView: View {
     }
 
     /// Copia las partes de la plantilla como partes de texto; la plantilla en sí no se toca.
+    /// Si el borrador ya tiene contenido, pregunta añadir o reemplazar (no lo destruye en silencio).
     private func applyTemplate(_ tplParts: [TemplatePart]) {
-        let mapped = tplParts.map { ComposePart(kind: .text, text: $0.body, presetTypingMs: $0.typingMs) }
-        parts = mapped.isEmpty ? [ComposePart(kind: .text)] : mapped
+        let mapped = mappedTemplate(tplParts)
+        guard !mapped.isEmpty else { return }
+        if parts.contains(where: { $0.isSendable }) {
+            pendingTemplate = tplParts   // dispara el diálogo añadir/reemplazar
+        } else {
+            parts = mapped
+        }
+    }
+
+    private func mappedTemplate(_ tplParts: [TemplatePart]) -> [ComposePart] {
+        tplParts.map { ComposePart(kind: .text, text: $0.body, presetTypingMs: $0.typingMs) }
+    }
+
+    /// Añade las partes de la plantilla al final, respetando el máximo de partes.
+    private func appendTemplate(_ tplParts: [TemplatePart]) {
+        let room = maxParts - parts.count
+        guard room > 0 else { return }
+        parts.append(contentsOf: mappedTemplate(tplParts).prefix(room))
     }
 
     private func submit() async {

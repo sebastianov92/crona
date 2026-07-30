@@ -84,6 +84,7 @@ struct RootView: View {
             switch session.phase {
             case .loading: SplashView()
             case .needsServer: ServerSetupView()
+            case .connectionError: ConnectionErrorView()
             case .needsLogin: LoginView()
             case .ready: MainView()
             }
@@ -111,6 +112,51 @@ struct SplashView: View {
             ProgressView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Servidor no alcanzable pero con sesión guardada: reintentar sin perder el login.
+struct ConnectionErrorView: View {
+    @Environment(SessionStore.self) private var session
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image("CronaLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 280)
+            Image(systemName: "wifi.exclamationmark")
+                .font(.largeTitle)
+                .foregroundStyle(.orange)
+            Text("No se pudo conectar al servidor")
+                .font(.headline)
+            Text(session.serverError ?? "Revisa tu conexión e inténtalo de nuevo.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+
+            Button {
+                Task {
+                    session.phase = .loading   // muestra el splash mientras reintenta
+                    await session.bootstrap()
+                }
+            } label: {
+                Text("Reintentar").frame(maxWidth: 200)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button("Cambiar servidor") {
+                Keychain.delete("serverURL")
+                session.phase = .needsServer
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding()
     }
 }
 
