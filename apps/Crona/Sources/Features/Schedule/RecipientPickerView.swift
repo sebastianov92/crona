@@ -81,27 +81,6 @@ struct RecipientPickerView: View {
                     listsBody
                 } else {
                 List {
-                    // Sincronizar (contactos o grupos): fila propia para no confundirse con "Varios".
-                    Button {
-                        Task { await sync() }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Group {
-                                if syncing { ProgressView() }
-                                else { Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 18)) }
-                            }
-                            .foregroundStyle(Theme.accent)
-                            .frame(width: 40, height: 40)
-                            .background(Theme.accent.opacity(0.15), in: Circle())
-                            Text(kind == .CONTACT ? "Sincronizar contactos" : "Sincronizar grupos").font(.body)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(syncing)
-
                     if kind == .CONTACT {
                         Button {
                             showManualNumber = true
@@ -201,20 +180,26 @@ struct RecipientPickerView: View {
             .navigationTitle(multi ? "Destinatarios" : "Destinatario")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                // Un solo botón que se transforma: 🔄 (single, o multi sin selección) → "Listo (N)".
+                // El modo multi se activa solo al reabrir para "agregar más" (startInMulti); la
+                // primera vez es un toque = elige y cierra, sin botón "Varios".
                 ToolbarItem(placement: .primaryAction) {
-                    if multi {
-                        // en multi: confirmar la selección
+                    if multi && !selected.isEmpty {
                         Button("Listo (\(selected.count))") {
                             onPick(selected)
                             dismiss()
                         }
                         .fontWeight(.semibold)
                         .foregroundStyle(Theme.accent)
-                        .disabled(selected.isEmpty)
                     } else {
-                        // en single: pasar a selección múltiple con casillas
-                        Button("Varios") { multi = true }
-                            .help("Elegir varios con casillas")
+                        Button {
+                            Task { await sync() }
+                        } label: {
+                            if syncing { ProgressView().controlSize(.small) }
+                            else { Image(systemName: "arrow.triangle.2.circlepath") }
+                        }
+                        .help("Sincronizar contactos")
+                        .disabled(syncing)
                     }
                 }
             }
