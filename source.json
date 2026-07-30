@@ -20,9 +20,25 @@
         {
           "version": "1.4.2",
           "date": "2026-07-30",
-          "size": 5194914,
+          "size": 5210333,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.2/Crona.ipa",
-          "localizedDescription": "Actualización v1.4.2",
+          "localizedDescription": "Selector de contacto más simple: la primera vez eliges con un toque; para enviar a varios solo vuelve a tocar 'Agregar más' (ya no hay botón 'Varios').",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "1.4.1",
+          "date": "2026-07-30",
+          "size": 5218410,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.1/Crona.ipa",
+          "localizedDescription": "Ajustes de UX: iconos en todas las acciones del detalle, botón 'Sincronizar' separado, y al crear un mensaje nuevo se abre directo el selector de contacto.",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "1.4.0",
+          "date": "2026-07-30",
+          "size": 5209887,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.0/Crona.ipa",
+          "localizedDescription": "Mejoras de UX: franjas Mañana/Tarde/Noche directas al programar, barra rápida para agregar foto/voz/sticker, deslizar en Programados e Historial, y arranque que no te saca de sesión si el servidor tarda.",
           "minOSVersion": "17.0"
         }
       ],
