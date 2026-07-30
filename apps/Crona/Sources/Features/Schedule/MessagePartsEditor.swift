@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Ancla de la barra de acciones (Texto/Foto/Voz/Sticker) del compose: el scroll apunta aquí
+/// para que los botones queden siempre visibles justo encima del teclado mientras escribes.
+let composeActionBarID = "compose.actionBar"
+
 /// Parte editable de un mensaje con split. Cada parte mide su PROPIO tiempo de redacción:
 /// el worker muestra "escribiendo…" ese rato antes de enviarla.
 struct PartDraft: Identifiable, Equatable {
@@ -206,11 +210,12 @@ struct ComposePartsEditor: View {
             }
             .id(part.id) // ancla para scrollTo: el cursor nunca queda tapado por el teclado
         }
-        // Al enfocar una parte, desplázala justo por encima del teclado.
+        // Al enfocar una parte, sube la barra de acciones por encima del teclado (deja ver
+        // lo que escribes Y los botones de agregar debajo).
         .onChange(of: focused) { _, id in
-            guard let id else { return }
+            guard id != nil else { return }
             withAnimation(.easeOut(duration: 0.2)) {
-                scrollProxy.scrollTo(id, anchor: .bottom)
+                scrollProxy.scrollTo(composeActionBarID, anchor: .bottom)
             }
         }
         // El ComposeView pide foco tras agregar una parte de texto.
@@ -239,16 +244,18 @@ private struct ComposePartRow: View {
                     textField(placeholder: "Añade un texto (opcional)")
                     // solo para fotos (no video): enviarla como archivo evita la recompresión de WhatsApp
                     if part.attachment?.messageType == .IMAGE {
-                        HStack(spacing: 8) {
-                            Text("Enviar en calidad original (como archivo)")
-                                .font(.caption)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Picker("Enviar como", selection: $part.asFile) {
+                                Text("Foto").tag(false)
+                                Text("Archivo (HD)").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            Text(part.asFile
+                                 ? "Como archivo: calidad original, WhatsApp no la recomprime."
+                                 : "Como foto: WhatsApp puede reducir la calidad.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 8)
-                            Toggle("", isOn: $part.asFile)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .tint(Theme.accent)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -286,10 +293,10 @@ private struct ComposePartRow: View {
             .onTapGesture { focused = part.id } // toda la burbuja enfoca
             .onChange(of: part.text) { _, _ in
                 part.noteTyping()
-                // mientras escribes, mantén el cursor visible sobre el teclado
+                // mientras escribes, mantén la barra de acciones visible sobre el teclado
                 if focused == part.id {
                     withAnimation(.easeOut(duration: 0.2)) {
-                        scrollProxy.scrollTo(part.id, anchor: .bottom)
+                        scrollProxy.scrollTo(composeActionBarID, anchor: .bottom)
                     }
                 }
             }

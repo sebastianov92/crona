@@ -107,7 +107,9 @@ struct ComposeView: View {
                     ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
 
                     // Barra inline: 1 tap por tipo (texto, foto/video, voz, sticker).
+                    // Ancla del scroll: siempre visible sobre el teclado.
                     addPartBar
+                        .id(composeActionBarID)
 
                     Button {
                         showTemplates = true
@@ -274,6 +276,15 @@ struct ComposeView: View {
             }
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
+            }
+            // Al agregar una parte (foto/voz/sticker/texto) baja a la barra para verla y seguir editando.
+            .onChange(of: parts.count) { _, _ in
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(100)) // deja que la fila nueva se dibuje
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(composeActionBarID, anchor: .bottom)
+                    }
+                }
             }
             } // ScrollViewReader
         }
