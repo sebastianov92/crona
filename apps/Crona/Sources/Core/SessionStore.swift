@@ -18,6 +18,9 @@ final class SessionStore {
         }
     }
     var history: [HistoryItem] = []
+    // Cache de destinatarios por "instanceId|kind": abre el picker al instante y refresca en 2º plano
+    // (antes re-descargaba TODOS los contactos —varias páginas— cada vez que se abría).
+    var recipientCache: [String: [Recipient]] = [:]
     var lastQR: (instanceId: String, qrBase64: String)?
     var toastError: String?
     var serverError: String?   // error de conexión mostrado en ServerSetupView

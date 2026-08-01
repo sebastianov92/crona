@@ -373,11 +373,25 @@ struct RecipientPickerView: View {
     }
 
     private func load() async {
-        loading = true
-        defer { loading = false }
-        do {
-            items = try await APIClient.shared.allRecipients(instanceId: instanceId, kind: kind, search: search)
-        } catch { session.report(error) }
+        let key = "\(instanceId)|\(kind)"
+        let q = search.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty {
+            // Sin búsqueda: mostrar el cache al instante y refrescar la lista completa en 2º plano.
+            if let cached = session.recipientCache[key] { items = cached } else { loading = true }
+            defer { loading = false }
+            do {
+                let all = try await APIClient.shared.allRecipients(instanceId: instanceId, kind: kind, search: "")
+                session.recipientCache[key] = all
+                if search.trimmingCharacters(in: .whitespaces).isEmpty { items = all } // el usuario no escribió nada mientras tanto
+            } catch { session.report(error) }
+        } else {
+            // Con búsqueda: al servidor (respeta el match por cualquier parte del número).
+            if items.isEmpty { loading = true }
+            defer { loading = false }
+            do {
+                items = try await APIClient.shared.allRecipients(instanceId: instanceId, kind: kind, search: q)
+            } catch { session.report(error) }
+        }
     }
 
     private func sync() async {

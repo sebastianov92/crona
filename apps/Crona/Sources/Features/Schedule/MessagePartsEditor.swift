@@ -1,9 +1,5 @@
 import SwiftUI
 
-/// Ancla de la barra de acciones (Texto/Foto/Voz/Sticker) del compose: el scroll apunta aquí
-/// para que los botones queden siempre visibles justo encima del teclado mientras escribes.
-let composeActionBarID = "compose.actionBar"
-
 /// Parte editable de un mensaje con split. Cada parte mide su PROPIO tiempo de redacción:
 /// el worker muestra "escribiendo…" ese rato antes de enviarla.
 struct PartDraft: Identifiable, Equatable {
@@ -210,12 +206,12 @@ struct ComposePartsEditor: View {
             }
             .id(part.id) // ancla para scrollTo: el cursor nunca queda tapado por el teclado
         }
-        // Al enfocar una parte, sube la barra de acciones por encima del teclado (deja ver
-        // lo que escribes Y los botones de agregar debajo).
+        // Al enfocar una parte, desplázala justo por encima del teclado (la barra de acciones
+        // va fija abajo con safeAreaInset, así que basta con dejar ver el cursor).
         .onChange(of: focused) { _, id in
-            guard id != nil else { return }
+            guard let id else { return }
             withAnimation(.easeOut(duration: 0.2)) {
-                scrollProxy.scrollTo(composeActionBarID, anchor: .bottom)
+                scrollProxy.scrollTo(id, anchor: .bottom)
             }
         }
         // El ComposeView pide foco tras agregar una parte de texto.
@@ -293,10 +289,10 @@ private struct ComposePartRow: View {
             .onTapGesture { focused = part.id } // toda la burbuja enfoca
             .onChange(of: part.text) { _, _ in
                 part.noteTyping()
-                // mientras escribes, mantén la barra de acciones visible sobre el teclado
+                // mientras escribes, mantén el cursor visible sobre el teclado
                 if focused == part.id {
                     withAnimation(.easeOut(duration: 0.2)) {
-                        scrollProxy.scrollTo(composeActionBarID, anchor: .bottom)
+                        scrollProxy.scrollTo(part.id, anchor: .bottom)
                     }
                 }
             }

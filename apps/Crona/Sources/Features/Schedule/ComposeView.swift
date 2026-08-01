@@ -45,7 +45,6 @@ struct ComposeView: View {
     @State private var showPhotoPicker = false
     #endif
     @State private var showFileImporter = false
-    @State private var showStickerImporter = false
     @State private var showStickerPicker = false
     @State private var showRecorder = false
     @State private var showTemplates = false
@@ -105,11 +104,6 @@ struct ComposeView: View {
                 Section("Mensaje") {
                     // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
                     ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
-
-                    // Barra inline: 1 tap por tipo (texto, foto/video, voz, sticker).
-                    // Ancla del scroll: siempre visible sobre el teclado.
-                    addPartBar
-                        .id(composeActionBarID)
 
                     Button {
                         showTemplates = true
@@ -171,6 +165,16 @@ struct ComposeView: View {
             #if os(iOS)
             .scrollDismissesKeyboard(.interactively)
             #endif
+            // Barra de acciones fija sobre el teclado: siempre visible al escribir, sin depender
+            // del scroll (antes al agregar una nota de voz quedaba tapada a medias).
+            .safeAreaInset(edge: .bottom) {
+                addPartBar
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
+                    .background(.bar)
+                    .overlay(alignment: .top) { Divider() }
+            }
             .navigationTitle("Nuevo mensaje")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
@@ -258,11 +262,6 @@ struct ComposeView: View {
                           allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie]) { result in
                 if case .success(let url) = result { loadFile(url) }
             }
-            // Sticker: solo imágenes; se marca asSticker para enviarlo como sticker y no como foto
-            .fileImporter(isPresented: $showStickerImporter,
-                          allowedContentTypes: [.webP, .png, .jpeg]) { result in
-                if case .success(let url) = result { loadFile(url, asSticker: true) }
-            }
             .onAppear {
                 applyPrefill()
                 // Mensaje nuevo (no edición/duplicado): abrir el selector de contacto de una vez.
@@ -277,12 +276,13 @@ struct ComposeView: View {
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
             }
-            // Al agregar una parte (foto/voz/sticker/texto) baja a la barra para verla y seguir editando.
+            // Al agregar una parte (foto/voz/sticker/texto) baja a la última para verla.
             .onChange(of: parts.count) { _, _ in
+                guard let last = parts.last?.id else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100)) // deja que la fila nueva se dibuje
                     withAnimation(.easeOut(duration: 0.25)) {
-                        proxy.scrollTo(composeActionBarID, anchor: .bottom)
+                        proxy.scrollTo(last, anchor: .bottom)
                     }
                 }
             }
@@ -294,7 +294,7 @@ struct ComposeView: View {
     }
 
     /// Barra inline para agregar una parte de cualquier tipo — 1 tap por tipo, estilo WhatsApp.
-    /// (El sticker abre un menú con "Mis stickers" / "Desde archivo".)
+    /// El sticker abre "Mis stickers" (que trae dentro el "+" para subir desde archivo).
     @ViewBuilder private var addPartBar: some View {
         HStack(spacing: 6) {
             partButton("Texto", "text.bubble") { addTextPart() }
@@ -306,13 +306,7 @@ struct ComposeView: View {
                 #endif
             }
             partButton("Voz", "mic.fill") { showRecorder = true }
-            Menu {
-                Button { showStickerPicker = true } label: { Label("Mis stickers", systemImage: "square.grid.2x2") }
-                Button { showStickerImporter = true } label: { Label("Desde archivo", systemImage: "face.smiling") }
-            } label: {
-                partButtonLabel("Sticker", "face.smiling")
-            }
-            .buttonStyle(.plain)
+            partButton("Sticker", "face.smiling") { showStickerPicker = true }
         }
         .disabled(parts.count >= maxParts)
     }
