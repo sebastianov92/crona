@@ -18,27 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.4.3",
-          "date": "2026-07-30",
-          "size": 5214872,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.3/Crona.ipa",
-          "localizedDescription": "Al escribir, los botones de Texto/Foto/Voz/Sticker quedan siempre visibles sobre el teclado y ahora hay scroll al agregar foto, voz o sticker. La opción de foto ahora es un selector claro: Foto (comprimida) o Archivo (calidad original).",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.4.2",
-          "date": "2026-07-30",
-          "size": 5210333,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.2/Crona.ipa",
-          "localizedDescription": "Selector de contacto más simple: la primera vez eliges con un toque; para enviar a varios solo vuelve a tocar 'Agregar más'.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.4.0",
-          "date": "2026-07-30",
-          "size": 5209887,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.0/Crona.ipa",
-          "localizedDescription": "Mejoras de UX: franjas Mañana/Tarde/Noche directas al programar, barra rápida para agregar foto/voz/sticker, deslizar en Programados e Historial, y arranque que no te saca de sesión si el servidor tarda.",
+          "version": "1.4.4",
+          "date": "2026-08-01",
+          "size": 5200020,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.4/Crona.ipa",
+          "localizedDescription": "Actualización v1.4.4",
           "minOSVersion": "17.0"
         }
       ],
