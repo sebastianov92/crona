@@ -20,9 +20,17 @@
         {
           "version": "1.4.5",
           "date": "2026-08-04",
-          "size": 5226905,
+          "size": 5238331,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.5/Crona.ipa",
-          "localizedDescription": "Actualización v1.4.5",
+          "localizedDescription": "Mejoras de gestión: recurrencia semanal ya no se guarda sin días, el Historial no se borra por un arrastre accidental, al duplicar un mensaje se abre la copia para editarla, filtros con contador (Pausados / Fallidos) y al reconectar el número viene prellenado. Enlaces con vista previa (requiere actualizar el servidor).",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "1.4.4",
+          "date": "2026-08-01",
+          "size": 5216401,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.4/Crona.ipa",
+          "localizedDescription": "Barra de acciones fija sobre el teclado, contactos instantáneos (cache) y el sticker abre la biblioteca directo.",
           "minOSVersion": "17.0"
         }
       ],
