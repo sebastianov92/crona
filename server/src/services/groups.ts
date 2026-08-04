@@ -89,6 +89,7 @@ async function createOne(id: string): Promise<void> {
           number: groupJid,
           text: part.body,
           delay: part.typingMs ?? 1800,
+          linkPreview: true,
         });
       }
     }

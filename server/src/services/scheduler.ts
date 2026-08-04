@@ -180,6 +180,7 @@ async function sendPart(
           number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
           text: renderVariables(body ?? "", msg),
           delay,
+          linkPreview: true, // muestra vista previa de enlaces
         })
       : type === "AUDIO"
         ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(asMessage))
