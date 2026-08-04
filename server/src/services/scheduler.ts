@@ -11,6 +11,7 @@ import { buildAudioPayload, buildMediaPayload, buildStickerPayload, deleteMediaF
 import { cleanupAutoReplyHits, cleanupChatMessages } from "./autoreply.js";
 import { groupTick, recoverGroupsOnBoot } from "./groups.js";
 import { renderVariables } from "../lib/variables.js";
+import { instanceDTO } from "../routes/instances.js";
 
 const TICK_MS = 30_000;
 const MAX_ATTEMPTS = 3;
@@ -300,6 +301,42 @@ async function cleanupMedia() {
   }
 }
 
+// Respaldo del webhook connection.update: si Evolution no avisó (reinicio del contenedor,
+// webhook perdido), detecta una instancia caída consultando su estado y avisa por WS + ntfy,
+// para que el usuario no descubra la desconexión recién cuando ya falló un envío.
+async function watchConnections() {
+  try {
+    const insts = await prisma.instance.findMany({
+      where: { status: "CONNECTED" },
+      include: { user: true },
+    });
+    for (const inst of insts) {
+      let state: string | null;
+      try {
+        const res = await evolution.state(inst.instanceName);
+        state = res?.instance?.state ?? "close";
+      } catch {
+        state = null; // Evolution no respondió: no marcar caída por un fallo puntual
+      }
+      if (state === null || state === "open") continue;
+      evolution.invalidateStateCache(inst.instanceName);
+      const status = state === "connecting" ? "CONNECTING" : "DISCONNECTED";
+      const updated = await prisma.instance.update({ where: { id: inst.id }, data: { status } });
+      broadcast(inst.userId, "instance.updated", instanceDTO(updated));
+      if (status === "DISCONNECTED") {
+        await ntfyPublish(inst.user, {
+          title: "WhatsApp desconectado",
+          message: `WhatsApp (${inst.name}) se desconectó. Ábrela en Crona y re-escanea el QR`,
+          priority: 4,
+          tags: ["electric_plug"],
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("watch connections failed", err);
+  }
+}
+
 async function cleanupRawWebhooks() {
   // WebhookEventRaw es solo para calibrar el mapeo — limpieza a 7 días (SPEC §4)
   await prisma.webhookEventRaw
@@ -323,4 +360,6 @@ export function start() {
     void cleanupAutoReplyHits();
     void cleanupChatMessages();
   }, 24 * 3600 * 1000).unref();
+  // Vigilancia de conexión: cada 3 min, respaldo del webhook para no perder una caída.
+  setInterval(() => void watchConnections(), 3 * 60_000).unref();
 }

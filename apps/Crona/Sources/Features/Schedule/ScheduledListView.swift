@@ -10,7 +10,6 @@ struct ScheduledListView: View {
     @State private var filter: Filter = .all
     @State private var search = ""
     @State private var showCompose = false
-    @State private var showInstances = false
     @State private var selected: ScheduledMessage?
 
     private var pausedCount: Int { session.upcoming.filter { $0.status == .PAUSED }.count }
@@ -42,10 +41,6 @@ struct ScheduledListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if session.hasDisconnectedInstance {
-                    Button { showInstances = true } label: { DisconnectedBanner() }
-                        .buttonStyle(.plain)
-                }
                 filterChips
                 List {
                     if filtered.isEmpty {
@@ -93,17 +88,6 @@ struct ScheduledListView: View {
                 }
             }
             .sheet(isPresented: $showCompose) { ComposeView() }
-            .sheet(isPresented: $showInstances) {
-                NavigationStack {
-                    InstanceListView()
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { showInstances = false } }
-                        }
-                }
-                #if os(macOS)
-                .frame(minWidth: 480, minHeight: 520)
-                #endif
-            }
             .sheet(item: $selected) { msg in
                 NavigationStack { MessageDetailView(messageId: msg.id) }
                     #if os(macOS)
@@ -112,11 +96,6 @@ struct ScheduledListView: View {
             }
             .refreshable { await session.refreshMessages() }
             .task { await session.refreshMessages() }
-            #if os(macOS)
-            .onReceive(NotificationCenter.default.publisher(for: .cronaNewMessage)) { _ in
-                showCompose = true   // "Nuevo mensaje" desde la menu bar (§9.4)
-            }
-            #endif
         }
     }
 

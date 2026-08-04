@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { authenticate } from "../plugins/auth.js";
 import { errors } from "../lib/errors.js";
 import { userDTO } from "../lib/dto.js";
+import { ntfyPublish } from "../services/ntfy.js";
 
 export function registerUserRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: authenticate }, async (req) => {
@@ -64,5 +65,18 @@ export function registerUserRoutes(app: FastifyInstance) {
     if (body.password !== undefined) data.passwordHash = await argon2.hash(body.password, { type: argon2.argon2id });
     const user = await prisma.user.update({ where: { id: req.userId }, data });
     return userDTO(user);
+  });
+
+  // Notificación de prueba: valida en 5 s que ntfy está bien configurado.
+  app.post("/me/ntfy-test", { preHandler: authenticate }, async (req) => {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user?.ntfyTopic) throw errors.validation("Primero configura un topic de ntfy en Ajustes.");
+    await ntfyPublish(user, {
+      title: "Prueba de Crona ✅",
+      message: "Si ves esto, tus notificaciones funcionan.",
+      priority: 3,
+      tags: ["bell"],
+    });
+    return { ok: true };
   });
 }

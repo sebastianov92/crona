@@ -114,6 +114,13 @@ struct MessageDetailView: View {
                             }
                         }
                         if editable {
+                            Menu {
+                                Button("En 1 hora") { Task { await snooze(to: Date().addingTimeInterval(3600)) } }
+                                Button("Esta noche (20:00)") { Task { await snooze(to: nextAt(hour: 20)) } }
+                                Button("Mañana (9:00)") { Task { await snooze(to: tomorrowAt(hour: 9)) } }
+                            } label: {
+                                Label("Posponer", systemImage: "clock.arrow.circlepath")
+                            }
                             Button {
                                 Task { await toggle() }
                             } label: {
@@ -231,6 +238,30 @@ struct MessageDetailView: View {
         } catch { session.report(error) }
     }
 
+    /// Posponer: reprograma la próxima ejecución a una nueva fecha (reusa el PATCH).
+    private func snooze(to date: Date) async {
+        guard let msg else { return }
+        busy = true; defer { busy = false }
+        do {
+            _ = try await APIClient.shared.patchMessage(id: msg.id, PatchMessageBody(scheduledAt: date))
+            await load()
+            await session.refreshMessages()
+        } catch { session.report(error) }
+    }
+
+    /// Hoy a las `hour`; si ya pasó, mañana a esa hora (nunca en el pasado).
+    private func nextAt(hour: Int) -> Date {
+        let cal = Calendar.current
+        let today = cal.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+        return today > Date().addingTimeInterval(120) ? today : (cal.date(byAdding: .day, value: 1, to: today) ?? today)
+    }
+
+    private func tomorrowAt(hour: Int) -> Date {
+        let cal = Calendar.current
+        let t = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        return cal.date(bySettingHour: hour, minute: 0, second: 0, of: t) ?? t
+    }
+
     private func duplicate() async {
         guard let msg else { return }
         busy = true; defer { busy = false }
@@ -311,6 +342,7 @@ struct EditMessageView: View {
                 schedule.recurrence = message.recurrence
                 schedule.recurrenceDays = Set(message.recurrenceDays)
                 schedule.until = message.recurrenceUntil
+                schedule.randomDelay = message.randomDelay
                 instanceId = message.instanceId
             }
         }
@@ -327,6 +359,9 @@ struct EditMessageView: View {
                 scheduledAt: schedule.date,
                 recurrence: schedule.recurrence,
                 recurrenceDays: schedule.recurrence == .WEEKLY ? schedule.recurrenceDays.sorted() : [],
+                // conservar estos campos: antes se perdían al editar (recurrencia rota)
+                recurrenceUntil: schedule.until,
+                randomDelay: schedule.randomDelay,
                 instanceId: instanceId != message.instanceId ? instanceId : nil
             ))
             await session.refreshMessages()

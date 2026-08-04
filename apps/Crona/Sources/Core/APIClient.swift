@@ -187,6 +187,7 @@ extension APIClient {
 
     // Perfil
     func me() async throws -> User { try await request("GET", "/me") }
+    func ntfyTest() async throws -> OkResponse { try await request("POST", "/me/ntfy-test") }
     func patchMe(name: String? = nil, ntfyTopic: String?? = nil, ntfyToken: String?? = nil,
                  notifyOnSent: Bool? = nil, password: String? = nil,
                  chatListCount: Int? = nil, chatIncomingCount: Int? = nil,

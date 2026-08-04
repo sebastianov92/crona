@@ -162,21 +162,46 @@ struct ConnectionErrorView: View {
 
 struct MainView: View {
     @Environment(SessionStore.self) private var session
+    @State private var showInstances = false
 
     var body: some View {
         #if os(macOS)
         MacMainView()
         #else
-        TabView {
-            ScheduledListView()
-                .tabItem { Label("Programados", systemImage: "clock") }
-            ChatsView()
-                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
-            HistoryView()
-                .tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
-            SettingsView()
-                .tabItem { Label("Ajustes", systemImage: "gearshape") }
+        // Banner de desconexión a nivel de app: se ve en cualquier pestaña, no solo en Programados.
+        VStack(spacing: 0) {
+            if session.hasDisconnectedInstance {
+                Button { showInstances = true } label: { DisconnectedBanner() }
+                    .buttonStyle(.plain)
+            }
+            TabView {
+                ScheduledListView()
+                    .tabItem { Label("Programados", systemImage: "clock") }
+                ChatsView()
+                    .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                HistoryView()
+                    .tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
+                SettingsView()
+                    .tabItem { Label("Ajustes", systemImage: "gearshape") }
+            }
         }
+        .sheet(isPresented: $showInstances) { InstancesSheet() }
+        #endif
+    }
+}
+
+/// Lista de instancias en hoja (para el banner de desconexión desde el shell).
+struct InstancesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            InstanceListView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { dismiss() } }
+                }
+        }
+        #if os(macOS)
+        .frame(minWidth: 480, minHeight: 520)
         #endif
     }
 }
@@ -199,7 +224,10 @@ struct MacMainView: View {
         }
     }
 
+    @Environment(SessionStore.self) private var session
     @State private var section: Section = .scheduled
+    @State private var showCompose = false
+    @State private var showInstances = false
     @AppStorage("sidebarCollapsed") private var collapsed = false
 
     private var sidebarWidth: CGFloat { collapsed ? 64 : 200 }
@@ -210,16 +238,27 @@ struct MacMainView: View {
         HStack(spacing: 0) {
             sidebar
             Divider()
-            Group {
-                switch section {
-                case .scheduled: ScheduledListView()
-                case .chats: ChatsView()
-                case .history: HistoryView()
-                case .settings: SettingsView()
+            VStack(spacing: 0) {
+                // Banner de desconexión global (cualquier sección).
+                if session.hasDisconnectedInstance {
+                    Button { showInstances = true } label: { DisconnectedBanner() }
+                        .buttonStyle(.plain)
                 }
+                Group {
+                    switch section {
+                    case .scheduled: ScheduledListView()
+                    case .chats: ChatsView()
+                    case .history: HistoryView()
+                    case .settings: SettingsView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // "Nuevo mensaje" de la menu bar funciona esté donde esté (antes solo en Programados).
+        .sheet(isPresented: $showCompose) { ComposeView() }
+        .sheet(isPresented: $showInstances) { InstancesSheet() }
+        .onReceive(NotificationCenter.default.publisher(for: .cronaNewMessage)) { _ in showCompose = true }
     }
 
     private var sidebar: some View {

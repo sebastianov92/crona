@@ -194,6 +194,9 @@ struct NtfySettingsView: View {
     @State private var notifyOnSent = false
     @State private var saved = false
     @State private var busy = false
+    @State private var testing = false
+    @State private var testResult: String?
+    @State private var testOk = false
 
     var body: some View {
         Form {
@@ -223,6 +226,23 @@ struct NtfySettingsView: View {
                 }
                 if saved { Label("Guardado", systemImage: "checkmark").foregroundStyle(Theme.accent) }
             }
+            // Prueba real: publica un push al topic guardado para validar toda la cadena.
+            if !(session.user?.ntfyTopic ?? "").isEmpty {
+                Section {
+                    Button {
+                        Task { await test() }
+                    } label: {
+                        if testing { ProgressView().controlSize(.small) }
+                        else { Label("Enviar notificación de prueba", systemImage: "bell.badge") }
+                    }
+                    .disabled(testing)
+                    if let testResult {
+                        Text(testResult).font(.caption).foregroundStyle(testOk ? Theme.accent : .red)
+                    }
+                } footer: {
+                    Text("Usa el topic ya guardado. Debe llegarte a la app ntfy en unos segundos.")
+                }
+            }
         }
         .formStyle(.grouped)
         .navigationTitle("Notificaciones")
@@ -242,6 +262,16 @@ struct NtfySettingsView: View {
             )
             saved = true
         } catch { session.report(error) }
+    }
+
+    private func test() async {
+        testing = true; defer { testing = false }
+        do {
+            _ = try await APIClient.shared.ntfyTest()
+            testResult = "Enviada. Revisa la app ntfy en tu teléfono."; testOk = true
+        } catch {
+            testResult = (error as? APIError)?.errorDescription ?? error.localizedDescription; testOk = false
+        }
     }
 }
 
