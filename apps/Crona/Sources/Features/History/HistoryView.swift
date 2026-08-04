@@ -4,12 +4,29 @@ import SwiftUI
 private struct MsgRef: Identifiable { let id: String }
 
 struct HistoryView: View {
+    enum StatusFilter: String, CaseIterable, Identifiable {
+        case all = "Todos", failed = "Fallidos", sent = "Enviados"
+        var id: String { rawValue }
+    }
+
     @Environment(SessionStore.self) private var session
     @State private var search = ""
+    @State private var statusFilter: StatusFilter = .all
     @State private var openMsg: MsgRef?
 
+    private func matchesStatus(_ item: HistoryItem, _ f: StatusFilter) -> Bool {
+        switch f {
+        case .all: return true
+        case .failed: return item.status == .FAILED
+        case .sent: return item.status == .SENT || item.status == .DELIVERED || item.status == .READ
+        }
+    }
+
+    private func count(_ f: StatusFilter) -> Int { session.history.filter { matchesStatus($0, f) }.count }
+    private var failedCount: Int { count(.failed) }
+
     private var filtered: [HistoryItem] {
-        session.history.filter {
+        session.history.filter { matchesStatus($0, statusFilter) }.filter {
             search.isEmpty ||
             $0.recipientName.localizedCaseInsensitiveContains(search) ||
             ($0.body ?? "").localizedCaseInsensitiveContains(search)
@@ -18,6 +35,8 @@ struct HistoryView: View {
 
     var body: some View {
         NavigationStack {
+            VStack(spacing: 0) {
+            statusChips
             List {
                 if filtered.isEmpty {
                     ContentUnavailableView(
@@ -65,7 +84,8 @@ struct HistoryView: View {
                             .tint(Theme.accent)
                         }
                     }
-                    .swipeActions(edge: .trailing) {
+                    // allowsFullSwipe:false → hay que tocar el botón; un arrastre no borra solo.
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             Task { await delete(item) }
                         } label: {
@@ -86,6 +106,39 @@ struct HistoryView: View {
                     .frame(minWidth: 480, minHeight: 520)
                     #endif
             }
+            } // VStack
+        }
+    }
+
+    private var statusChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(StatusFilter.allCases) { f in
+                    // "Fallidos" solo si hay alguno
+                    if f != .failed || failedCount > 0 {
+                        let n = count(f)
+                        Button { statusFilter = f } label: {
+                            HStack(spacing: 6) {
+                                Text(f.rawValue)
+                                if f == .failed {
+                                    Text("\(n)")
+                                        .font(.caption2.weight(.bold))
+                                        .padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(.red.opacity(0.22), in: Capsule())
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                            .font(.subheadline.weight(statusFilter == f ? .semibold : .regular))
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(statusFilter == f ? Theme.accent.opacity(0.2) : Color.gray.opacity(0.12), in: Capsule())
+                            .foregroundStyle(statusFilter == f ? Theme.accent : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 

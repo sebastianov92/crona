@@ -122,7 +122,10 @@ struct InstanceListView: View {
             }
         }
         .sheet(isPresented: $showCreate) { CreateInstanceView() }
-        .sheet(item: $qrInstance) { inst in QRLinkView(instance: inst) }
+        .sheet(item: $qrInstance) { inst in
+            // al reconectar, prellena el número ya guardado para no reteclearlo
+            QRLinkView(instance: inst, prefillNumber: inst.phoneNumber ?? "")
+        }
         // hoja (no alert): dos .alert en la misma vista se pisan entre sí en macOS
         .sheet(item: $renaming) { inst in
             RenameInstanceSheet(instance: inst) { newName in

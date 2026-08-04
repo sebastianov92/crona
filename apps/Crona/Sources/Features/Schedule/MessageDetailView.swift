@@ -11,6 +11,7 @@ struct MessageDetailView: View {
     @State private var showEdit = false
     @State private var confirmCancel = false
     @State private var confirmSendNow = false
+    @State private var editCopy: ScheduledMessage?   // copia recién duplicada, para editarla al vuelo
 
     private var msg: ScheduledMessage? { detail?.message }
     private var editable: Bool {
@@ -155,6 +156,9 @@ struct MessageDetailView: View {
         .sheet(isPresented: $showEdit, onDismiss: { Task { await load() } }) {
             if let msg { EditMessageView(message: msg) }
         }
+        .sheet(item: $editCopy, onDismiss: { Task { await session.refreshMessages() } }) { copy in
+            EditMessageView(message: copy)
+        }
         .alert("¿Cancelar este envío?", isPresented: $confirmCancel) {
             Button("Cancelar envío", role: .destructive) { Task { await cancel() } }
             Button("Volver", role: .cancel) {}
@@ -231,9 +235,9 @@ struct MessageDetailView: View {
         guard let msg else { return }
         busy = true; defer { busy = false }
         do {
-            _ = try await APIClient.shared.duplicateMessage(id: msg.id)
+            let created = try await APIClient.shared.duplicateMessage(id: msg.id)
             await session.refreshMessages()
-            dismiss()
+            editCopy = created   // abre el editor sobre la copia para ajustar fecha/destinatario
         } catch { session.report(error) }
     }
 

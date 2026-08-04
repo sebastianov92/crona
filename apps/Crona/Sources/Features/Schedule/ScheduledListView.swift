@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ScheduledListView: View {
     enum Filter: String, CaseIterable, Identifiable {
-        case all = "Todos", contacts = "Contactos", groups = "Grupos", recurring = "Recurrentes", auto = "Automáticas"
+        case all = "Todos", paused = "Pausados", contacts = "Contactos", groups = "Grupos", recurring = "Recurrentes", auto = "Automáticas"
         var id: String { rawValue }
     }
 
@@ -13,16 +13,25 @@ struct ScheduledListView: View {
     @State private var showInstances = false
     @State private var selected: ScheduledMessage?
 
-    private var filtered: [ScheduledMessage] {
-        session.upcoming.filter { msg in
-            switch filter {
-            case .all: true
-            case .contacts: msg.recipientKind == .CONTACT
-            case .groups: msg.recipientKind == .GROUP
-            case .recurring: msg.recurrence != .NONE
-            case .auto: msg.isAutoReply
-            }
+    private var pausedCount: Int { session.upcoming.filter { $0.status == .PAUSED }.count }
+
+    private func count(for f: Filter) -> Int {
+        session.upcoming.filter { matches($0, f) }.count
+    }
+
+    private func matches(_ msg: ScheduledMessage, _ f: Filter) -> Bool {
+        switch f {
+        case .all: return true
+        case .paused: return msg.status == .PAUSED
+        case .contacts: return msg.recipientKind == .CONTACT
+        case .groups: return msg.recipientKind == .GROUP
+        case .recurring: return msg.recurrence != .NONE
+        case .auto: return msg.isAutoReply
         }
+    }
+
+    private var filtered: [ScheduledMessage] {
+        session.upcoming.filter { matches($0, filter) }
         .filter {
             search.isEmpty ||
             $0.recipientName.localizedCaseInsensitiveContains(search) ||
@@ -130,8 +139,9 @@ struct ScheduledListView: View {
 
     private func duplicateMsg(_ msg: ScheduledMessage) async {
         do {
-            _ = try await APIClient.shared.duplicateMessage(id: msg.id)
+            let created = try await APIClient.shared.duplicateMessage(id: msg.id)
             await session.refreshMessages()
+            selected = created   // abre la copia (con su botón Editar) en vez de enterrarla
         } catch { session.report(error) }
     }
 
@@ -139,17 +149,29 @@ struct ScheduledListView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Filter.allCases) { f in
-                    Button {
-                        filter = f
-                    } label: {
-                        Text(f.rawValue)
+                    // "Pausados" solo se muestra si hay alguno (no ocupar espacio sin motivo)
+                    if f != .paused || pausedCount > 0 {
+                        let n = count(for: f)
+                        Button {
+                            filter = f
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(f.rawValue)
+                                if f == .paused || f == .recurring {
+                                    Text("\(n)")
+                                        .font(.caption2.weight(.bold))
+                                        .padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(filter == f ? Theme.accent.opacity(0.25) : Color.gray.opacity(0.2), in: Capsule())
+                                }
+                            }
                             .font(.subheadline.weight(filter == f ? .semibold : .regular))
                             .padding(.horizontal, 14).padding(.vertical, 7)
                             .background(filter == f ? Theme.accent.opacity(0.2) : Color.gray.opacity(0.12),
                                         in: Capsule())
                             .foregroundStyle(filter == f ? Theme.accent : .primary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)

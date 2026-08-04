@@ -56,6 +56,7 @@ struct ComposeView: View {
 
     private var canSubmit: Bool {
         !recipients.isEmpty && instanceId != nil && !sending && parts.contains { $0.isSendable }
+            && (schedule.recurrence != .WEEKLY || !schedule.recurrenceDays.isEmpty)
     }
 
     var body: some View {

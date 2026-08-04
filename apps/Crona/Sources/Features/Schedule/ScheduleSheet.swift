@@ -143,6 +143,10 @@ struct ScheduleSheet: View {
                                 .buttonStyle(.plain)
                             }
                         }
+                        if config.recurrenceDays.isEmpty {
+                            Text("Elige al menos un día para que se repita.")
+                                .font(.caption2).foregroundStyle(.red)
+                        }
                     }
 
                     if config.recurrence != .NONE {
@@ -172,6 +176,13 @@ struct ScheduleSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Listo") { dismiss() } }
             }
+            // Al pasar a Semanal, preselecciona el día de la fecha (evita una recurrencia sin días
+            // que nunca se dispara). El usuario puede ajustar.
+            .onChange(of: config.recurrence) { _, rec in
+                if rec == .WEEKLY && config.recurrenceDays.isEmpty {
+                    config.recurrenceDays = [isoWeekday(config.date)]
+                }
+            }
         }
         #if os(macOS)
         .frame(minWidth: 420, minHeight: 520)
@@ -181,4 +192,10 @@ struct ScheduleSheet: View {
     private var tzOptions: [String] {
         commonTimezones.contains(config.timezone) ? commonTimezones : [config.timezone] + commonTimezones
     }
+}
+
+/// Día de la semana en el esquema de la app (1=Lun … 7=Dom) a partir de una fecha.
+func isoWeekday(_ date: Date) -> Int {
+    let w = Calendar.current.component(.weekday, from: date) // 1=Dom … 7=Sáb
+    return w == 1 ? 7 : w - 1
 }
