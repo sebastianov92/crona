@@ -20,9 +20,17 @@
         {
           "version": "1.4.6",
           "date": "2026-08-04",
-          "size": 5237204,
+          "size": 5249589,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.6/Crona.ipa",
-          "localizedDescription": "Actualización v1.4.6",
+          "localizedDescription": "Cierre de la Fase 1: aviso de WhatsApp desconectado visible en toda la app, botón para probar tus notificaciones ntfy, 'Posponer' un mensaje (en 1h / esta noche / mañana), y correcciones al editar (ya no se pierde la recurrencia). En Mac, 'Nuevo mensaje' funciona desde cualquier sección. Requiere actualizar el servidor para la vigilancia de conexión.",
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "1.4.5",
+          "date": "2026-08-04",
+          "size": 5238331,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.5/Crona.ipa",
+          "localizedDescription": "Recurrencia semanal sin días corregida, Historial protegido de borrados accidentales, duplicar-y-editar, filtros con contador y reconexión con número prellenado.",
           "minOSVersion": "17.0"
         }
       ],
