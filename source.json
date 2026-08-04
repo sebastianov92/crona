@@ -18,27 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.4.4",
-          "date": "2026-08-01",
-          "size": 5216401,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.4/Crona.ipa",
-          "localizedDescription": "Los botones Texto/Foto/Voz/Sticker quedan fijos sobre el teclado (ya no se tapan al agregar una nota de voz). Los contactos abren al instante (se cachean). El botón de sticker abre 'Mis stickers' directo, con el '+' dentro para subir desde archivo. Nota: se corrigió en el servidor un bug que borraba los stickers guardados; actualiza tu servidor.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.4.3",
-          "date": "2026-07-30",
-          "size": 5214872,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.3/Crona.ipa",
-          "localizedDescription": "Barra de acciones visible al escribir, scroll al agregar media, y selector claro de Foto | Archivo (HD).",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.4.2",
-          "date": "2026-07-30",
-          "size": 5210333,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.2/Crona.ipa",
-          "localizedDescription": "Selector de contacto más simple: la primera vez eliges con un toque; para varios, 'Agregar más'.",
+          "version": "1.4.5",
+          "date": "2026-08-04",
+          "size": 5226905,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.5/Crona.ipa",
+          "localizedDescription": "Actualización v1.4.5",
           "minOSVersion": "17.0"
         }
       ],
