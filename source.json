@@ -20,9 +20,9 @@
         {
           "version": "1.4.8",
           "date": "2026-08-05",
-          "size": 5242272,
+          "size": 5257033,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.8/Crona.ipa",
-          "localizedDescription": "Actualización v1.4.8",
+          "localizedDescription": "El botón 'Posponer' se abre tocando toda la fila (antes solo el texto).",
           "minOSVersion": "17.0"
         }
       ],
