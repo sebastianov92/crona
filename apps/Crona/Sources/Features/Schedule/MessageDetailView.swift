@@ -119,7 +119,10 @@ struct MessageDetailView: View {
                                 Button("Esta noche (20:00)") { Task { await snooze(to: nextAt(hour: 20)) } }
                                 Button("Mañana (9:00)") { Task { await snooze(to: tomorrowAt(hour: 9)) } }
                             } label: {
+                                // toda la fila abre el menú (no solo el texto)
                                 Label("Posponer", systemImage: "clock.arrow.circlepath")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                             }
                             Button {
                                 Task { await toggle() }
