@@ -254,6 +254,13 @@ model Instance {
   status          InstanceStatus @default(CREATED)
   lastConnectedAt DateTime?
   sortOrder       Int            @default(0) // posición en la lista; la primera es la principal
+  // Anti-baneo (envelope de envío por instancia / número)
+  maxPerHour      Int? // límite de envíos por hora (null = sin límite) → dripping
+  maxPerDay       Int? // tope diario (null = sin límite)
+  quietStart      Int? // horas de silencio: minuto del día [0..1439] (null = sin silencio)
+  quietEnd        Int?
+  jitterMinSec    Int            @default(60) // variación aleatoria de recurrentes: mínimo (s)
+  jitterMaxSec    Int            @default(300) // máximo (s)
   createdAt       DateTime       @default(now())
   recipients      Recipient[]
   messages        ScheduledMessage[]

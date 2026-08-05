@@ -30,6 +30,13 @@ export const instanceDTO = (i: Instance) => ({
   status: i.status,
   lastConnectedAt: i.lastConnectedAt,
   createdAt: i.createdAt,
+  // Envelope anti-baneo (F2)
+  maxPerHour: i.maxPerHour,
+  maxPerDay: i.maxPerDay,
+  quietStart: i.quietStart,
+  quietEnd: i.quietEnd,
+  jitterMinSec: i.jitterMinSec,
+  jitterMaxSec: i.jitterMaxSec,
 });
 
 /** Instancia del usuario o NOT_FOUND (nunca filtra instancias ajenas). */
@@ -160,11 +167,27 @@ export function registerInstanceRoutes(app: FastifyInstance) {
   // Renombrar la instancia (solo el nombre visible; el instanceName de Evolution no cambia)
   app.patch("/instances/:id", { preHandler: authenticate }, async (req) => {
     const { id } = req.params as { id: string };
-    const Body = z.object({ name: z.string().min(1).max(40) });
+    const Body = z.object({
+      name: z.string().min(1).max(40).optional(),
+      // Envelope anti-baneo (F2). null = quitar el límite; para silencio, ambos o ninguno.
+      maxPerHour: z.number().int().min(1).max(1000).nullable().optional(),
+      maxPerDay: z.number().int().min(1).max(20000).nullable().optional(),
+      quietStart: z.number().int().min(0).max(1439).nullable().optional(),
+      quietEnd: z.number().int().min(0).max(1439).nullable().optional(),
+      jitterMinSec: z.number().int().min(0).max(86400).optional(),
+      jitterMaxSec: z.number().int().min(0).max(86400).optional(),
+    });
     const body = Body.parse(req.body);
     const inst = await ownInstance(req.userId, id);
-    await assertNameFree(req.userId, body.name, inst.id);
-    const updated = await prisma.instance.update({ where: { id: inst.id }, data: { name: body.name.trim() } });
+    const data: Record<string, unknown> = {};
+    if (body.name !== undefined) {
+      await assertNameFree(req.userId, body.name, inst.id);
+      data.name = body.name.trim();
+    }
+    for (const k of ["maxPerHour", "maxPerDay", "quietStart", "quietEnd", "jitterMinSec", "jitterMaxSec"] as const) {
+      if (body[k] !== undefined) data[k] = body[k];
+    }
+    const updated = await prisma.instance.update({ where: { id: inst.id }, data });
     return instanceDTO(updated);
   });
 

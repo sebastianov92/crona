@@ -73,7 +73,10 @@ function jitteredNext(msg: FullMessage): Date {
   }
   const next = nextOccurrence({ ...msg, nextRunAt: base } as Parameters<typeof nextOccurrence>[0]);
   if (!msg.randomDelay) return next;
-  return new Date(next.getTime() + 60_000 + Math.floor(Math.random() * 240_000));
+  // Variación aleatoria configurable por instancia (default 60–300 s = el antiguo +1–5 min).
+  const minMs = Math.max(0, msg.instance.jitterMinSec) * 1000;
+  const maxMs = Math.max(msg.instance.jitterMinSec, msg.instance.jitterMaxSec) * 1000;
+  return new Date(next.getTime() + minMs + rand(0, Math.max(1, maxMs - minMs)));
 }
 
 async function onOccurrenceSuccess(msg: FullMessage) {
@@ -233,6 +236,63 @@ async function sendOne(msg: FullMessage): Promise<void> {
   }
 }
 
+/// Envelope anti-baneo por instancia: si el mensaje no debe salir AÚN, devuelve la fecha a la
+/// que diferirlo (sin enviar ni marcar fallo). null = puede enviarse ya.
+/// Combina horas de silencio, caudal por hora (dripping) y tope diario; toma el más tardío.
+async function deferUntil(msg: FullMessage): Promise<Date | null> {
+  const inst = msg.instance;
+  const now = new Date();
+  const local = DateTime.fromJSDate(now, { zone: msg.timezone });
+  let deferMs = 0;
+  const bump = (d: DateTime) => { deferMs = Math.max(deferMs, d.toMillis()); };
+
+  // 1. Horas de silencio (en la zona horaria del mensaje)
+  if (inst.quietStart != null && inst.quietEnd != null && inst.quietStart !== inst.quietEnd) {
+    const minute = local.hour * 60 + local.minute;
+    const inQuiet =
+      inst.quietStart < inst.quietEnd
+        ? minute >= inst.quietStart && minute < inst.quietEnd
+        : minute >= inst.quietStart || minute < inst.quietEnd; // cruza medianoche
+    if (inQuiet) {
+      let end = local.set({
+        hour: Math.floor(inst.quietEnd / 60),
+        minute: inst.quietEnd % 60,
+        second: 0,
+        millisecond: 0,
+      });
+      if (end <= local) end = end.plus({ days: 1 });
+      bump(end.plus({ seconds: rand(0, 120) })); // jitter: no reanudar todos a la hora exacta
+    }
+  }
+
+  // 2. Caudal por hora (dripping: espaciado mínimo entre envíos de la instancia)
+  if (inst.maxPerHour != null && inst.maxPerHour > 0) {
+    const spacingSec = Math.ceil(3600 / inst.maxPerHour);
+    const last = await prisma.messageLog.findFirst({
+      where: { status: "SENT", scheduledMessage: { instanceId: inst.id } },
+      orderBy: { sentAt: "desc" },
+      select: { sentAt: true },
+    });
+    if (last?.sentAt) {
+      const nextSlot = DateTime.fromJSDate(last.sentAt).plus({ seconds: spacingSec });
+      if (nextSlot > local) bump(nextSlot);
+    }
+  }
+
+  // 3. Tope diario (por día natural en la zona horaria del mensaje)
+  if (inst.maxPerDay != null && inst.maxPerDay > 0) {
+    const startOfDay = local.startOf("day").toJSDate();
+    const count = await prisma.messageLog.count({
+      where: { status: "SENT", sentAt: { gte: startOfDay }, scheduledMessage: { instanceId: inst.id } },
+    });
+    if (count >= inst.maxPerDay) {
+      bump(local.plus({ days: 1 }).startOf("day").plus({ minutes: rand(0, 30) }));
+    }
+  }
+
+  return deferMs > now.getTime() ? new Date(deferMs) : null;
+}
+
 let running = false;
 
 export async function tick(): Promise<void> {
@@ -248,9 +308,20 @@ export async function tick(): Promise<void> {
       include: { instance: true, user: true },
       orderBy: { nextRunAt: "asc" },
     });
-    for (const [i, msg] of msgs.entries()) {
-      await sleep(i === 0 ? 0 : 3000 + rand(0, 6000)); // 3-9 s entre mensajes del mismo tick (anti-ban, y ritmo de listas)
+    let sentAny = false; // espaciar 3-9 s solo ENTRE envíos reales (no tras un diferido)
+    for (const msg of msgs) {
+      const deferTo = await deferUntil(msg as FullMessage);
+      if (deferTo) {
+        const updated = await prisma.scheduledMessage.update({
+          where: { id: msg.id },
+          data: { nextRunAt: deferTo, claimedAt: null },
+        });
+        broadcast(msg.userId, "message.updated", messageDTO(updated));
+        continue;
+      }
+      if (sentAny) await sleep(3000 + rand(0, 6000)); // 3-9 s entre mensajes (anti-ban, ritmo de listas)
       await sendOne(msg as FullMessage);
+      sentAny = true;
     }
   } catch (err) {
     console.error("scheduler tick failed", err);
