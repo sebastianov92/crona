@@ -119,6 +119,18 @@ final class SessionStore {
     func refreshAll() async {
         await refreshInstances()
         await refreshMessages()
+        Task { await prefetchContacts() }   // calienta el cache del picker (primer abrir instantáneo)
+    }
+
+    /// Precarga los contactos de la instancia activa en segundo plano para que el selector
+    /// abra al instante la primera vez. El refresco al abrir el picker mantiene la lista al día.
+    func prefetchContacts() async {
+        guard let iid = activeInstance?.id else { return }
+        let key = "\(iid)|\(RecipientKind.CONTACT)"
+        guard recipientCache[key] == nil else { return }
+        if let all = try? await APIClient.shared.allRecipients(instanceId: iid, kind: .CONTACT, search: "") {
+            recipientCache[key] = all
+        }
     }
 
     func refreshInstances() async {

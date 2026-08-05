@@ -13,6 +13,7 @@ struct HistoryView: View {
     @State private var search = ""
     @State private var statusFilter: StatusFilter = .all
     @State private var openMsg: MsgRef?
+    @State private var pendingDelete: HistoryItem?
 
     private func matchesStatus(_ item: HistoryItem, _ f: StatusFilter) -> Bool {
         switch f {
@@ -84,10 +85,10 @@ struct HistoryView: View {
                             .tint(Theme.accent)
                         }
                     }
-                    // allowsFullSwipe:false → hay que tocar el botón; un arrastre no borra solo.
+                    // allowsFullSwipe:false + confirmación: un arrastre nunca borra solo.
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            Task { await delete(item) }
+                            pendingDelete = item
                         } label: {
                             Label("Borrar", systemImage: "trash")
                         }
@@ -105,6 +106,17 @@ struct HistoryView: View {
                     #if os(macOS)
                     .frame(minWidth: 480, minHeight: 520)
                     #endif
+            }
+            .confirmationDialog(
+                "¿Borrar este envío del historial?",
+                isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Borrar", role: .destructive) {
+                    if let item = pendingDelete { Task { await delete(item) } }
+                    pendingDelete = nil
+                }
+                Button("Cancelar", role: .cancel) { pendingDelete = nil }
             }
             } // VStack
         }
