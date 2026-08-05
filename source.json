@@ -18,11 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.5.1",
+          "version": "1.5.2",
           "date": "2026-08-05",
-          "size": 5318972,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.1/Crona.ipa",
-          "localizedDescription": "Ahora puedes elegir destinatarios desde la agenda de tu teléfono (no solo los de WhatsApp). Programados agrupados por día (Hoy/Mañana) y, al crear una recurrencia, ves las próximas fechas de envío. Confirmación de borrado del Historial más clara.",
+          "size": 5322500,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.2/Crona.ipa",
+          "localizedDescription": "Actualización v1.5.2",
           "minOSVersion": "17.0"
         }
       ],
