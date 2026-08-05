@@ -127,10 +127,15 @@ struct TemplateEditView: View {
                 }
                 Section {
                     PartsEditor(parts: $parts, minParts: 1, maxParts: 10)
+                    VariableChips { insertVar($0) }
+                    if let last = parts.last(where: { !$0.isEmpty }) {
+                        Text("Vista previa: \(renderSampleVariables(last.trimmed))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text(parts.count > 1 ? "Mensajes (\(parts.count))" : "Mensaje")
                 } footer: {
-                    Text("Cada parte se envía como un mensaje aparte, con una pausa corta entre ellos.")
+                    Text("Toca una variable para insertarla; se reemplaza al enviar (ej. {primer_nombre} → Dani). Cada parte se envía como un mensaje aparte.")
                 }
                 Section {
                     Toggle("Pública", isOn: $isPublic)
@@ -163,6 +168,14 @@ struct TemplateEditView: View {
         #if os(macOS)
         .frame(minWidth: 440, minHeight: 460)
         #endif
+    }
+
+    /// Inserta una variable al final de la última parte (o la primera si están vacías).
+    private func insertVar(_ v: String) {
+        if parts.isEmpty { parts = [PartDraft()] }
+        let i = parts.lastIndex(where: { !$0.isEmpty }) ?? (parts.count - 1)
+        if !parts[i].text.isEmpty && !parts[i].text.hasSuffix(" ") { parts[i].text += " " }
+        parts[i].text += v
     }
 
     private func save() async {

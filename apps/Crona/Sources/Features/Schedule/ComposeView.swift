@@ -124,7 +124,8 @@ struct ComposeView: View {
                     .buttonStyle(.plain)
 
                     if parts.contains(where: { $0.hasTextField }) {
-                        Text("Variables: {nombre} · {primer_nombre} · {fecha} · {dia} — se reemplazan al enviar (ej. \"Dani Vega\" → {primer_nombre} = Dani).")
+                        VariableChips { insertVariable($0) }
+                        Text("Toca una variable para insertarla; se reemplaza al enviar (ej. {primer_nombre} → Dani).")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -339,6 +340,16 @@ struct ComposeView: View {
 
     /// Cuántas partes se enviarán realmente (las que tienen contenido).
     private var sendableCount: Int { parts.filter { $0.isSendable }.count }
+
+    /// Inserta una variable al final de la primera parte de texto (o crea una).
+    private func insertVariable(_ v: String) {
+        if let i = parts.firstIndex(where: { $0.kind == .text }) {
+            if !parts[i].text.isEmpty && !parts[i].text.hasSuffix(" ") { parts[i].text += " " }
+            parts[i].text += v
+        } else {
+            parts.insert(ComposePart(kind: .text, text: v), at: 0)
+        }
+    }
 
     /// Agrega una parte de texto y le pide el foco. Si solo hay una parte de texto vacía, la reutiliza.
     private func addTextPart() {

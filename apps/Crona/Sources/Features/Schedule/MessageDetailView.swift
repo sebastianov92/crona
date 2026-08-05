@@ -296,6 +296,7 @@ struct EditMessageView: View {
     @State private var text: String = ""
     @State private var schedule = ScheduleConfig()
     @State private var instanceId: String = ""
+    @State private var showSchedule = false
     @State private var busy = false
     @State private var error: String?
 
@@ -303,7 +304,11 @@ struct EditMessageView: View {
         NavigationStack {
             Form {
                 Section("Mensaje") {
-                    TextField("Texto", text: $text, axis: .vertical).lineLimit(1...4)
+                    TextField("Texto", text: $text, axis: .vertical).lineLimit(1...5)
+                    VariableChips { v in
+                        if !text.isEmpty && !text.hasSuffix(" ") { text += " " }
+                        text += v
+                    }
                 }
                 if session.instances.count > 1 {
                     Section("Instancia") {
@@ -315,19 +320,30 @@ struct EditMessageView: View {
                     }
                 }
                 Section("Envío") {
-                    DatePicker("Fecha y hora", selection: $schedule.date, in: Date().addingTimeInterval(120)...)
-                    Picker("Recurrencia", selection: $schedule.recurrence) {
-                        Text("No se repite").tag(Recurrence.NONE)
-                        Text("Todos los días").tag(Recurrence.DAILY)
-                        Text("Semanal").tag(Recurrence.WEEKLY)
-                        Text("Mensual").tag(Recurrence.MONTHLY)
-                        Text("Cada año (cumpleaños)").tag(Recurrence.YEARLY)
+                    // Misma programación que al crear: franjas rápidas + hoja completa (fecha exacta,
+                    // recurrencia, zona horaria, "hasta", variación).
+                    QuickHourChips(date: $schedule.date)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                    Button { showSchedule = true } label: {
+                        HStack {
+                            Label(scheduleLabel(schedule.date), systemImage: "calendar")
+                            Spacer()
+                            if schedule.recurrence != .NONE {
+                                Image(systemName: "repeat").font(.caption).foregroundStyle(Theme.accent)
+                            }
+                            Text("Otra fecha").font(.caption).foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
                 if let error { Section { Text(error).foregroundStyle(.red) } }
             }
             .formStyle(.grouped)
             .navigationTitle("Editar mensaje")
+            .sheet(isPresented: $showSchedule) { ScheduleSheet(config: $schedule) }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -336,7 +352,7 @@ struct EditMessageView: View {
                     } label: {
                         if busy { ProgressView().controlSize(.small) } else { Text("Guardar cambios") }
                     }
-                    .disabled(busy)
+                    .disabled(busy || (schedule.recurrence == .WEEKLY && schedule.recurrenceDays.isEmpty))
                 }
             }
             .onAppear {

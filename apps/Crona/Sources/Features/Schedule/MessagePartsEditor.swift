@@ -35,6 +35,41 @@ struct PartDraft: Identifiable, Equatable {
 
 func clampTypingMs(_ ms: Int) -> Int { max(1500, min(25_000, ms)) }
 
+/// Chips para insertar variables de personalización en el campo de texto activo.
+/// Se reemplazan al enviar: {primer_nombre}, {nombre}, {fecha}, {dia}.
+struct VariableChips: View {
+    let onInsert: (String) -> Void
+    private let vars = ["{primer_nombre}", "{nombre}", "{fecha}", "{dia}"]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(vars, id: \.self) { v in
+                    Button { onInsert(v) } label: {
+                        Text(v)
+                            .font(.caption2.monospaced())
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Theme.accent.opacity(0.12), in: Capsule())
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+/// Sustituye las variables por valores de ejemplo (para la vista previa).
+func renderSampleVariables(_ text: String) -> String {
+    let df = DateFormatter(); df.locale = Locale(identifier: "es"); df.dateFormat = "d 'de' MMMM"
+    let wf = DateFormatter(); wf.locale = Locale(identifier: "es"); wf.dateFormat = "EEEE"
+    return text
+        .replacingOccurrences(of: "{primer_nombre}", with: "Dani")
+        .replacingOccurrences(of: "{nombre}", with: "Dani Vega")
+        .replacingOccurrences(of: "{fecha}", with: df.string(from: Date()))
+        .replacingOccurrences(of: "{dia}", with: wf.string(from: Date()).capitalized)
+}
+
 /// Editor de las partes de un split: un campo por parte, con quitar y "Agregar otro mensaje".
 struct PartsEditor: View {
     @Binding var parts: [PartDraft]

@@ -195,9 +195,17 @@ struct AutoReplyEditView: View {
                     if action == .REPLY {
                         TextField("Texto de respuesta", text: $replyText, axis: .vertical)
                             .lineLimit(2...5)
-                        Text("Variables: {nombre} · {primer_nombre} (de quien escribe) · {fecha} · {dia}.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        VariableChips { v in
+                            if !replyText.isEmpty && !replyText.hasSuffix(" ") { replyText += " " }
+                            replyText += v
+                        }
+                        if !replyText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            Text("Vista previa: \(renderSampleVariables(replyText))")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        } else {
+                            Text("Toca una variable para insertarla. {primer_nombre} es de quien te escribe.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Section {
