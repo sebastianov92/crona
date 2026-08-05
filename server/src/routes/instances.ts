@@ -169,11 +169,11 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const Body = z.object({
       name: z.string().min(1).max(40).optional(),
-      // Envelope anti-baneo (F2). null = quitar el límite; para silencio, ambos o ninguno.
-      maxPerHour: z.number().int().min(1).max(1000).nullable().optional(),
-      maxPerDay: z.number().int().min(1).max(20000).nullable().optional(),
-      quietStart: z.number().int().min(0).max(1439).nullable().optional(),
-      quietEnd: z.number().int().min(0).max(1439).nullable().optional(),
+      // Envelope anti-baneo (F2). 0 = sin límite; silencio off = quietStart == quietEnd.
+      maxPerHour: z.number().int().min(0).max(1000).optional(),
+      maxPerDay: z.number().int().min(0).max(20000).optional(),
+      quietStart: z.number().int().min(0).max(1439).optional(),
+      quietEnd: z.number().int().min(0).max(1439).optional(),
       jitterMinSec: z.number().int().min(0).max(86400).optional(),
       jitterMaxSec: z.number().int().min(0).max(86400).optional(),
     });

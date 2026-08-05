@@ -100,6 +100,14 @@ struct ComposeView: View {
                         .contentShape(Rectangle())   // toda la fila clickeable, no solo texto/icono
                     }
                     .buttonStyle(.plain)
+
+                    // Aviso (no bloquea): difundir a muchos de golpe es lo que más arriesga el número.
+                    if recipients.count >= 5 {
+                        Label("Vas a programar \(recipients.count) envíos. Saldrán escalonados para cuidar tu número.",
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
                 }
 
                 Section("Mensaje") {

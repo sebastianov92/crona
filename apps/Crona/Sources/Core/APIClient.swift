@@ -278,6 +278,19 @@ extension APIClient {
         struct B: Encodable { let name: String }
         return try await request("PATCH", "/instances/\(id)", body: B(name: name))
     }
+    /// Guarda el envelope anti-baneo. maxPerHour/maxPerDay = 0 → sin límite; silencio off → start == end.
+    func updateInstanceEnvelope(id: String, maxPerHour: Int, maxPerDay: Int,
+                                quietStart: Int, quietEnd: Int,
+                                jitterMinSec: Int, jitterMaxSec: Int) async throws -> Instance {
+        struct B: Encodable {
+            let maxPerHour: Int, maxPerDay: Int, quietStart: Int, quietEnd: Int
+            let jitterMinSec: Int, jitterMaxSec: Int
+        }
+        return try await request("PATCH", "/instances/\(id)",
+                                 body: B(maxPerHour: maxPerHour, maxPerDay: maxPerDay,
+                                         quietStart: quietStart, quietEnd: quietEnd,
+                                         jitterMinSec: jitterMinSec, jitterMaxSec: jitterMaxSec))
+    }
     /// Reordena las instancias; la primera pasa a ser la principal.
     func reorderInstances(ids: [String]) async throws -> Paginated<Instance> {
         struct B: Encodable { let ids: [String] }

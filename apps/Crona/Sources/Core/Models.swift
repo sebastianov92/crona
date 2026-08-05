@@ -138,6 +138,13 @@ struct Instance: Identifiable, Codable, Hashable {
     var status: InstanceStatus
     var lastConnectedAt: Date?
     let createdAt: Date
+    // Envelope anti-baneo (F2). Opcionales: un servidor viejo no los envía.
+    var maxPerHour: Int?
+    var maxPerDay: Int?
+    var quietStart: Int?
+    var quietEnd: Int?
+    var jitterMinSec: Int?
+    var jitterMaxSec: Int?
 }
 
 struct CreateInstanceResponse: Codable, Hashable {

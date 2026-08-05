@@ -6,6 +6,7 @@ struct InstanceListView: View {
     @State private var qrInstance: Instance?
     @State private var confirmDelete: Instance?
     @State private var renaming: Instance?
+    @State private var safetyInstance: Instance?
 
     var body: some View {
         List {
@@ -77,6 +78,7 @@ struct InstanceListView: View {
                 }
                 .contextMenu {
                     Button("Renombrar…") { renaming = inst }
+                    Button("Seguridad de envío…") { safetyInstance = inst }
                     if session.instances.first?.id != inst.id {
                         Button("Hacer principal (mover al inicio)") {
                             var ids = session.instances.map(\.id)
@@ -126,6 +128,7 @@ struct InstanceListView: View {
             // al reconectar, prellena el número ya guardado para no reteclearlo
             QRLinkView(instance: inst, prefillNumber: inst.phoneNumber ?? "")
         }
+        .sheet(item: $safetyInstance) { inst in SendSafetyView(instance: inst) }
         // hoja (no alert): dos .alert en la misma vista se pisan entre sí en macOS
         .sheet(item: $renaming) { inst in
             RenameInstanceSheet(instance: inst) { newName in
