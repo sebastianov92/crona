@@ -20,9 +20,9 @@
         {
           "version": "1.5.2",
           "date": "2026-08-05",
-          "size": 5322500,
+          "size": 5338554,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.2/Crona.ipa",
-          "localizedDescription": "Actualización v1.5.2",
+          "localizedDescription": "Variables con un toque: inserta {primer_nombre}, {nombre}, {fecha} o {dia} con chips y ve una vista previa, en mensajes, plantillas y respuestas automáticas. Al editar un mensaje ahora tienes la misma programación completa que al crearlo (franjas, recurrencia, zona horaria).",
           "minOSVersion": "17.0"
         }
       ],
