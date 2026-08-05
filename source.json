@@ -18,19 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.4.7",
+          "version": "1.4.8",
           "date": "2026-08-05",
-          "size": 5255911,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.7/Crona.ipa",
-          "localizedDescription": "Borrar del Historial ahora pide confirmación (ya no se borra por un arrastre) y los contactos se precargan al abrir la app para que el selector cargue al instante.",
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.4.6",
-          "date": "2026-08-04",
-          "size": 5249589,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.6/Crona.ipa",
-          "localizedDescription": "Aviso de desconexión en toda la app, probar notificaciones ntfy, 'Posponer' un mensaje, y correcciones al editar. En Mac, 'Nuevo mensaje' desde cualquier sección.",
+          "size": 5242272,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.4.8/Crona.ipa",
+          "localizedDescription": "Actualización v1.4.8",
           "minOSVersion": "17.0"
         }
       ],
