@@ -18,11 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.5.0",
+          "version": "1.5.1",
           "date": "2026-08-05",
-          "size": 5291099,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.0/Crona.ipa",
-          "localizedDescription": "Seguridad de envío (anti-baneo) por instancia: límite de envíos por hora, tope diario, horas de silencio y variación aleatoria configurable. Aviso al programar a muchos destinatarios. Requiere actualizar el servidor.",
+          "size": 5302178,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.1/Crona.ipa",
+          "localizedDescription": "Actualización v1.5.1",
           "minOSVersion": "17.0"
         }
       ],
