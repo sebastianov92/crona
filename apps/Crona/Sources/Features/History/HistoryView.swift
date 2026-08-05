@@ -107,16 +107,17 @@ struct HistoryView: View {
                     .frame(minWidth: 480, minHeight: 520)
                     #endif
             }
-            .confirmationDialog(
+            .alert(
                 "¿Borrar este envío del historial?",
-                isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-                titleVisibility: .visible
+                isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
             ) {
                 Button("Borrar", role: .destructive) {
                     if let item = pendingDelete { Task { await delete(item) } }
                     pendingDelete = nil
                 }
                 Button("Cancelar", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("Se quita del historial. No afecta al mensaje programado.")
             }
             } // VStack
         }

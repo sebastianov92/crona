@@ -29,6 +29,26 @@ struct ScheduledListView: View {
         }
     }
 
+    /// Programados agrupados por día natural (de nextRunAt), ordenados por fecha.
+    private var groupedByDay: [(key: String, items: [ScheduledMessage])] {
+        let cal = Calendar.current
+        let groups = Dictionary(grouping: filtered) { cal.startOfDay(for: $0.nextRunAt) }
+        return groups.keys.sorted().map { day in
+            (dayLabel(day), (groups[day] ?? []).sorted { $0.nextRunAt < $1.nextRunAt })
+        }
+    }
+
+    private func dayLabel(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return "Hoy" }
+        if cal.isDateInTomorrow(date) { return "Mañana" }
+        if cal.isDateInYesterday(date) { return "Ayer" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es")
+        f.dateFormat = "EEEE d 'de' MMMM"
+        return f.string(from: date).capitalized
+    }
+
     private var filtered: [ScheduledMessage] {
         session.upcoming.filter { matches($0, filter) }
         .filter {
@@ -52,30 +72,35 @@ struct ScheduledListView: View {
                         .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
                     }
-                    ForEach(filtered) { msg in
-                        Button { selected = msg } label: { MessageRow(message: msg) }
-                            .buttonStyle(.plain)
-                            // Acciones rápidas sin abrir el detalle. Cancelar no es full-swipe:
-                            // hace falta tocar el botón (evita cancelar por un arrastre accidental).
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if msg.status == .ACTIVE || msg.status == .PAUSED {
-                                    Button(role: .destructive) { Task { await cancelMsg(msg) } } label: {
-                                        Label("Cancelar", systemImage: "xmark.circle")
+                    // Agrupado por día: cabeceras Hoy / Mañana / fecha para escanear la carga.
+                    ForEach(groupedByDay, id: \.key) { group in
+                        Section(group.key) {
+                            ForEach(group.items) { msg in
+                                Button { selected = msg } label: { MessageRow(message: msg) }
+                                    .buttonStyle(.plain)
+                                    // Acciones rápidas sin abrir el detalle. Cancelar no es full-swipe:
+                                    // hace falta tocar el botón (evita cancelar por un arrastre accidental).
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if msg.status == .ACTIVE || msg.status == .PAUSED {
+                                            Button(role: .destructive) { Task { await cancelMsg(msg) } } label: {
+                                                Label("Cancelar", systemImage: "xmark.circle")
+                                            }
+                                            .tint(.red)
+                                            Button { Task { await toggleMsg(msg) } } label: {
+                                                Label(msg.status == .PAUSED ? "Reanudar" : "Pausar",
+                                                      systemImage: msg.status == .PAUSED ? "play.fill" : "pause.fill")
+                                            }
+                                            .tint(.orange)
+                                        }
                                     }
-                                    .tint(.red)
-                                    Button { Task { await toggleMsg(msg) } } label: {
-                                        Label(msg.status == .PAUSED ? "Reanudar" : "Pausar",
-                                              systemImage: msg.status == .PAUSED ? "play.fill" : "pause.fill")
+                                    .swipeActions(edge: .leading) {
+                                        Button { Task { await duplicateMsg(msg) } } label: {
+                                            Label("Duplicar", systemImage: "plus.square.on.square")
+                                        }
+                                        .tint(Theme.accent)
                                     }
-                                    .tint(.orange)
-                                }
                             }
-                            .swipeActions(edge: .leading) {
-                                Button { Task { await duplicateMsg(msg) } } label: {
-                                    Label("Duplicar", systemImage: "plus.square.on.square")
-                                }
-                                .tint(Theme.accent)
-                            }
+                        }
                     }
                 }
                 .listStyle(.plain)

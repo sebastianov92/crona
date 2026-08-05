@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import ContactsUI
+#endif
 
 struct RecipientPickerView: View {
     @Environment(SessionStore.self) private var session
@@ -31,6 +34,7 @@ struct RecipientPickerView: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
     @State private var showManualNumber = false
+    @State private var showPhoneContacts = false
     @State private var manualItems: [Recipient] = []
     @State private var renaming: Recipient?
     @State private var renameText = ""
@@ -98,6 +102,25 @@ struct RecipientPickerView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        #if os(iOS)
+                        // Agenda del teléfono: útil cuando el contacto de WhatsApp sale incompleto/errado.
+                        Button {
+                            showPhoneContacts = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "person.crop.circle")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(Theme.accent)
+                                    .frame(width: 40, height: 40)
+                                    .background(Theme.accent.opacity(0.15), in: Circle())
+                                Text("Contactos del teléfono").font(.body)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        #endif
                     }
                     // números agregados a mano en esta sesión: visibles y marcados, como cualquier contacto
                     if kind == .CONTACT {
@@ -225,16 +248,20 @@ struct RecipientPickerView: View {
                 }
             }
             .sheet(isPresented: $showManualNumber) {
-                ManualNumberSheet { recipient in
-                    if multi {
-                        if !manualItems.contains(where: { $0.jid == recipient.jid }) { manualItems.append(recipient) }
-                        if !selected.contains(where: { $0.jid == recipient.jid }) { selected.append(recipient) }
-                    } else {
-                        onPick([recipient])
-                        dismiss()
-                    }
-                }
+                ManualNumberSheet { recipient in addPicked(recipient) }
             }
+            #if os(iOS)
+            .sheet(isPresented: $showPhoneContacts) {
+                PhoneContactPicker(isPresented: $showPhoneContacts) { name, rawPhone in
+                    let full = normalizePhone(rawPhone)
+                    guard full.count >= 8 else { return }
+                    addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
+                                        displayName: name.isEmpty ? "+\(full)" : name,
+                                        alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
+                }
+                .ignoresSafeArea()
+            }
+            #endif
             .alert("Renombrar contacto", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Apodo", text: $renameText)
                 Button("Guardar") {
@@ -370,6 +397,30 @@ struct RecipientPickerView: View {
             onPick([r])
             dismiss()
         }
+    }
+
+    /// Añade un destinatario elegido por número/agenda: en multi lo marca, en single elige y cierra.
+    private func addPicked(_ r: Recipient) {
+        if multi {
+            if !manualItems.contains(where: { $0.jid == r.jid }) { manualItems.append(r) }
+            if !selected.contains(where: { $0.jid == r.jid }) { selected.append(r) }
+        } else {
+            onPick([r])
+            dismiss()
+        }
+    }
+
+    /// Número de la agenda → formato internacional (solo dígitos). Con '+' ya es internacional;
+    /// con 0 inicial (formato local) se quita y se antepone el código del país del dispositivo.
+    private func normalizePhone(_ raw: String) -> String {
+        let hasPlus = raw.contains("+")
+        var digits = raw.filter(\.isNumber)
+        if hasPlus { return digits }
+        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
+        let dial = countryFor(Locale.current.region?.identifier ?? "EC").code
+        if digits.hasPrefix("0") { digits = String(digits.dropFirst()) }
+        else if digits.count >= 11 { return digits } // ya trae código de país
+        return dial + digits
     }
 
     private func load() async {
@@ -605,3 +656,50 @@ private struct ManualNumberSheet: View {
         #endif
     }
 }
+
+#if os(iOS)
+/// Selector nativo de la agenda del iPhone (CNContactPicker). Corre fuera de proceso: no pide
+/// permiso ni entitlement — solo devuelve el contacto/número elegido.
+struct PhoneContactPicker: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onPick: (_ name: String, _ rawPhone: String) -> Void
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let vc = CNContactPickerViewController()
+        vc.displayedPropertyKeys = [CNContactPhoneNumbersKey]
+        // tocar un contacto abre su ficha; tocar un número lo elige (permite escoger cuál)
+        vc.predicateForSelectionOfContact = NSPredicate(value: false)
+        vc.predicateForSelectionOfProperty = NSPredicate(format: "key == 'phoneNumbers'")
+        vc.delegate = context.coordinator
+        return vc
+    }
+
+    func updateUIViewController(_ vc: CNContactPickerViewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let parent: PhoneContactPicker
+        init(_ parent: PhoneContactPicker) { self.parent = parent }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect property: CNContactProperty) {
+            if let phone = property.value as? CNPhoneNumber {
+                let name = CNContactFormatter.string(from: property.contact, style: .fullName) ?? ""
+                parent.onPick(name, phone.stringValue)
+            }
+            parent.isPresented = false
+        }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            if let phone = contact.phoneNumbers.first?.value {
+                let name = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+                parent.onPick(name, phone.stringValue)
+            }
+            parent.isPresented = false
+        }
+
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
+            parent.isPresented = false
+        }
+    }
+}
+#endif

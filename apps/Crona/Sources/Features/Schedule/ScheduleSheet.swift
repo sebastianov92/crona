@@ -169,6 +169,20 @@ struct ScheduleSheet: View {
                             ), displayedComponents: [.date])
                         }
                     }
+
+                    // Vista previa: las próximas fechas en que se enviará.
+                    if config.recurrence != .NONE {
+                        let preview = upcomingOccurrences(count: 3)
+                        if !preview.isEmpty {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("PRÓXIMOS ENVÍOS").font(.caption2).foregroundStyle(.secondary)
+                                ForEach(preview, id: \.self) { d in
+                                    Text("•  \(scheduleLabel(d))").font(.caption)
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -191,6 +205,39 @@ struct ScheduleSheet: View {
 
     private var tzOptions: [String] {
         commonTimezones.contains(config.timezone) ? commonTimezones : [config.timezone] + commonTimezones
+    }
+
+    /// Próximas `count` fechas de envío según la recurrencia (aprox., para vista previa).
+    private func upcomingOccurrences(count: Int) -> [Date] {
+        let cal = Calendar.current
+        let start = config.date
+        var out: [Date] = []
+        switch config.recurrence {
+        case .NONE:
+            out = [start]
+        case .DAILY:
+            for i in 0..<count { if let d = cal.date(byAdding: .day, value: i, to: start) { out.append(d) } }
+        case .WEEKLY:
+            let days = config.recurrenceDays.isEmpty ? [isoWeekday(start)] : Array(config.recurrenceDays)
+            let hm = cal.dateComponents([.hour, .minute], from: start)
+            var cursor = cal.startOfDay(for: start)
+            var iterations = 0
+            while out.count < count && iterations < 400 {
+                iterations += 1
+                if days.contains(isoWeekday(cursor)),
+                   let d = cal.date(bySettingHour: hm.hour ?? 9, minute: hm.minute ?? 0, second: 0, of: cursor),
+                   d >= start {
+                    out.append(d)
+                }
+                cursor = cal.date(byAdding: .day, value: 1, to: cursor) ?? cursor.addingTimeInterval(86_400)
+            }
+        case .MONTHLY:
+            for i in 0..<count { if let d = cal.date(byAdding: .month, value: i, to: start) { out.append(d) } }
+        case .YEARLY:
+            for i in 0..<count { if let d = cal.date(byAdding: .year, value: i, to: start) { out.append(d) } }
+        }
+        if let until = config.until { out = out.filter { $0 <= until } }
+        return out
     }
 }
 
