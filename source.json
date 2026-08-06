@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.6.0",
+          "date": "2026-08-06",
+          "size": 5432655,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.6.0/Crona.ipa",
+          "localizedDescription": "Nuevos tipos de mensaje: encuesta, ubicación y contacto (menú Más al componer). Puedes 'Eliminar de WhatsApp' un envío exitoso desde el historial (dentro de ~48 h). Y los errores de envío ahora se explican en español. Requiere actualizar el servidor.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.5.9",
           "date": "2026-08-06",
           "size": 5377155,
