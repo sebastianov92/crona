@@ -22,9 +22,14 @@ struct ComposeView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
 
-    // para duplicar/editar prellenado
+    // para duplicar (prellena solo texto)
     var prefill: ScheduledMessage? = nil
+    // para editar: reconstruye TODO (partes + media); al guardar crea el editado y borra el viejo
+    var editing: ScheduledMessage? = nil
+    // avisa al presentador que se guardó (p.ej. cerrar el detalle del mensaje original ya borrado)
+    var onSaved: (() -> Void)? = nil
 
+    @State private var didLoadEdit = false
     @State private var instanceId: String?
     @State private var recipients: [Recipient] = []
     // Lista homogénea de partes: cada una de cualquier tipo, en el orden que el usuario quiera.
@@ -185,7 +190,7 @@ struct ComposeView: View {
                     .background(.bar)
                     .overlay(alignment: .top) { Divider() }
             }
-            .navigationTitle("Nuevo mensaje")
+            .navigationTitle(editing == nil ? "Nuevo mensaje" : "Editar mensaje")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -197,7 +202,8 @@ struct ComposeView: View {
                         showConfirm = true
                         #endif
                     } label: {
-                        if sending { ProgressView().controlSize(.small) } else { Text("Programar") }
+                        if sending { ProgressView().controlSize(.small) }
+                        else { Text(editing == nil ? "Programar" : "Guardar") }
                     }
                     .disabled(!canSubmit)
                 }
@@ -274,6 +280,10 @@ struct ComposeView: View {
             }
             .onAppear {
                 applyPrefill()
+                if let editing {
+                    if !didLoadEdit { didLoadEdit = true; Task { await loadEditing(editing) } }
+                    return // editando: destinatario y partes vienen del mensaje, no se abre el picker
+                }
                 // Mensaje nuevo (no edición/duplicado): abrir el selector de contacto de una vez.
                 if prefill == nil, recipients.isEmpty, !didAutoOpenPicker {
                     didAutoOpenPicker = true
@@ -479,6 +489,45 @@ struct ComposeView: View {
         parts.append(contentsOf: mappedTemplate(tplParts).prefix(room))
     }
 
+    /// Reconstruye el compositor desde un mensaje existente para editarlo (partes + media + fecha).
+    private func loadEditing(_ msg: ScheduledMessage) async {
+        instanceId = msg.instanceId
+        recipients = [Recipient(id: msg.recipientJid, jid: msg.recipientJid, displayName: msg.recipientName,
+                                alias: nil, pictureUrl: msg.recipientPictureUrl, kind: msg.recipientKind, phoneNumber: nil)]
+        schedule.date = max(msg.nextRunAt, Date().addingTimeInterval(120))
+        schedule.timezone = msg.timezone
+        schedule.recurrence = msg.recurrence
+        schedule.recurrenceDays = Set(msg.recurrenceDays)
+        schedule.until = msg.recurrenceUntil
+        schedule.randomDelay = msg.randomDelay
+        // El detalle trae todas las partes con su media; la parte 0 va en los campos raíz.
+        if let detail = try? await APIClient.shared.messageDetail(id: msg.id) {
+            let m = detail.message
+            var rebuilt: [ComposePart] = [composePart(type: m.type, body: m.body, mediaId: m.mediaId)]
+            for p in (m.parts ?? []) {
+                rebuilt.append(composePart(type: p.type, body: p.body, mediaId: p.mediaId))
+            }
+            parts = rebuilt
+        }
+    }
+
+    /// Crea una ComposePart a partir de una parte existente del servidor (referencia su media por id).
+    private func composePart(type: MessageType, body: String?, mediaId: String?) -> ComposePart {
+        switch type {
+        case .TEXT:
+            return ComposePart(kind: .text, text: body ?? "")
+        case .IMAGE, .VIDEO, .DOCUMENT:
+            var p = ComposePart(kind: .photoVideo, text: body ?? "")
+            p.existingMediaId = mediaId; p.existingType = type
+            if type == .DOCUMENT { p.asFile = true }
+            return p
+        case .AUDIO:
+            var p = ComposePart(kind: .audio); p.existingMediaId = mediaId; p.existingType = type; return p
+        case .STICKER:
+            var p = ComposePart(kind: .sticker); p.existingMediaId = mediaId; p.existingType = type; return p
+        }
+    }
+
     private func submit() async {
         guard let instanceId, !recipients.isEmpty else { return }
         let sendParts = parts.filter { $0.isSendable }
@@ -498,6 +547,10 @@ struct ComposeView: View {
                     ).mediaId
                 }
                 uploading = false
+            }
+            // Reutilizar el media ya subido (al editar o aplicar plantilla) sin volver a subirlo.
+            for part in sendParts where part.attachment == nil {
+                if let mid = part.existingMediaId { mediaIds[part.id] = mid }
             }
             // Partes adicionales (la parte 0 va en los campos raíz): cada una con su tipo, adjunto y typingMs.
             let extraParts = sendParts.dropFirst().map { part in
@@ -528,7 +581,14 @@ struct ComposeView: View {
                     session.upcoming.append(created)
                 }
             }
+            // Editar = se creó el mensaje editado; ahora se retira el original (cancelar → borrar).
+            if let editing {
+                _ = try? await APIClient.shared.cancelMessage(id: editing.id)
+                _ = try? await APIClient.shared.deleteMessage(id: editing.id)
+                session.upcoming.removeAll { $0.id == editing.id }
+            }
             session.upcoming.sort { $0.nextRunAt < $1.nextRunAt }
+            onSaved?()
             dismiss()
         } catch {
             uploading = false

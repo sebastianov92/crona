@@ -145,6 +145,11 @@ struct ComposePart: Identifiable, Equatable {
     var presetTypingMs: Int?
     /// Adjunto de la parte (foto/video, audio o sticker).
     var attachment: Attachment?
+    /// Media ya subido en el servidor (al editar o aplicar una plantilla): se reutiliza su id
+    /// sin volver a subir. Si hay `attachment`, ese manda.
+    var existingMediaId: String?
+    /// Tipo real del media existente (preserva VIDEO/DOCUMENT al reconstruir).
+    var existingType: MessageType?
     /// Duración de la grabación en ms (solo audio) — alimenta "grabando audio…".
     var durationMs: Int?
     /// Foto: enviar como archivo (documento) para que WhatsApp no la recomprima.
@@ -171,7 +176,7 @@ struct ComposePart: Identifiable, Equatable {
     var isSendable: Bool {
         switch kind {
         case .text: return !trimmed.isEmpty
-        case .photoVideo, .audio, .sticker: return attachment != nil
+        case .photoVideo, .audio, .sticker: return attachment != nil || existingMediaId != nil
         }
     }
 
@@ -180,7 +185,9 @@ struct ComposePart: Identifiable, Equatable {
         switch kind {
         case .text: return .TEXT
         // como archivo → documento: WhatsApp no lo recomprime (calidad original)
-        case .photoVideo: return asFile ? .DOCUMENT : (attachment?.messageType ?? .IMAGE)
+        case .photoVideo:
+            if asFile { return .DOCUMENT }
+            return attachment?.messageType ?? existingType ?? .IMAGE
         case .audio: return .AUDIO
         case .sticker: return .STICKER
         }
@@ -271,10 +278,10 @@ private struct ComposePartRow: View {
                 case .text:
                     textField(placeholder: "Escribe un mensaje")
                 case .photoVideo:
-                    ComposeAttachmentThumb(attachment: part.attachment)
+                    ComposeAttachmentThumb(part: part)
                     textField(placeholder: "Añade un texto (opcional)")
                     // solo para fotos (no video): enviarla como archivo evita la recompresión de WhatsApp
-                    if part.attachment?.messageType == .IMAGE {
+                    if (part.attachment?.messageType ?? part.existingType) == .IMAGE {
                         VStack(alignment: .leading, spacing: 5) {
                             Picker("Enviar como", selection: $part.asFile) {
                                 Text("Foto").tag(false)
@@ -293,7 +300,7 @@ private struct ComposePartRow: View {
                 case .audio:
                     audioRow
                 case .sticker:
-                    ComposeAttachmentThumb(attachment: part.attachment)
+                    ComposeAttachmentThumb(part: part)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -356,37 +363,55 @@ private struct ComposePartRow: View {
     }
 }
 
-/// Miniatura de solo lectura para foto/video/sticker dentro de una parte del compose.
+/// Miniatura de solo lectura para foto/video/sticker de una parte: pinta el adjunto local, o
+/// —al editar/aplicar plantilla— descarga el media existente por su id.
 /// (Sin botón de cerrar: la parte se quita con el "-" de la fila.)
 private struct ComposeAttachmentThumb: View {
-    let attachment: Attachment?
+    let part: ComposePart
+    @State private var remote: PlatformImage?
+
+    private var kindType: MessageType { part.attachment?.messageType ?? part.existingType ?? .IMAGE }
+    private var isImageLike: Bool { kindType == .IMAGE || kindType == .STICKER }
 
     var body: some View {
-        if let attachment {
-            Group {
-                if (attachment.messageType == .IMAGE || attachment.messageType == .STICKER),
-                   let img = platformImage(attachment.data) {
-                    img.resizable()
-                        .aspectRatio(contentMode: attachment.messageType == .STICKER ? .fit : .fill)
+        Group {
+            if let attachment = part.attachment {
+                if isImageLike, let img = platformImage(attachment.data) {
+                    img.resizable().aspectRatio(contentMode: kindType == .STICKER ? .fit : .fill)
                 } else {
-                    VStack(spacing: 6) {
-                        Image(systemName: attachment.messageType == .VIDEO ? "video.fill"
-                              : attachment.messageType == .AUDIO ? "waveform" : "doc.fill")
-                            .font(.title2)
-                        Text(attachment.fileName).font(.caption2).lineLimit(1)
-                        Text(sizeLabel(attachment)).font(.caption2).foregroundStyle(.secondary)
+                    fileBadge(name: attachment.fileName,
+                              size: ByteCountFormatter.string(fromByteCount: Int64(attachment.data.count), countStyle: .file))
+                }
+            } else if part.existingMediaId != nil {
+                if isImageLike {
+                    if let remote {
+                        Image(platform: remote).resizable().aspectRatio(contentMode: kindType == .STICKER ? .fit : .fill)
+                    } else {
+                        ProgressView()
                     }
-                    .padding(8)
+                } else {
+                    fileBadge(name: kindType == .VIDEO ? "Video" : "Documento", size: "adjunto")
                 }
             }
-            .frame(width: 120, height: 90)
-            .background(Color.gray.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .frame(width: 120, height: 90)
+        .background(Color.gray.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .task(id: part.existingMediaId) {
+            if part.attachment == nil, isImageLike, let mid = part.existingMediaId {
+                remote = await MediaCache.image(for: mid)
+            }
         }
     }
 
-    private func sizeLabel(_ a: Attachment) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(a.data.count), countStyle: .file)
+    private func fileBadge(name: String, size: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: kindType == .VIDEO ? "video.fill" : kindType == .AUDIO ? "waveform" : "doc.fill")
+                .font(.title2)
+            Text(name).font(.caption2).lineLimit(1)
+            Text(size).font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(8)
     }
 
     private func platformImage(_ data: Data) -> Image? {

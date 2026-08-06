@@ -164,10 +164,11 @@ struct MessageDetailView: View {
             Task { await load() }
         }
         .sheet(isPresented: $showEdit, onDismiss: { Task { await load() } }) {
-            if let msg { EditMessageView(message: msg) }
+            // Editor completo (mismo que crear): al guardar crea el editado, borra el viejo y cierra el detalle.
+            if let msg { ComposeView(editing: msg, onSaved: { dismiss() }) }
         }
         .sheet(item: $editCopy, onDismiss: { Task { await session.refreshMessages() } }) { copy in
-            EditMessageView(message: copy)
+            ComposeView(editing: copy, onSaved: { dismiss() })
         }
         .alert("¿Cancelar este envío?", isPresented: $confirmCancel) {
             Button("Cancelar envío", role: .destructive) { Task { await cancel() } }
