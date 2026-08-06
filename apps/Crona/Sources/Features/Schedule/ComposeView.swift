@@ -347,6 +347,14 @@ struct ComposeView: View {
             }
             partButton("Voz", "mic.fill") { showRecorder = true }
             partButton("Sticker", "face.smiling") { showStickerPicker = true }
+            Menu {
+                Button { addPart(ComposePart(kind: .poll)) } label: { Label("Encuesta", systemImage: "chart.bar.doc.horizontal") }
+                Button { addPart(ComposePart(kind: .location)) } label: { Label("Ubicación", systemImage: "mappin.and.ellipse") }
+                Button { addPart(ComposePart(kind: .contact)) } label: { Label("Contacto", systemImage: "person.crop.rectangle") }
+            } label: {
+                partButtonLabel("Más", "ellipsis")
+            }
+            .buttonStyle(.plain)
         }
         .disabled(parts.count >= maxParts)
     }
@@ -502,7 +510,7 @@ struct ComposeView: View {
 
     private func mappedTemplate(_ tplParts: [TemplatePart]) -> [ComposePart] {
         tplParts.map { p in
-            var cp = composePart(type: p.type, body: p.body, mediaId: p.mediaId)
+            var cp = composePart(type: p.type, body: p.body, mediaId: p.mediaId, extra: nil)
             cp.presetTypingMs = p.typingMs
             return cp
         }
@@ -529,16 +537,16 @@ struct ComposeView: View {
         // El detalle trae todas las partes con su media; la parte 0 va en los campos raíz.
         if let detail = try? await APIClient.shared.messageDetail(id: msg.id) {
             let m = detail.message
-            var rebuilt: [ComposePart] = [composePart(type: m.type, body: m.body, mediaId: m.mediaId)]
+            var rebuilt: [ComposePart] = [composePart(type: m.type, body: m.body, mediaId: m.mediaId, extra: m.extra)]
             for p in (m.parts ?? []) {
-                rebuilt.append(composePart(type: p.type, body: p.body, mediaId: p.mediaId))
+                rebuilt.append(composePart(type: p.type, body: p.body, mediaId: p.mediaId, extra: p.extra))
             }
             parts = rebuilt
         }
     }
 
     /// Crea una ComposePart a partir de una parte existente del servidor (referencia su media por id).
-    private func composePart(type: MessageType, body: String?, mediaId: String?) -> ComposePart {
+    private func composePart(type: MessageType, body: String?, mediaId: String?, extra: MessageExtra?) -> ComposePart {
         switch type {
         case .TEXT:
             return ComposePart(kind: .text, text: body ?? "")
@@ -551,6 +559,21 @@ struct ComposeView: View {
             var p = ComposePart(kind: .audio); p.existingMediaId = mediaId; p.existingType = type; return p
         case .STICKER:
             var p = ComposePart(kind: .sticker); p.existingMediaId = mediaId; p.existingType = type; return p
+        case .POLL:
+            var p = ComposePart(kind: .poll)
+            p.pollQuestion = extra?.question ?? ""
+            p.pollOptions = (extra?.options?.isEmpty == false) ? extra!.options! : ["", ""]
+            p.pollMultiple = extra?.multiple ?? false
+            return p
+        case .LOCATION:
+            var p = ComposePart(kind: .location)
+            p.latitude = extra?.latitude; p.longitude = extra?.longitude
+            p.locName = extra?.name ?? ""; p.locAddress = extra?.address ?? ""
+            return p
+        case .CONTACT:
+            var p = ComposePart(kind: .contact)
+            p.contactName = extra?.fullName ?? ""; p.contactPhone = extra?.phone ?? ""
+            return p
         }
     }
 
@@ -581,7 +604,7 @@ struct ComposeView: View {
             // Partes adicionales (la parte 0 va en los campos raíz): cada una con su tipo, adjunto y typingMs.
             let extraParts = sendParts.dropFirst().map { part in
                 MessagePart(type: part.messageType, body: part.bodyText,
-                            mediaId: mediaIds[part.id], typingMs: part.typingMs)
+                            mediaId: mediaIds[part.id], extra: part.extra, typingMs: part.typingMs)
             }
             // Varios destinatarios (o una lista): misma hora para todos — el worker los envía
             // UNO POR UNO (escribiendo… → envía → pausa aleatoria 3-9 s → siguiente).
@@ -593,6 +616,7 @@ struct ComposeView: View {
                     type: firstPart.messageType,
                     body: firstPart.bodyText,
                     mediaId: mediaIds[firstPart.id],
+                    extra: firstPart.extra,
                     scheduledAt: schedule.date,
                     timezone: schedule.timezone,
                     recurrence: schedule.recurrence,

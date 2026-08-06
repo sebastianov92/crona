@@ -68,6 +68,21 @@ export const evolution = {
   // Sticker: body { number, sticker } (webp base64 o URL; Evolution convierte png/jpg a webp)
   sendSticker: (n: string, k: string, body: unknown) =>
     evoFetch(`/message/sendSticker/${n}`, { method: "POST", body, apikey: k, timeoutMs: 120_000 }),
+  // Encuesta: body { number, name (pregunta), values (opciones[]), selectableCount }
+  sendPoll: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendPoll/${n}`, { method: "POST", body, apikey: k, timeoutMs: 60_000 }),
+  // Ubicación: body { number, name, address, latitude, longitude }
+  sendLocation: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendLocation/${n}`, { method: "POST", body, apikey: k, timeoutMs: 60_000 }),
+  // Contacto (vCard): body { number, contact: [{ fullName, wuid, phoneNumber }] }
+  sendContact: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendContact/${n}`, { method: "POST", body, apikey: k, timeoutMs: 60_000 }),
+  // Reacción: body { key: {id, remoteJid, fromMe}, reaction (emoji, "" quita) }
+  sendReaction: (n: string, k: string, body: unknown) =>
+    evoFetch(`/message/sendReaction/${n}`, { method: "POST", body, apikey: k, timeoutMs: 30_000 }),
+  // Eliminar para todos: body { id, remoteJid, fromMe, participant? }
+  deleteForEveryone: (n: string, k: string, body: unknown) =>
+    evoFetch(`/chat/deleteMessageForEveryone/${n}`, { method: "DELETE", body, apikey: k, timeoutMs: 30_000 }),
   // Descarga el media de un mensaje (por su key) como base64 — se usa para capturar stickers
   getBase64FromMedia: (n: string, k: string, messageKey: unknown) =>
     evoFetch(`/chat/getBase64FromMediaMessage/${n}`, {

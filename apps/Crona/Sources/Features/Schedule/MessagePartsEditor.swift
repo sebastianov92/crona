@@ -134,7 +134,21 @@ struct ComposePart: Identifiable, Equatable {
         case photoVideo    // imagen o video, con caption de texto opcional
         case audio         // nota de voz (sin texto)
         case sticker       // sticker (sin texto)
+        case poll          // encuesta (pregunta + opciones)
+        case location      // ubicación (lat/lng + nombre/dirección)
+        case contact       // tarjeta de contacto (nombre + número)
     }
+
+    // Datos de los tipos especiales (F4). Solo se usan según el kind.
+    var pollQuestion: String = ""
+    var pollOptions: [String] = ["", ""]
+    var pollMultiple: Bool = false
+    var latitude: Double?
+    var longitude: Double?
+    var locName: String = ""
+    var locAddress: String = ""
+    var contactName: String = ""
+    var contactPhone: String = ""
 
     var kind: Kind
     /// Texto de la parte, o caption de la foto/video. Vacío en audio/sticker.
@@ -172,11 +186,17 @@ struct ComposePart: Identifiable, Equatable {
     /// ¿Lleva campo de texto editable? (texto propio, o caption de foto/video)
     var hasTextField: Bool { kind == .text || kind == .photoVideo }
 
+    /// Opciones de encuesta no vacías.
+    var validPollOptions: [String] { pollOptions.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+
     /// ¿Esta parte tiene contenido suficiente para enviarse?
     var isSendable: Bool {
         switch kind {
         case .text: return !trimmed.isEmpty
         case .photoVideo, .audio, .sticker: return attachment != nil || existingMediaId != nil
+        case .poll: return !pollQuestion.trimmingCharacters(in: .whitespaces).isEmpty && validPollOptions.count >= 2
+        case .location: return latitude != nil && longitude != nil
+        case .contact: return !contactPhone.filter(\.isNumber).isEmpty
         }
     }
 
@@ -190,6 +210,24 @@ struct ComposePart: Identifiable, Equatable {
             return attachment?.messageType ?? existingType ?? .IMAGE
         case .audio: return .AUDIO
         case .sticker: return .STICKER
+        case .poll: return .POLL
+        case .location: return .LOCATION
+        case .contact: return .CONTACT
+        }
+    }
+
+    /// Payload especial para el servidor (nil en tipos normales).
+    var extra: MessageExtra? {
+        switch kind {
+        case .poll:
+            return MessageExtra(question: pollQuestion, options: validPollOptions, multiple: pollMultiple)
+        case .location:
+            return MessageExtra(latitude: latitude, longitude: longitude,
+                                name: locName.isEmpty ? nil : locName, address: locAddress.isEmpty ? nil : locAddress)
+        case .contact:
+            return MessageExtra(fullName: contactName.isEmpty ? nil : contactName, phone: contactPhone.filter(\.isNumber))
+        default:
+            return nil
         }
     }
 
@@ -223,6 +261,8 @@ struct ComposePart: Identifiable, Equatable {
             return clampTypingMs(durationMs ?? Self.defaultMediaTypingMs)
         case .sticker:
             return clampTypingMs(Self.defaultMediaTypingMs)
+        case .poll, .location, .contact:
+            return nil // encuesta/ubicación/contacto no muestran "escribiendo…"
         }
     }
 }
@@ -303,6 +343,12 @@ private struct ComposePartRow: View {
                     audioRow
                 case .sticker:
                     ComposeAttachmentThumb(part: part)
+                case .poll:
+                    pollEditor
+                case .location:
+                    locationEditor
+                case .contact:
+                    contactEditor
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -362,6 +408,69 @@ private struct ComposePartRow: View {
     private func durationLabel(_ ms: Int) -> String {
         let s = ms / 1000
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    private func boxed<V: View>(_ view: V) -> some View {
+        view.padding(8).background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Editores de tipos especiales (F4)
+
+    private var pollEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Encuesta", systemImage: "chart.bar.doc.horizontal").font(.caption).foregroundStyle(Theme.accent)
+            boxed(TextField("Pregunta", text: $part.pollQuestion, axis: .vertical).lineLimit(1...3))
+            ForEach($part.pollOptions.indices, id: \.self) { i in
+                HStack(spacing: 8) {
+                    boxed(TextField("Opción \(i + 1)", text: $part.pollOptions[i]))
+                    if part.pollOptions.count > 2 {
+                        Button { part.pollOptions.remove(at: i) } label: {
+                            Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                        }.buttonStyle(.plain)
+                    }
+                }
+            }
+            if part.pollOptions.count < 12 {
+                Button { part.pollOptions.append("") } label: {
+                    Label("Agregar opción", systemImage: "plus.circle").font(.caption)
+                }.buttonStyle(.plain).foregroundStyle(Theme.accent)
+            }
+            Toggle("Permitir varias respuestas", isOn: $part.pollMultiple).font(.caption)
+        }
+    }
+
+    private var locationEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Ubicación", systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(Theme.accent)
+            boxed(TextField("Nombre (ej. Oficina)", text: $part.locName))
+            boxed(TextField("Dirección (opcional)", text: $part.locAddress))
+            HStack(spacing: 8) {
+                boxed(TextField("Latitud", value: $part.latitude, format: .number)
+                    #if os(iOS)
+                    .keyboardType(.numbersAndPunctuation)
+                    #endif
+                )
+                boxed(TextField("Longitud", value: $part.longitude, format: .number)
+                    #if os(iOS)
+                    .keyboardType(.numbersAndPunctuation)
+                    #endif
+                )
+            }
+            Text("En Google Maps: mantén pulsado el lugar → copia las coordenadas (lat, long) y pégalas.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private var contactEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Contacto", systemImage: "person.crop.rectangle").font(.caption).foregroundStyle(Theme.accent)
+            boxed(TextField("Nombre", text: $part.contactName))
+            boxed(TextField("Número con código de país (ej. 593991234567)", text: $part.contactPhone)
+                #if os(iOS)
+                .keyboardType(.phonePad)
+                #endif
+            )
+        }
     }
 }
 

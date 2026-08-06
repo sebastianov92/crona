@@ -10,6 +10,7 @@ export const messageDTO = (m: ScheduledMessage & { parts?: MessagePart[] }) => (
   type: m.type,
   body: m.body,
   mediaId: m.mediaId,
+  extra: m.extra ?? null,
   timezone: m.timezone,
   scheduledAt: m.scheduledAt,
   recurrence: m.recurrence,
@@ -27,7 +28,7 @@ export const messageDTO = (m: ScheduledMessage & { parts?: MessagePart[] }) => (
   // partes adicionales del split (vacío = mensaje normal de una sola parte)
   parts: [...(m.parts ?? [])]
     .sort((a, b) => a.order - b.order)
-    .map((p) => ({ type: p.type, body: p.body, mediaId: p.mediaId, typingMs: p.typingMs })),
+    .map((p) => ({ type: p.type, body: p.body, mediaId: p.mediaId, extra: p.extra ?? null, typingMs: p.typingMs })),
 });
 
 export const logDTO = (l: MessageLog) => ({

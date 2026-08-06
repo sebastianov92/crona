@@ -385,6 +385,8 @@ extension APIClient {
     func duplicateMessage(id: String) async throws -> ScheduledMessage { try await request("POST", "/messages/\(id)/duplicate") }
     func deleteMessage(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/\(id)") }
     func deleteLog(id: String) async throws -> OkResponse { try await request("DELETE", "/messages/logs/\(id)") }
+    /// Borra el mensaje ya enviado en el WhatsApp del destinatario (ventana ~2 días).
+    func deleteMessageForEveryone(logId: String) async throws -> OkResponse { try await request("POST", "/messages/logs/\(logId)/delete-for-everyone") }
 
     // Biblioteca de stickers
     func stickers() async throws -> Paginated<StickerAsset> { try await request("GET", "/stickers") }

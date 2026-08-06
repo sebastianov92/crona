@@ -14,6 +14,13 @@ struct HistoryView: View {
     @State private var statusFilter: StatusFilter = .all
     @State private var openMsg: MsgRef?
     @State private var pendingDelete: HistoryItem?
+    @State private var pendingRemote: HistoryItem?
+
+    /// ¿Se puede borrar en el WhatsApp del destinatario? Solo envíos exitosos < ~2 días.
+    private func canDeleteRemote(_ item: HistoryItem) -> Bool {
+        guard item.status == .SENT || item.status == .DELIVERED || item.status == .READ else { return false }
+        return item.runAt.timeIntervalSinceNow > -2 * 24 * 3600
+    }
 
     private func matchesStatus(_ item: HistoryItem, _ f: StatusFilter) -> Bool {
         switch f {
@@ -93,6 +100,13 @@ struct HistoryView: View {
                             Label("Borrar", systemImage: "trash")
                         }
                         .tint(.red)   // el tint verde global de la app pisa el rojo del rol destructivo
+                        // Borrar el mensaje ya entregado en el chat del destinatario (ventana ~2 días).
+                        if canDeleteRemote(item) {
+                            Button { pendingRemote = item } label: {
+                                Label("Eliminar de WhatsApp", systemImage: "trash.slash")
+                            }
+                            .tint(.orange)
+                        }
                     }
                 }
             }
@@ -118,6 +132,18 @@ struct HistoryView: View {
                 Button("Cancelar", role: .cancel) { pendingDelete = nil }
             } message: {
                 Text("Se quita del historial. No afecta al mensaje programado.")
+            }
+            .alert(
+                "¿Eliminar de WhatsApp?",
+                isPresented: Binding(get: { pendingRemote != nil }, set: { if !$0 { pendingRemote = nil } })
+            ) {
+                Button("Eliminar", role: .destructive) {
+                    if let item = pendingRemote { Task { await deleteRemote(item) } }
+                    pendingRemote = nil
+                }
+                Button("Cancelar", role: .cancel) { pendingRemote = nil }
+            } message: {
+                Text("Borra el mensaje en el chat del destinatario (\"Eliminar para todos\"). Solo funciona dentro de las ~48 h del envío.")
             }
             } // VStack
         }
@@ -172,5 +198,12 @@ struct HistoryView: View {
             session.report(error)
             await session.refreshHistory()
         }
+    }
+
+    /// "Eliminar para todos" en el chat del destinatario. No toca el historial local.
+    private func deleteRemote(_ item: HistoryItem) async {
+        do {
+            _ = try await APIClient.shared.deleteMessageForEveryone(logId: item.id)
+        } catch { session.report(error) }
     }
 }

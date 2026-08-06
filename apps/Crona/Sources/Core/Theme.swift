@@ -92,6 +92,9 @@ extension MessageType {
         case .DOCUMENT: return "📄 Documento"
         case .AUDIO: return "🎤 Nota de voz"
         case .STICKER: return "🌟 Sticker"
+        case .POLL: return "📊 Encuesta"
+        case .LOCATION: return "📍 Ubicación"
+        case .CONTACT: return "👤 Contacto"
         }
     }
 }

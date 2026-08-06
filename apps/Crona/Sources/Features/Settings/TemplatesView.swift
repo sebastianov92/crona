@@ -313,6 +313,7 @@ struct TemplateEditView: View {
             if type == .DOCUMENT { p.asFile = true }; return p
         case .AUDIO: var p = ComposePart(kind: .audio); p.existingMediaId = mediaId; p.existingType = type; return p
         case .STICKER: var p = ComposePart(kind: .sticker); p.existingMediaId = mediaId; p.existingType = type; return p
+        case .POLL, .LOCATION, .CONTACT: return ComposePart(kind: .text, text: body ?? "") // las plantillas no llevan estos tipos
         }
     }
 

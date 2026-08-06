@@ -31,6 +31,9 @@ enum MessageType {
   DOCUMENT
   AUDIO
   STICKER
+  POLL
+  LOCATION
+  CONTACT
 }
 
 enum Recurrence {
@@ -375,6 +378,7 @@ model ScheduledMessage {
   isAutoReply         Boolean        @default(false) // creado por una regla de respuesta automática
   randomDelay         Boolean        @default(false) // recurrentes: variar cada ocurrencia +1..5 min (anti-detección)
   typingMs            Int? // cuánto mostrar "escribiendo…/grabando audio…" antes de enviar (lo que tardó el usuario al redactar)
+  extra               Json? // datos del tipo especial: encuesta {question,options,multiple} / ubicación {latitude,longitude,name,address} / contacto {fullName,phone}
   attempts            Int            @default(0) // de la ocurrencia actual
   lastError           String?
   claimedAt           DateTime? // claim del worker (§17); NULL cuando no está en proceso
@@ -400,6 +404,7 @@ model MessagePart {
   body      String?
   mediaId   String?
   typingMs  Int?
+  extra     Json? // datos del tipo especial (encuesta/ubicación/contacto), igual que en ScheduledMessage
 
   @@index([messageId, order])
 }

@@ -211,32 +211,68 @@ function classifySendError(raw: string): SendErrorInfo {
 async function sendPart(
   msg: FullMessage,
   key: string,
-  part: { type: string; body: string | null; mediaId: string | null; typingMs: number | null } | null,
+  part: { type: string; body: string | null; mediaId: string | null; typingMs: number | null; extra?: unknown } | null,
 ): Promise<string | undefined> {
+  const n = msg.instance.instanceName;
   const type = part ? part.type : msg.type;
   const body = part ? part.body : msg.body;
   const delay = (part ? part.typingMs : msg.typingMs) ?? 1800; // "escribiendo…" el tiempo real de redacción
+  const extra = (part ? part.extra : (msg as { extra?: unknown }).extra) as
+    | { question?: string; options?: string[]; multiple?: boolean; latitude?: number; longitude?: number; name?: string; address?: string; fullName?: string; phone?: string; mentions?: string[] }
+    | null;
+
+  const keyId = (r: any) => r?.key?.id ?? r?.response?.key?.id;
+
+  // Tipos especiales (F4): encuesta, ubicación, contacto.
+  if (type === "POLL") {
+    const opts = (extra?.options ?? []).filter((o) => typeof o === "string" && o.trim().length > 0);
+    return keyId(await evolution.sendPoll(n, key, {
+      number: msg.recipientJid,
+      name: renderVariables(extra?.question ?? body ?? "", msg),
+      values: opts,
+      selectableCount: extra?.multiple ? opts.length : 1,
+    }));
+  }
+  if (type === "LOCATION") {
+    return keyId(await evolution.sendLocation(n, key, {
+      number: msg.recipientJid,
+      latitude: Number(extra?.latitude ?? 0),
+      longitude: Number(extra?.longitude ?? 0),
+      name: extra?.name ?? "",
+      address: extra?.address ?? "",
+    }));
+  }
+  if (type === "CONTACT") {
+    const phone = String(extra?.phone ?? "").replace(/\D/g, "");
+    return keyId(await evolution.sendContact(n, key, {
+      number: msg.recipientJid,
+      contact: [{ fullName: extra?.fullName || phone, wuid: phone, phoneNumber: `+${phone}` }],
+    }));
+  }
+
   // buildMediaPayload/buildAudioPayload leen del mensaje: para partes con adjunto propio
   // se les pasa una copia con el mediaId y el texto de esa parte
   const asMessage = part
     ? ({ ...msg, type: part.type, body: part.body, mediaId: part.mediaId, typingMs: part.typingMs } as FullMessage)
     : msg;
+  const mentioned = Array.isArray(extra?.mentions) && extra.mentions.length ? extra.mentions : undefined; // @menciones en grupo
 
   const res =
     type === "TEXT"
-      ? await evolution.sendText(msg.instance.instanceName, key, {
+      ? await evolution.sendText(n, key, {
           number: msg.recipientJid, // regla §5.2: usar el jid guardado tal cual
           text: renderVariables(body ?? "", msg),
           delay,
           linkPreview: true, // muestra vista previa de enlaces
+          ...(mentioned ? { mentioned } : {}),
         })
       : type === "AUDIO"
-        ? await evolution.sendAudio(msg.instance.instanceName, key, await buildAudioPayload(asMessage))
+        ? await evolution.sendAudio(n, key, await buildAudioPayload(asMessage))
         : type === "STICKER"
-          ? await evolution.sendSticker(msg.instance.instanceName, key, await buildStickerPayload(asMessage))
-          : await evolution.sendMedia(msg.instance.instanceName, key, await buildMediaPayload(asMessage));
+          ? await evolution.sendSticker(n, key, await buildStickerPayload(asMessage))
+          : await evolution.sendMedia(n, key, await buildMediaPayload(asMessage));
 
-  return res?.key?.id ?? res?.response?.key?.id;
+  return keyId(res);
 }
 
 async function sendOne(msg: FullMessage): Promise<void> {

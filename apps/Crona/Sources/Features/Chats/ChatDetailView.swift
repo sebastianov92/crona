@@ -388,6 +388,9 @@ private struct BubbleView: View {
         case .DOCUMENT: return "Documento"
         case .AUDIO: return "Nota de voz"
         case .STICKER: return "Sticker"
+        case .POLL: return "Encuesta"
+        case .LOCATION: return "Ubicación"
+        case .CONTACT: return "Contacto"
         case .TEXT: return ""
         }
     }
@@ -399,6 +402,9 @@ private struct BubbleView: View {
         case .DOCUMENT: return "doc.fill"
         case .AUDIO: return "waveform"
         case .STICKER: return "face.smiling"
+        case .POLL: return "chart.bar.fill"
+        case .LOCATION: return "mappin.and.ellipse"
+        case .CONTACT: return "person.crop.circle.fill"
         case .TEXT: return "bubble"
         }
     }

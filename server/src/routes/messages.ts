@@ -8,10 +8,32 @@ import { messageDTO, logDTO, historyItemDTO } from "../lib/message-dto.js";
 import { encodeCursor, decodeCursor } from "../lib/pagination.js";
 import { broadcast } from "../ws/hub.js";
 import { tick } from "../services/scheduler.js";
+import { evolution } from "../services/evolution.js";
+import { decrypt } from "../services/crypto.js";
 
 const MIN_LEAD_MS = 60_000; // scheduledAt mínimo now()+60s
 
 const RecurrenceEnum = z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"]);
+
+const MSG_TYPES = ["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER", "POLL", "LOCATION", "CONTACT"] as const;
+const NEEDS_MEDIA = new Set<string>(["IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]);
+
+// Payload de tipos especiales (F4): encuesta / ubicación / contacto / menciones.
+const ExtraInput = z
+  .object({
+    question: z.string().max(300).optional(),
+    options: z.array(z.string().min(1).max(100)).max(12).optional(),
+    multiple: z.boolean().optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    name: z.string().max(200).optional(),
+    address: z.string().max(300).optional(),
+    fullName: z.string().max(200).optional(),
+    phone: z.string().max(20).optional(),
+    mentions: z.array(z.string()).max(256).optional(),
+  })
+  .nullable()
+  .optional();
 
 const CreateBody = z.object({
   instanceId: z.string().uuid(),
@@ -21,9 +43,10 @@ const CreateBody = z.object({
     kind: z.enum(["CONTACT", "GROUP"]),
     pictureUrl: z.string().nullable().optional(),
   }),
-  type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]),
+  type: z.enum(MSG_TYPES),
   body: z.string().max(4096).nullable().optional(),
   mediaId: z.string().uuid().nullable().optional(),
+  extra: ExtraInput,
   scheduledAt: z.coerce.date(),
   timezone: z.string().default("America/Guayaquil"),
   recurrence: RecurrenceEnum.default("NONE"),
@@ -37,9 +60,10 @@ const CreateBody = z.object({
   parts: z
     .array(
       z.object({
-        type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]).default("TEXT"),
+        type: z.enum(MSG_TYPES).default("TEXT"),
         body: z.string().max(4096).nullable().optional(),
         mediaId: z.string().uuid().nullable().optional(),
+        extra: ExtraInput,
         typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
       }),
     )
@@ -47,10 +71,13 @@ const CreateBody = z.object({
     .default([]),
 });
 
+type ExtraData = z.infer<typeof ExtraInput>;
+
 function validateContent(input: {
   type: string;
   body?: string | null;
   mediaId?: string | null;
+  extra?: ExtraData;
   recurrence: string;
   recurrenceDays: number[];
   scheduledAt?: Date;
@@ -61,8 +88,20 @@ function validateContent(input: {
   if (input.type === "TEXT" && !input.body?.trim()) {
     throw errors.validation("El mensaje de texto no puede estar vacío.");
   }
-  if (input.type !== "TEXT" && !input.mediaId) {
+  if (NEEDS_MEDIA.has(input.type) && !input.mediaId) {
     throw errors.validation("Los mensajes con foto, video, documento, audio o sticker necesitan un archivo adjunto.");
+  }
+  if (input.type === "POLL") {
+    const opts = (input.extra?.options ?? []).filter((o) => o?.trim());
+    if (!input.extra?.question?.trim() || opts.length < 2) {
+      throw errors.validation("La encuesta necesita una pregunta y al menos 2 opciones.");
+    }
+  }
+  if (input.type === "LOCATION" && (typeof input.extra?.latitude !== "number" || typeof input.extra?.longitude !== "number")) {
+    throw errors.validation("La ubicación necesita latitud y longitud.");
+  }
+  if (input.type === "CONTACT" && !String(input.extra?.phone ?? "").replace(/\D/g, "")) {
+    throw errors.validation("El contacto necesita un número.");
   }
   if (input.recurrence === "WEEKLY" && input.recurrenceDays.length === 0) {
     throw errors.validation("La recurrencia semanal necesita al menos un día.");
@@ -128,8 +167,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
     if (!instance) throw errors.notFound("La instancia");
     if (body.mediaId) await assertOwnMedia(req.userId, body.mediaId);
     for (const p of body.parts) {
-      if (p.type === "TEXT" && !p.body?.trim()) throw errors.validation("Ninguna parte del mensaje puede estar vacía.");
-      if (p.type !== "TEXT" && !p.mediaId) throw errors.validation("Las partes con adjunto necesitan un archivo.");
+      validateContent({ type: p.type, body: p.body, mediaId: p.mediaId, extra: p.extra, recurrence: "NONE", recurrenceDays: [] });
       if (p.mediaId) await assertOwnMedia(req.userId, p.mediaId);
     }
 
@@ -144,6 +182,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         type: body.type,
         body: body.body ?? null,
         mediaId: body.mediaId ?? null,
+        extra: body.extra ?? undefined,
         timezone: body.timezone,
         scheduledAt: body.scheduledAt,
         recurrence: body.recurrence,
@@ -158,6 +197,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
             type: p.type,
             body: p.body ?? null,
             mediaId: p.mediaId ?? null,
+            extra: p.extra ?? undefined,
             typingMs: p.typingMs ?? null,
           })),
         },
@@ -204,6 +244,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
       type: msg.type,
       body: patch.body !== undefined ? patch.body : msg.body,
       mediaId: patch.mediaId !== undefined ? patch.mediaId : msg.mediaId,
+      extra: msg.extra as ExtraData, // conservar el payload especial (encuesta/ubicación/contacto) al posponer/editar
       recurrence: patch.recurrence ?? msg.recurrence,
       recurrenceDays: patch.recurrenceDays ?? msg.recurrenceDays,
       scheduledAt: patch.scheduledAt,
@@ -298,6 +339,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
             type: p.type,
             body: p.body,
             mediaId: p.mediaId,
+            extra: p.extra ?? undefined,
             typingMs: p.typingMs,
           })),
         },
@@ -309,6 +351,7 @@ export function registerMessageRoutes(app: FastifyInstance) {
         type: msg.type,
         body: msg.body,
         mediaId: msg.mediaId,
+        extra: msg.extra ?? undefined,
         timezone: msg.timezone,
         scheduledAt,
         recurrence: msg.recurrence,
@@ -331,6 +374,31 @@ export function registerMessageRoutes(app: FastifyInstance) {
     });
     if (!log) throw errors.notFound("El registro");
     await prisma.messageLog.delete({ where: { id } });
+    return { ok: true };
+  });
+
+  // Eliminar para todos en WhatsApp un mensaje ya enviado (ventana ~2 días).
+  app.post("/messages/logs/:id/delete-for-everyone", { preHandler: authenticate }, async (req) => {
+    const { id } = req.params as { id: string };
+    const log = await prisma.messageLog.findFirst({
+      where: { id, scheduledMessage: { userId: req.userId } },
+      include: { scheduledMessage: { include: { instance: true } } },
+    });
+    if (!log) throw errors.notFound("El registro");
+    if (!["SENT", "DELIVERED", "READ"].includes(log.status)) {
+      throw errors.validation("Solo se puede eliminar un mensaje que se envió correctamente.");
+    }
+    if (!log.evolutionMessageId) throw errors.validation("Este mensaje no tiene identificador de WhatsApp para eliminarlo.");
+    const sent = log.sentAt ?? log.runAt;
+    if (Date.now() - sent.getTime() > 2 * 24 * 3600_000) {
+      throw errors.validation("Ya pasó el tiempo para eliminarlo para todos (WhatsApp permite ~2 días).");
+    }
+    const inst = log.scheduledMessage.instance;
+    await evolution.deleteForEveryone(inst.instanceName, decrypt(inst.tokenEnc), {
+      id: log.evolutionMessageId,
+      remoteJid: log.remoteJid,
+      fromMe: true,
+    });
     return { ok: true };
   });
 

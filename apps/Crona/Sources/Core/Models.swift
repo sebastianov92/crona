@@ -5,7 +5,27 @@ import Foundation
 enum Role: String, Codable, CaseIterable { case ADMIN, USER }
 enum InstanceStatus: String, Codable, CaseIterable { case CREATED, CONNECTING, CONNECTED, DISCONNECTED }
 enum RecipientKind: String, Codable, CaseIterable { case CONTACT, GROUP }
-enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER }
+enum MessageType: String, Codable, CaseIterable { case TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER, POLL, LOCATION, CONTACT
+    // tipos desconocidos de un servidor más nuevo no rompen el decode
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = MessageType(rawValue: raw) ?? .TEXT
+    }
+}
+
+/// Payload de tipos especiales (F4): encuesta / ubicación / contacto / menciones.
+struct MessageExtra: Codable, Hashable {
+    var question: String?
+    var options: [String]?
+    var multiple: Bool?
+    var latitude: Double?
+    var longitude: Double?
+    var name: String?
+    var address: String?
+    var fullName: String?
+    var phone: String?
+    var mentions: [String]?
+}
 enum Recurrence: String, Codable, CaseIterable { case NONE, DAILY, WEEKLY, MONTHLY, YEARLY }
 enum AutoReplyAction: String, Codable, CaseIterable { case REPLY, NOTIFY }
 enum ScheduleStatus: String, Codable, CaseIterable { case ACTIVE, PAUSED, COMPLETED, CANCELLED, FAILED }
@@ -193,6 +213,7 @@ struct ScheduledMessage: Identifiable, Codable, Hashable {
     let type: MessageType
     var body: String?
     var mediaId: String?
+    var extra: MessageExtra? = nil
     var timezone: String
     var scheduledAt: Date
     var recurrence: Recurrence
@@ -219,6 +240,7 @@ struct MessagePart: Codable, Hashable {
     var type: MessageType = .TEXT
     var body: String?
     var mediaId: String?
+    var extra: MessageExtra? = nil
     var typingMs: Int?
 }
 
@@ -379,6 +401,7 @@ struct CreateMessageBody: Codable, Hashable {
     var type: MessageType
     var body: String?
     var mediaId: String?
+    var extra: MessageExtra? = nil
     var scheduledAt: Date
     var timezone: String
     var recurrence: Recurrence
