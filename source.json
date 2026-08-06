@@ -20,9 +20,9 @@
         {
           "version": "1.5.3",
           "date": "2026-08-06",
-          "size": 5310929,
+          "size": 5327692,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.3/Crona.ipa",
-          "localizedDescription": "Actualización v1.5.3",
+          "localizedDescription": "Editar un mensaje ahora usa el editor completo, igual que al crearlo: puedes añadir o quitar partes (texto, foto, voz, sticker), cambiar el archivo y la programación entera.",
           "minOSVersion": "17.0"
         }
       ],
