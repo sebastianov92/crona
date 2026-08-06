@@ -1,0 +1,19 @@
+name: Notify Dezik source
+
+# Al publicar un release, avisa al repo Dezik para que actualice apps.json
+# al instante (en vez de esperar el cron). Solo dispara un evento; no toca la app.
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch a Dezik
+        run: |
+          curl -sf -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.DEZIK_PAT }}" \
+            https://api.github.com/repos/sebastianov92/Dezik/dispatches \
+            -d '{"event_type":"update-source"}'
