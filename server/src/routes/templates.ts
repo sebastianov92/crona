@@ -7,10 +7,19 @@ import { errors } from "../lib/errors.js";
 // Plantillas de mensaje. Privadas (solo su dueño) o públicas (todos las ven y usan,
 // pero solo el creador puede editarlas o borrarlas; un ADMIN también puede borrarlas).
 
-const PartInput = z.object({
-  body: z.string().min(1).max(4096),
-  typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
-});
+const MSG_TYPES = ["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"] as const;
+
+const PartInput = z
+  .object({
+    type: z.enum(MSG_TYPES).default("TEXT"),
+    body: z.string().max(4096).optional(),
+    mediaId: z.string().uuid().nullable().optional(),
+    typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
+  })
+  // cada parte debe tener texto o media
+  .refine((p) => (p.body && p.body.trim().length > 0) || !!p.mediaId, {
+    message: "Cada parte necesita texto o un archivo.",
+  });
 
 const templateDTO = (t: {
   id: string;
@@ -19,7 +28,7 @@ const templateDTO = (t: {
   kind: string;
   isPublic: boolean;
   createdAt: Date;
-  parts: { order: number; body: string; typingMs: number | null }[];
+  parts: { order: number; type: string; body: string | null; mediaId: string | null; typingMs: number | null }[];
   user?: { name: string } | null;
 }) => ({
   id: t.id,
@@ -31,8 +40,16 @@ const templateDTO = (t: {
   createdAt: t.createdAt,
   parts: [...t.parts]
     .sort((a, b) => a.order - b.order)
-    .map((p) => ({ body: p.body, typingMs: p.typingMs })),
+    .map((p) => ({ type: p.type, body: p.body, mediaId: p.mediaId, typingMs: p.typingMs })),
 });
+
+/** Verifica que todos los mediaId de las partes sean del usuario (o lanza NOT_FOUND). */
+async function assertOwnPartMedia(userId: string, parts: { mediaId?: string | null }[]) {
+  const ids = [...new Set(parts.map((p) => p.mediaId).filter((x): x is string => !!x))];
+  if (ids.length === 0) return;
+  const count = await prisma.media.count({ where: { id: { in: ids }, userId } });
+  if (count !== ids.length) throw errors.notFound("El archivo");
+}
 
 export function registerTemplateRoutes(app: FastifyInstance) {
   app.get("/templates", { preHandler: authenticate }, async (req) => {
@@ -58,6 +75,7 @@ export function registerTemplateRoutes(app: FastifyInstance) {
 
   app.post("/templates", { preHandler: authenticate }, async (req, reply) => {
     const body = CreateBody.parse(req.body);
+    await assertOwnPartMedia(req.userId, body.parts);
     const created = await prisma.template.create({
       data: {
         userId: req.userId,
@@ -65,7 +83,9 @@ export function registerTemplateRoutes(app: FastifyInstance) {
         kind: body.kind,
         isPublic: body.isPublic,
         parts: {
-          create: body.parts.map((p, i) => ({ order: i, body: p.body, typingMs: p.typingMs ?? null })),
+          create: body.parts.map((p, i) => ({
+            order: i, type: p.type, body: p.body?.trim() || null, mediaId: p.mediaId ?? null, typingMs: p.typingMs ?? null,
+          })),
         },
       },
       include: { parts: true, user: { select: { name: true } } },
@@ -86,6 +106,7 @@ export function registerTemplateRoutes(app: FastifyInstance) {
     if (!tpl) throw errors.notFound("La plantilla");
     // pública o no, editar es solo del creador
     if (tpl.userId !== req.userId) throw errors.forbidden();
+    if (body.parts) await assertOwnPartMedia(req.userId, body.parts);
 
     const updated = await prisma.template.update({
       where: { id },
@@ -96,7 +117,9 @@ export function registerTemplateRoutes(app: FastifyInstance) {
           ? {
               parts: {
                 deleteMany: {},
-                create: body.parts.map((p, i) => ({ order: i, body: p.body, typingMs: p.typingMs ?? null })),
+                create: body.parts.map((p, i) => ({
+                  order: i, type: p.type, body: p.body?.trim() || null, mediaId: p.mediaId ?? null, typingMs: p.typingMs ?? null,
+                })),
               },
             }
           : {}),
