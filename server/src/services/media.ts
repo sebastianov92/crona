@@ -26,7 +26,10 @@ const LIMITS: Record<string, { maxBytes: number; ext: string; mediatype: "image"
   "audio/wav": { maxBytes: 16 * 1024 * 1024, ext: "wav", mediatype: "audio" },
 };
 
-const BASE64_MAX = 3 * 1024 * 1024; // ≤3 MB base64; >3 MB URL firmada (SPEC §5.3)
+// ≤16 MB → base64 PURO en el propio envío (no depende de que Evolution alcance la URL interna);
+// >16 MB (videos/PDF grandes) → URL interna firmada. Antes eran 3 MB, y las fotos >3 MB caían en
+// la URL: si Evolution no la alcanzaba o la descargaba dos veces, fallaba con "media must be url/base64".
+const BASE64_MAX = 16 * 1024 * 1024;
 
 export function mediaSpec(mimeType: string) {
   return LIMITS[mimeType] ?? null;
@@ -59,13 +62,9 @@ export async function deleteMediaFile(media: Media): Promise<void> {
   await unlink(mediaAbsPath(media)).catch(() => {});
 }
 
-// ── URLs internas firmadas de un solo uso (§17.3) ─────────────────────────────
-
-const usedTokens = new Map<string, number>(); // token → exp (epoch s)
-setInterval(() => {
-  const now = Date.now() / 1000;
-  for (const [t, e] of usedTokens) if (e < now) usedTokens.delete(t);
-}, 60_000).unref();
+// ── URLs internas firmadas (HMAC, expiración corta) ───────────────────────────
+// Multiuso dentro del TTL: Evolution/Baileys puede hacer HEAD+GET o reintentar la descarga,
+// así que un token de un solo uso rompía el envío de media grande. El TTL corto acota la fuga.
 
 export function signMediaToken(mediaId: string, ttlSec = 900): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSec;
@@ -75,15 +74,13 @@ export function signMediaToken(mediaId: string, ttlSec = 900): string {
 }
 
 export function consumeMediaToken(token: string): string | null {
-  // → mediaId | null
+  // → mediaId | null (verifica firma + expiración; no consume el token)
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
   const expect = createHmac("sha256", config.ENCRYPTION_KEY).update(payload).digest("base64url");
   if (sig.length !== expect.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) return null;
   const [mediaId, expStr] = Buffer.from(payload, "base64url").toString().split(".");
-  const exp = Number(expStr);
-  if (exp < Date.now() / 1000 || usedTokens.has(token)) return null;
-  usedTokens.set(token, exp);
+  if (Number(expStr) < Date.now() / 1000) return null;
   return mediaId;
 }
 

@@ -240,11 +240,13 @@ struct ComposePartsEditor: View {
 
     var body: some View {
         ForEach($parts) { $part in
+            // Se puede quitar cualquier parte con contenido; quitar la última la vuelve a texto vacío.
             ComposePartRow(part: $part,
-                           canRemove: parts.count > 1,
+                           canRemove: parts.count > 1 || part.isSendable,
                            focused: $focused,
                            scrollProxy: scrollProxy) {
-                parts.removeAll { $0.id == part.id }
+                if parts.count > 1 { parts.removeAll { $0.id == part.id } }
+                else { parts = [ComposePart(kind: .text)] }
             }
             .id(part.id) // ancla para scrollTo: el cursor nunca queda tapado por el teclado
         }
