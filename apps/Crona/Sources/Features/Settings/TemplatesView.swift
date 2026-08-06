@@ -144,7 +144,6 @@ struct TemplateEditView: View {
                 }
                 Section {
                     ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
-                    if allowsMedia { addPartBar } else { addTextButton }
                     if parts.contains(where: { $0.hasTextField }) {
                         VariableChips { insertVariable($0) }
                         Text("Toca una variable para insertarla; se reemplaza al enviar (ej. {primer_nombre} → Dani).")
@@ -166,6 +165,15 @@ struct TemplateEditView: View {
                 if let error { Section { Text(error).foregroundStyle(.red) } }
             }
             .formStyle(.grouped)
+            // Barra de acciones fija sobre el teclado, idéntica al compositor de mensajes.
+            .safeAreaInset(edge: .bottom) {
+                Group { if allowsMedia { addPartBar } else { addTextButton } }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
+                    .background(.bar)
+                    .overlay(alignment: .top) { Divider() }
+            }
             .navigationTitle(template == nil ? "Nueva plantilla" : "Editar plantilla")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
