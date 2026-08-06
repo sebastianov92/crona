@@ -20,9 +20,9 @@
         {
           "version": "1.5.4",
           "date": "2026-08-06",
-          "size": 5312800,
+          "size": 5328887,
           "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.4/Crona.ipa",
-          "localizedDescription": "Actualización v1.5.4",
+          "localizedDescription": "Corrige el número al elegir un contacto de la agenda del teléfono: ya no asume el país del dispositivo (por ejemplo USA). Si el número no trae código de país, lo confirmas con selector (por defecto Ecuador).",
           "minOSVersion": "17.0"
         }
       ],
