@@ -94,10 +94,21 @@ async function onOccurrenceSuccess(msg: FullMessage) {
   broadcast(msg.userId, "message.updated", messageDTO(updated));
 }
 
-async function onOccurrenceFailure(msg: FullMessage, errText: string) {
+async function onOccurrenceFailure(msg: FullMessage, rawErr: string) {
+  const info = classifySendError(rawErr);
+  const errText = info.message; // se guarda ya legible en lastError
   const attempts = msg.attempts + 1;
 
-  if (attempts < MAX_ATTEMPTS) {
+  // Sesión cerrada: marcar la instancia caída para que se vea en toda la app.
+  if (info.sessionClosed && msg.instance.status !== "DISCONNECTED") {
+    const inst = await prisma.instance
+      .update({ where: { id: msg.instanceId }, data: { status: "DISCONNECTED" } })
+      .catch(() => null);
+    if (inst) broadcast(msg.userId, "instance.updated", instanceDTO(inst));
+  }
+
+  // Reintentar solo si NO es un error definitivo (número inválido, sesión cerrada, adjunto malo).
+  if (!info.definitive && attempts < MAX_ATTEMPTS) {
     const backoffMin = BACKOFFS_MIN[attempts - 1] ?? 10;
     const updated = await prisma.scheduledMessage.update({
       where: { id: msg.id },
@@ -112,13 +123,23 @@ async function onOccurrenceFailure(msg: FullMessage, errText: string) {
     return;
   }
 
-  // 3er fallo: notificar ntfy prioridad alta
-  await ntfyPublish(msg.user, {
-    title: "Mensaje no enviado",
-    message: `No se envió tu mensaje a ${msg.recipientName}: ${errText}`,
-    priority: 4,
-    tags: ["x"],
-  });
+  // Sin más reintentos: aviso por ntfy (distinto si fue sesión cerrada).
+  await ntfyPublish(
+    msg.user,
+    info.sessionClosed
+      ? {
+          title: "WhatsApp desconectado",
+          message: `No se envió a ${msg.recipientName}: la sesión se cerró. Ábrela en Crona y re-escanea el QR.`,
+          priority: 5,
+          tags: ["electric_plug"],
+        }
+      : {
+          title: "Mensaje no enviado",
+          message: `No se envió a ${msg.recipientName}: ${errText}`,
+          priority: 4,
+          tags: ["x"],
+        },
+  );
 
   let data: Record<string, unknown>;
   if (msg.recurrence === "NONE") {
@@ -161,6 +182,29 @@ async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAIL
 }
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
+
+/// Traduce un error crudo de Evolution/Baileys a algo legible + banderas de decisión:
+/// `definitive` = no vale reintentar; `sessionClosed` = la sesión de WhatsApp se cerró/cayó.
+type SendErrorInfo = { message: string; definitive: boolean; sessionClosed: boolean };
+function classifySendError(raw: string): SendErrorInfo {
+  const low = raw.toLowerCase();
+  if (/respondió 401|respondió 403|unauthorized|forbidden|not connected|connection closed|instancia_desconectada|logged out|loggedout|\bconflict\b|replaced|precondition/.test(low)) {
+    return { message: "Tu WhatsApp está desconectado o la sesión se cerró. Ábrela en Crona y re-escanea el QR.", definitive: true, sessionClosed: true };
+  }
+  if (/exists.*false|"exists":false|not.*on.*whatsapp|no está en whatsapp|invalid.*(jid|number)|number does not exist|bad jid/.test(low)) {
+    return { message: "Ese número no está en WhatsApp o no es válido.", definitive: true, sessionClosed: false };
+  }
+  if (/must be a url or base64|owned media|unsupported|mimetype|media.*(url|base64)|archivo/.test(low)) {
+    return { message: "No se pudo enviar el archivo adjunto (formato o tamaño no válido).", definitive: true, sessionClosed: false };
+  }
+  if (/rate|too many|429|flood|spam/.test(low)) {
+    return { message: "WhatsApp está limitando los envíos. Se reintentará más tarde.", definitive: false, sessionClosed: false };
+  }
+  if (/timeout|unreachable|econn|network|fetch failed|no se pudo conectar|socket/.test(low)) {
+    return { message: "No se pudo contactar al servidor de WhatsApp. Se reintentará.", definitive: false, sessionClosed: false };
+  }
+  return { message: "No se pudo enviar el mensaje. " + raw.replace(/^Evolution API respondió \d+:\s*/i, "").slice(0, 160), definitive: false, sessionClosed: false };
+}
 
 /// Envía una parte concreta y devuelve el id de Evolution.
 /// `part` null = la parte 0 (los campos del propio ScheduledMessage).
@@ -231,8 +275,9 @@ async function sendOne(msg: FullMessage): Promise<void> {
       });
     }
   } catch (e) {
-    await markLog(msg, log, "FAILED", undefined, errMsg(e));
-    await onOccurrenceFailure(msg, errMsg(e));
+    const raw = errMsg(e);
+    await markLog(msg, log, "FAILED", undefined, classifySendError(raw).message);
+    await onOccurrenceFailure(msg, raw);
   }
 }
 
