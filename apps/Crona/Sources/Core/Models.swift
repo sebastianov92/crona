@@ -224,7 +224,9 @@ struct MessagePart: Codable, Hashable {
 
 /// Parte de una plantilla o del mensaje inicial de un grupo (solo texto).
 struct TemplatePart: Codable, Hashable {
-    var body: String
+    var type: MessageType = .TEXT
+    var body: String?
+    var mediaId: String?
     var typingMs: Int?
 }
 

@@ -479,7 +479,11 @@ struct ComposeView: View {
     }
 
     private func mappedTemplate(_ tplParts: [TemplatePart]) -> [ComposePart] {
-        tplParts.map { ComposePart(kind: .text, text: $0.body, presetTypingMs: $0.typingMs) }
+        tplParts.map { p in
+            var cp = composePart(type: p.type, body: p.body, mediaId: p.mediaId)
+            cp.presetTypingMs = p.typingMs
+            return cp
+        }
     }
 
     /// Añade las partes de la plantilla al final, respetando el máximo de partes.

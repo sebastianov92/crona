@@ -89,7 +89,10 @@ struct CreateGroupView: View {
             }
             .sheet(isPresented: $showTemplates) {
                 TemplatePickerSheet(kind: .GROUP_INITIAL) { tplParts in
-                    parts = tplParts.map { PartDraft(text: $0.body, presetTypingMs: $0.typingMs) }
+                    // Los grupos envían solo texto: se toman las partes de texto de la plantilla.
+                    parts = tplParts.compactMap { p in
+                        (p.body?.isEmpty == false) ? PartDraft(text: p.body ?? "", presetTypingMs: p.typingMs) : nil
+                    }
                     if parts.isEmpty { parts = [PartDraft()] }
                 }
             }
