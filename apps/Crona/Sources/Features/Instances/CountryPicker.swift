@@ -52,6 +52,17 @@ func countryFor(_ region: String) -> CountryCode {
     allCountries.first { $0.region == region } ?? allCountries[0]
 }
 
+/// Código de país (prefijo telefónico) que encabeza un número internacional completo (solo dígitos).
+/// Toma el prefijo más largo que sea un código válido; nil si no hay coincidencia.
+func dialCodePrefix(of digits: String) -> String? {
+    let codes = Set(allCountries.map(\.code))
+    for len in stride(from: 4, through: 1, by: -1) {
+        let p = String(digits.prefix(len))
+        if p.count == len, codes.contains(p) { return p }
+    }
+    return nil
+}
+
 /// Selector de país estilo hoja: buscador + destacados + lista A-Z completa.
 struct CountryPickerSheet: View {
     @Environment(\.dismiss) private var dismiss

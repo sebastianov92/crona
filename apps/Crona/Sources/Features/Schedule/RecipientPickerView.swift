@@ -255,22 +255,11 @@ struct RecipientPickerView: View {
             #if os(iOS)
             .sheet(isPresented: $showPhoneContacts) {
                 PhoneContactPicker(isPresented: $showPhoneContacts) { name, rawPhone in
-                    let digits = rawPhone.filter(\.isNumber)
-                    // Con código de país (+ / 00) es inequívoco → se agrega directo.
-                    if rawPhone.contains("+") || digits.hasPrefix("00") {
-                        let full = rawPhone.contains("+") ? digits : String(digits.dropFirst(2))
-                        guard full.count >= 8 else { return }
-                        addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
-                                            displayName: name.isEmpty ? "+\(full)" : name,
-                                            alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
-                    } else {
-                        // Local/ambiguo: no adivinar el país. Confirmar en la hoja manual (default Ecuador).
-                        manualInitialNumber = digits
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(400)) // deja cerrar el picker antes de abrir la hoja
-                            showManualNumber = true
-                        }
-                    }
+                    let full = normalizePhone(rawPhone)
+                    guard full.count >= 8 else { return }
+                    addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
+                                        displayName: name.isEmpty ? "+\(full)" : name,
+                                        alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
                 }
                 .ignoresSafeArea()
             }
@@ -410,6 +399,25 @@ struct RecipientPickerView: View {
             onPick([r])
             dismiss()
         }
+    }
+
+    /// Código de país por defecto: el de la instancia de WhatsApp conectada (no el del dispositivo).
+    private var instanceDialCode: String {
+        let phone = (session.instances.first { $0.id == instanceId }?.phoneNumber ?? "").filter(\.isNumber)
+        return dialCodePrefix(of: phone) ?? countryFor("EC").code
+    }
+
+    /// Número de la agenda → internacional (solo dígitos). Con '+'/'00' ya es internacional; en
+    /// formato local (0 inicial o sin código) se antepone el país de la INSTANCIA conectada.
+    private func normalizePhone(_ raw: String) -> String {
+        let hasPlus = raw.contains("+")
+        var digits = raw.filter(\.isNumber)
+        if hasPlus { return digits }
+        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
+        let dial = instanceDialCode
+        if digits.hasPrefix("0") { digits = String(digits.dropFirst()) }
+        else if digits.hasPrefix(dial), digits.count >= dial.count + 8 { return digits } // ya trae su código
+        return dial + digits
     }
 
     /// Añade un destinatario elegido por número/agenda: en multi lo marca, en single elige y cierra.
