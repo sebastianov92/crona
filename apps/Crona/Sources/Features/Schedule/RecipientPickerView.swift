@@ -34,6 +34,7 @@ struct RecipientPickerView: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
     @State private var showManualNumber = false
+    @State private var manualInitialNumber = ""
     @State private var showPhoneContacts = false
     @State private var manualItems: [Recipient] = []
     @State private var renaming: Recipient?
@@ -87,6 +88,7 @@ struct RecipientPickerView: View {
                 List {
                     if kind == .CONTACT {
                         Button {
+                            manualInitialNumber = ""
                             showManualNumber = true
                         } label: {
                             HStack(spacing: 12) {
@@ -248,16 +250,27 @@ struct RecipientPickerView: View {
                 }
             }
             .sheet(isPresented: $showManualNumber) {
-                ManualNumberSheet { recipient in addPicked(recipient) }
+                ManualNumberSheet(initialNumber: manualInitialNumber) { recipient in addPicked(recipient) }
             }
             #if os(iOS)
             .sheet(isPresented: $showPhoneContacts) {
                 PhoneContactPicker(isPresented: $showPhoneContacts) { name, rawPhone in
-                    let full = normalizePhone(rawPhone)
-                    guard full.count >= 8 else { return }
-                    addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
-                                        displayName: name.isEmpty ? "+\(full)" : name,
-                                        alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
+                    let digits = rawPhone.filter(\.isNumber)
+                    // Con código de país (+ / 00) es inequívoco → se agrega directo.
+                    if rawPhone.contains("+") || digits.hasPrefix("00") {
+                        let full = rawPhone.contains("+") ? digits : String(digits.dropFirst(2))
+                        guard full.count >= 8 else { return }
+                        addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
+                                            displayName: name.isEmpty ? "+\(full)" : name,
+                                            alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
+                    } else {
+                        // Local/ambiguo: no adivinar el país. Confirmar en la hoja manual (default Ecuador).
+                        manualInitialNumber = digits
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(400)) // deja cerrar el picker antes de abrir la hoja
+                            showManualNumber = true
+                        }
+                    }
                 }
                 .ignoresSafeArea()
             }
@@ -410,18 +423,6 @@ struct RecipientPickerView: View {
         }
     }
 
-    /// Número de la agenda → formato internacional (solo dígitos). Con '+' ya es internacional;
-    /// con 0 inicial (formato local) se quita y se antepone el código del país del dispositivo.
-    private func normalizePhone(_ raw: String) -> String {
-        let hasPlus = raw.contains("+")
-        var digits = raw.filter(\.isNumber)
-        if hasPlus { return digits }
-        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
-        let dial = countryFor(Locale.current.region?.identifier ?? "EC").code
-        if digits.hasPrefix("0") { digits = String(digits.dropFirst()) }
-        else if digits.count >= 11 { return digits } // ya trae código de país
-        return dial + digits
-    }
 
     private func load() async {
         let key = "\(instanceId)|\(kind)"
@@ -578,6 +579,7 @@ private struct ListEditorSheet: View {
 /// Hoja para programar a un número que no está en los contactos: país + número.
 private struct ManualNumberSheet: View {
     @Environment(\.dismiss) private var dismiss
+    var initialNumber: String = ""
     let onDone: (Recipient) -> Void
 
     @State private var country = countryFor("EC")
@@ -647,6 +649,7 @@ private struct ManualNumberSheet: View {
                 try? await Task.sleep(for: .milliseconds(450))
                 numberFocused = true
             }
+            .onAppear { if number.isEmpty { number = initialNumber } }
             .sheet(isPresented: $showCountries) {
                 CountryPickerSheet(selection: $country)
             }
