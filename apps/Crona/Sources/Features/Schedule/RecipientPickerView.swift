@@ -33,8 +33,7 @@ struct RecipientPickerView: View {
     @State private var syncing = false
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var searchFocused: Bool
-    @State private var showManualNumber = false
-    @State private var manualInitialNumber = ""
+    @State private var manualPrefill: ManualPrefill?
     @State private var showPhoneContacts = false
     @State private var manualItems: [Recipient] = []
     @State private var renaming: Recipient?
@@ -88,8 +87,7 @@ struct RecipientPickerView: View {
                 List {
                     if kind == .CONTACT {
                         Button {
-                            manualInitialNumber = ""
-                            showManualNumber = true
+                            manualPrefill = ManualPrefill(number: "", country: instanceCountry, name: "")
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "phone.badge.plus")
@@ -249,17 +247,28 @@ struct RecipientPickerView: View {
                     if !Task.isCancelled { await load() }
                 }
             }
-            .sheet(isPresented: $showManualNumber) {
-                ManualNumberSheet(initialNumber: manualInitialNumber) { recipient in addPicked(recipient) }
+            .sheet(item: $manualPrefill) { p in
+                ManualNumberSheet(initialNumber: p.number, initialCountry: p.country, initialName: p.name) { addPicked($0) }
             }
             #if os(iOS)
             .sheet(isPresented: $showPhoneContacts) {
                 PhoneContactPicker(isPresented: $showPhoneContacts) { name, rawPhone in
-                    let full = normalizePhone(rawPhone)
-                    guard full.count >= 8 else { return }
-                    addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
-                                        displayName: name.isEmpty ? "+\(full)" : name,
-                                        alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
+                    let digits = rawPhone.filter(\.isNumber)
+                    if rawPhone.contains("+") || digits.hasPrefix("00") {
+                        // Con código de país es inequívoco → se agrega directo.
+                        let full = rawPhone.contains("+") ? digits : String(digits.dropFirst(2))
+                        guard full.count >= 8 else { return }
+                        addPicked(Recipient(id: "phone-\(full)", jid: "\(full)@s.whatsapp.net",
+                                            displayName: name.isEmpty ? "+\(full)" : name,
+                                            alias: nil, pictureUrl: nil, kind: .CONTACT, phoneNumber: full))
+                    } else {
+                        // Local: confirmar el país (default el de tu WhatsApp; cámbialo si es de otro país).
+                        let country = instanceCountry
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(350)) // deja cerrar el picker
+                            manualPrefill = ManualPrefill(number: digits, country: country, name: name)
+                        }
+                    }
                 }
                 .ignoresSafeArea()
             }
@@ -401,23 +410,12 @@ struct RecipientPickerView: View {
         }
     }
 
-    /// Código de país por defecto: el de la instancia de WhatsApp conectada (no el del dispositivo).
-    private var instanceDialCode: String {
+    /// País por defecto para números locales: el de la instancia de WhatsApp conectada (no el del
+    /// dispositivo). Para EC → Ecuador; el usuario puede cambiarlo si el contacto es de otro país.
+    private var instanceCountry: CountryCode {
         let phone = (session.instances.first { $0.id == instanceId }?.phoneNumber ?? "").filter(\.isNumber)
-        return dialCodePrefix(of: phone) ?? countryFor("EC").code
-    }
-
-    /// Número de la agenda → internacional (solo dígitos). Con '+'/'00' ya es internacional; en
-    /// formato local (0 inicial o sin código) se antepone el país de la INSTANCIA conectada.
-    private func normalizePhone(_ raw: String) -> String {
-        let hasPlus = raw.contains("+")
-        var digits = raw.filter(\.isNumber)
-        if hasPlus { return digits }
-        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
-        let dial = instanceDialCode
-        if digits.hasPrefix("0") { digits = String(digits.dropFirst()) }
-        else if digits.hasPrefix(dial), digits.count >= dial.count + 8 { return digits } // ya trae su código
-        return dial + digits
+        if let code = dialCodePrefix(of: phone), let c = allCountries.first(where: { $0.code == code }) { return c }
+        return countryFor("EC")
     }
 
     /// Añade un destinatario elegido por número/agenda: en multi lo marca, en single elige y cierra.
@@ -584,10 +582,20 @@ private struct ListEditorSheet: View {
     }
 }
 
+/// Prellenado de la hoja "Enviar a un número" (número + país por defecto + nombre del contacto).
+private struct ManualPrefill: Identifiable {
+    let id = UUID()
+    var number: String
+    var country: CountryCode
+    var name: String
+}
+
 /// Hoja para programar a un número que no está en los contactos: país + número.
 private struct ManualNumberSheet: View {
     @Environment(\.dismiss) private var dismiss
     var initialNumber: String = ""
+    var initialCountry: CountryCode? = nil
+    var initialName: String = ""
     let onDone: (Recipient) -> Void
 
     @State private var country = countryFor("EC")
@@ -638,10 +646,11 @@ private struct ManualNumberSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Listo") {
+                        let name = initialName.trimmingCharacters(in: .whitespaces)
                         let r = Recipient(
                             id: "manual-\(full)",
                             jid: "\(full)@s.whatsapp.net",
-                            displayName: "+\(full)",
+                            displayName: name.isEmpty ? "+\(full)" : name,
                             alias: nil,
                             pictureUrl: nil,
                             kind: .CONTACT,
@@ -657,7 +666,10 @@ private struct ManualNumberSheet: View {
                 try? await Task.sleep(for: .milliseconds(450))
                 numberFocused = true
             }
-            .onAppear { if number.isEmpty { number = initialNumber } }
+            .onAppear {
+                if number.isEmpty { number = initialNumber }
+                if let initialCountry { country = initialCountry }
+            }
             .sheet(isPresented: $showCountries) {
                 CountryPickerSheet(selection: $country)
             }

@@ -1,6 +1,26 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Endereza una foto: hornea la orientación EXIF en los píxeles y re-codifica. WhatsApp no
+/// respeta la orientación EXIF, así que una foto vertical llegaría rotada si no se corrige.
+func uprightImageData(_ data: Data, mime: String) -> Data {
+    #if canImport(UIKit)
+    guard mime.hasPrefix("image/"), !mime.contains("webp"),
+          let img = UIImage(data: data), img.imageOrientation != .up else { return data }
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = img.scale
+    let upright = UIGraphicsImageRenderer(size: img.size, format: format).image { _ in
+        img.draw(in: CGRect(origin: .zero, size: img.size))
+    }
+    return upright.jpegData(compressionQuality: 0.95) ?? data
+    #else
+    return data
+    #endif
+}
 
 struct Attachment: Equatable {
     let data: Data
@@ -437,7 +457,8 @@ struct ComposeView: View {
                 try? FileManager.default.removeItem(at: movie.url)
             } else if let data = try await item.loadTransferable(type: Data.self) {
                 addPart(ComposePart(kind: .photoVideo,
-                                    attachment: Attachment(data: data, fileName: "foto.jpg", mimeType: "image/jpeg")))
+                                    attachment: Attachment(data: uprightImageData(data, mime: "image/jpeg"),
+                                                           fileName: "foto.jpg", mimeType: "image/jpeg")))
             }
             photoItem = nil
         } catch {
@@ -455,7 +476,8 @@ struct ComposeView: View {
         do {
             let data = try Data(contentsOf: url)
             let mime = mimeType(for: url)
-            let att = Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)
+            let bytes = asSticker ? data : uprightImageData(data, mime: mime) // endereza fotos, no stickers
+            let att = Attachment(data: bytes, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)
             addPart(ComposePart(kind: asSticker ? .sticker : .photoVideo, attachment: att))
         } catch {
             self.error = "No se pudo leer el archivo: \(error.localizedDescription)"

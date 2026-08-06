@@ -278,7 +278,7 @@ struct TemplateEditView: View {
                 addPart(ComposePart(kind: .photoVideo, attachment: Attachment(data: data, fileName: movie.url.lastPathComponent, mimeType: "video/quicktime")))
                 try? FileManager.default.removeItem(at: movie.url)
             } else if let data = try await item.loadTransferable(type: Data.self) {
-                addPart(ComposePart(kind: .photoVideo, attachment: Attachment(data: data, fileName: "foto.jpg", mimeType: "image/jpeg")))
+                addPart(ComposePart(kind: .photoVideo, attachment: Attachment(data: uprightImageData(data, mime: "image/jpeg"), fileName: "foto.jpg", mimeType: "image/jpeg")))
             }
             photoItem = nil
         } catch { self.error = "No se pudo cargar el archivo: \(error.localizedDescription)" }
@@ -291,8 +291,9 @@ struct TemplateEditView: View {
         do {
             let data = try Data(contentsOf: url)
             let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            let bytes = asSticker ? data : uprightImageData(data, mime: mime)
             addPart(ComposePart(kind: asSticker ? .sticker : .photoVideo,
-                                attachment: Attachment(data: data, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)))
+                                attachment: Attachment(data: bytes, fileName: url.lastPathComponent, mimeType: mime, asSticker: asSticker)))
         } catch { self.error = "No se pudo leer el archivo: \(error.localizedDescription)" }
     }
 
