@@ -18,11 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.5.5",
+          "version": "1.5.6",
           "date": "2026-08-06",
-          "size": 5331075,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.5/Crona.ipa",
-          "localizedDescription": "Corrige el país al elegir un contacto de la agenda: usa el país de tu número de WhatsApp conectado y lo agrega directo.",
+          "size": 5350213,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.6/Crona.ipa",
+          "localizedDescription": "Actualización v1.5.6",
           "minOSVersion": "17.0"
         }
       ],
