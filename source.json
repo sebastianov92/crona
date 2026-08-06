@@ -18,11 +18,11 @@
       "screenshots": [],
       "versions": [
         {
-          "version": "1.5.6",
+          "version": "1.5.7",
           "date": "2026-08-06",
-          "size": 5365894,
-          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.6/Crona.ipa",
-          "localizedDescription": "Las plantillas ahora admiten fotos, videos, notas de voz y stickers, con el mismo editor que al escribir un mensaje. Requiere actualizar el servidor.",
+          "size": 5359111,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.5.7/Crona.ipa",
+          "localizedDescription": "Actualización v1.5.7",
           "minOSVersion": "17.0"
         }
       ],
