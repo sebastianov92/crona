@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.8.0",
+          "date": "2026-08-07",
+          "size": 5629428,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.8.0/Crona.ipa",
+          "localizedDescription": "Gestión de grupos ya creados: toca un grupo en \"Grupos creados\" para obtener y compartir su enlace de invitación, cambiar nombre y descripción, ver/agregar/quitar participantes y programar un mensaje al grupo. Requiere actualizar el servidor.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.7.3",
           "date": "2026-08-07",
           "size": 5559154,
