@@ -218,6 +218,12 @@ final class SessionStore {
             NotificationCenter.default.post(name: .cronaChatIncoming, object: nil,
                                             userInfo: ["instanceId": instanceId, "jid": jid])
             Task { await refreshChatsUnread() }   // actualiza el badge al llegar un entrante
+        case .groupCreated(let id):
+            NotificationCenter.default.post(name: .cronaGroupUpdated, object: nil,
+                                            userInfo: ["id": id, "status": "DONE"])
+        case .groupFailed(let id, let error):
+            NotificationCenter.default.post(name: .cronaGroupUpdated, object: nil,
+                                            userInfo: ["id": id, "status": "FAILED", "error": error ?? ""])
         }
     }
 }
@@ -227,4 +233,5 @@ extension Notification.Name {
     static let cronaLogUpdated = Notification.Name("crona.log.updated")
     static let cronaInstanceUpdated = Notification.Name("crona.instance.updated")
     static let cronaChatIncoming = Notification.Name("crona.chat.incoming")
+    static let cronaGroupUpdated = Notification.Name("crona.group.updated")
 }

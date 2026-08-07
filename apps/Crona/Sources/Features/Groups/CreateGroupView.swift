@@ -62,6 +62,22 @@ struct CreateGroupView: View {
                 }
             }
             .formStyle(.grouped)
+            // Barra de adjuntos fija sobre el teclado, igual que al programar (solo al componer).
+            .safeAreaInset(edge: .bottom) {
+                if created == nil {
+                    addPartBar
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 6)
+                        .background(.bar)
+                        .overlay(alignment: .top) { Divider() }
+                }
+            }
+            // El grupo se crea en el servidor de forma asíncrona: el WS avisa cuando termina.
+            .onReceive(NotificationCenter.default.publisher(for: .cronaGroupUpdated)) { note in
+                guard let info = note.userInfo, let gid = info["id"] as? String, gid == created?.id else { return }
+                Task { await refreshCreated() }
+            }
             .navigationTitle("Crear grupo")
             .alert("Crear el grupo sin foto?", isPresented: $confirmNoPhoto) {
                 Button("Crear igual") { Task { await submit() } }
@@ -232,8 +248,8 @@ struct CreateGroupView: View {
 
         Section {
             // Editor unificado (texto/foto/voz/sticker), igual que al programar un mensaje.
+            // La barra de adjuntos va fija sobre el teclado (safeAreaInset), no aquí.
             ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
-            addPartBar
             Button {
                 showTemplates = true
             } label: {
@@ -455,16 +471,21 @@ struct CreateGroupView: View {
         }
     }
 
-    /// Creación inmediata: el servidor tarda unos segundos, así que se refresca hasta
-    /// que quede en DONE o FAILED (para poder mostrar lastError).
+    /// Refresca el estado del grupo recién creado desde el servidor.
+    private func refreshCreated() async {
+        guard let id = created?.id,
+              let items = try? await APIClient.shared.groups().items,
+              let fresh = items.first(where: { $0.id == id }) else { return }
+        created = fresh
+    }
+
+    /// Respaldo del WS: crear grupo + mensaje inicial puede tardar (hasta ~40 s por la señal
+    /// "escribiendo…"). Sondea con una ventana amplia; el WS suele adelantar el resultado.
     private func pollStatus() async {
-        guard let id = created?.id else { return }
-        for _ in 0..<12 {
+        for _ in 0..<40 {
+            if created?.status == .DONE || created?.status == .FAILED { return }
             try? await Task.sleep(for: .seconds(3))
-            guard let items = try? await APIClient.shared.groups().items,
-                  let fresh = items.first(where: { $0.id == id }) else { continue }
-            created = fresh
-            if fresh.status == .DONE || fresh.status == .FAILED { return }
+            await refreshCreated()
         }
     }
 }

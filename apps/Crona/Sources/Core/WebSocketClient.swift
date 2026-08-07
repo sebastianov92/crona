@@ -7,6 +7,8 @@ enum WSEvent {
     case instanceUpdated(Instance)
     case qrUpdated(instanceId: String, qrBase64: String)
     case chatIncoming(instanceId: String, jid: String)
+    case groupCreated(id: String)
+    case groupFailed(id: String, error: String?)
 }
 
 final class WebSocketClient: @unchecked Sendable {
@@ -79,6 +81,12 @@ final class WebSocketClient: @unchecked Sendable {
             guard let p = payload as? [String: Any],
                   let id = p["instanceId"] as? String, let jid = p["jid"] as? String else { return nil }
             return .chatIncoming(instanceId: id, jid: jid)
+        case "group.created":
+            guard let p = payload as? [String: Any], let id = p["id"] as? String else { return nil }
+            return .groupCreated(id: id)
+        case "group.failed":
+            guard let p = payload as? [String: Any], let id = p["id"] as? String else { return nil }
+            return .groupFailed(id: id, error: p["error"] as? String)
         default: return nil
         }
     }
