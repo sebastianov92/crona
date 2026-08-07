@@ -1,8 +1,10 @@
 name: Release apps (DMG + IPA)
 
+# NOTA: el runner de CI (Xcode disponible) rompe el AppIcon .icon → genera DMG/IPA vacíos y
+# además pisa (clobber) los artefactos buenos subidos a mano y reescribe source.json con tamaños
+# erróneos. Por eso el release se hace LOCAL con scripts/build-release.sh (Xcode 26.6) y este
+# workflow queda SOLO manual (workflow_dispatch), nunca en push de tag.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
