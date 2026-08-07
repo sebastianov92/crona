@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.7.3",
+          "date": "2026-08-07",
+          "size": 5559154,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.7.3/Crona.ipa",
+          "localizedDescription": "El pin para elegir la ubicación en el mapa tiene una forma más limpia; su punta marca justo el punto que se envía.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.7.2",
           "date": "2026-08-07",
           "size": 5557225,
