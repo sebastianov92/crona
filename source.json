@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.6.3",
+          "date": "2026-08-07",
+          "size": 5494353,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.6.3/Crona.ipa",
+          "localizedDescription": "Ahora sí: pega un link de Google Maps (corto o largo) y se extraen las coordenadas de la ubicación. El punto verde del mapa ya no se encoge tanto al latir.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.6.2",
           "date": "2026-08-07",
           "size": 5491310,
