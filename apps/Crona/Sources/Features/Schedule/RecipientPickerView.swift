@@ -725,4 +725,53 @@ struct PhoneContactPicker: UIViewControllerRepresentable {
         }
     }
 }
+
+/// Presenta CNContactPicker de forma IMPERATIVA desde un contenedor invisible. Sirve para usarlo
+/// dentro de otra hoja (sheet) sin que el auto-cierre del picker arrastre a la hoja padre (el bug
+/// por el que elegir un contacto cerraba toda la pantalla de programar mensaje).
+struct PhoneContactPickerPresenter: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let onPick: (_ name: String, _ rawPhone: String) -> Void
+
+    func makeUIViewController(context: Context) -> UIViewController { UIViewController() }
+
+    func updateUIViewController(_ uiVC: UIViewController, context: Context) {
+        guard isPresented, !context.coordinator.presented else { return }
+        context.coordinator.presented = true
+        let picker = CNContactPickerViewController()
+        picker.displayedPropertyKeys = [CNContactPhoneNumbersKey]
+        picker.predicateForSelectionOfContact = NSPredicate(value: false)
+        picker.predicateForSelectionOfProperty = NSPredicate(format: "key == 'phoneNumbers'")
+        picker.delegate = context.coordinator
+        DispatchQueue.main.async { uiVC.present(picker, animated: true) }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let parent: PhoneContactPickerPresenter
+        var presented = false
+        init(_ parent: PhoneContactPickerPresenter) { self.parent = parent }
+
+        private func finish() { presented = false; parent.isPresented = false }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect property: CNContactProperty) {
+            if let phone = property.value as? CNPhoneNumber {
+                let name = CNContactFormatter.string(from: property.contact, style: .fullName) ?? ""
+                parent.onPick(name, phone.stringValue)
+            }
+            finish()
+        }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            if let phone = contact.phoneNumbers.first?.value {
+                let name = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+                parent.onPick(name, phone.stringValue)
+            }
+            finish()
+        }
+
+        func contactPickerDidCancel(_ picker: CNContactPickerViewController) { finish() }
+    }
+}
 #endif

@@ -313,7 +313,9 @@ private struct ComposePartRow: View {
     let scrollProxy: ScrollViewProxy
     let onRemove: () -> Void
 
-    // Ubicación: pegar link de Google Maps o elegir en el mapa.
+    // Ubicación: elegir en el mapa (modo por defecto) o pegar un link de Google Maps.
+    enum LocMode: Hashable { case map, link }
+    @State private var locMode: LocMode = .map
     @State private var mapsLink = ""
     @State private var linkBusy = false
     @State private var linkError = false
@@ -451,45 +453,55 @@ private struct ComposePartRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Ubicación", systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(Theme.accent)
 
-            // Opción 1: pegar un link de Google Maps (corto o largo) y extraer las coordenadas.
-            HStack(spacing: 8) {
-                boxed(TextField("Pega un link de Google Maps", text: $mapsLink)
-                    .autocorrectionDisabled()
-                    #if os(iOS)
-                    .textInputAutocapitalization(.never)
-                    #endif
-                )
-                Button {
-                    Task { await extractFromLink() }
-                } label: {
-                    if linkBusy { ProgressView() }
-                    else { Text("Extraer").font(.subheadline.weight(.semibold)) }
+            // Posición 1: según el modo, botón de mapa o campo de URL con "Pegar".
+            if locMode == .map {
+                Button { showMap = true } label: {
+                    Label("Elegir en el mapa", systemImage: "map").font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity).padding(.vertical, 9)
+                        .background(Theme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(Theme.accent)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Theme.accent)
-                .disabled(linkBusy || mapsLink.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            if linkError {
-                Text("No pude leer coordenadas de ese link. Prueba con “Elegir en el mapa”.")
-                    .font(.caption2).foregroundStyle(.red)
+            } else {
+                HStack(spacing: 8) {
+                    boxed(TextField("Pega el link de Google Maps", text: $mapsLink)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        #endif
+                        .onChange(of: mapsLink) { _, v in
+                            // paste inserta todo de golpe → extraer si parece link o par de coords
+                            if v.contains("http") || v.contains(",") { Task { await extractFromLink() } }
+                        })
+                    Button {
+                        pasteLink()
+                    } label: {
+                        if linkBusy { ProgressView() }
+                        else { Label("Pegar", systemImage: "doc.on.clipboard").labelStyle(.iconOnly).font(.title3) }
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Theme.accent).disabled(linkBusy)
+                }
+                if linkError {
+                    Text("No pude leer coordenadas de ese link.").font(.caption2).foregroundStyle(.red)
+                }
             }
 
-            // Opción 2: elegir un punto en el mapa (arranca en tu ubicación actual en iPhone).
-            Button { showMap = true } label: {
-                Label("Elegir en el mapa", systemImage: "map").font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity).padding(.vertical, 9)
-                    .background(Theme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(Theme.accent)
-            }
-            .buttonStyle(.plain)
+            // Posición 2: texto que acompaña la ubicación (opcional).
+            boxed(TextField("Texto", text: $part.locName))
 
-            // Coordenadas elegidas (confirmación / ajuste manual fino).
+            // Switch de fuente, estilo segmentado (como "enviar foto como archivo").
+            Picker("Fuente", selection: $locMode) {
+                Text("Mapa").tag(LocMode.map)
+                Text("Google Maps").tag(LocMode.link)
+            }
+            .pickerStyle(.segmented)
+
+            // Confirmación de coordenadas elegidas.
             if let lat = part.latitude, let lng = part.longitude {
                 Text(String(format: "📍 %.5f, %.5f", lat, lng))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
-            boxed(TextField("Nombre (ej. Oficina) — opcional", text: $part.locName))
-            boxed(TextField("Dirección (opcional)", text: $part.locAddress))
         }
         .sheet(isPresented: $showMap) {
             LocationPickerSheet { lat, lng in
@@ -499,7 +511,17 @@ private struct ComposePartRow: View {
         }
     }
 
+    private func pasteLink() {
+        #if os(iOS)
+        if let s = UIPasteboard.general.string { mapsLink = s }
+        #else
+        if let s = NSPasteboard.general.string(forType: .string) { mapsLink = s }
+        #endif
+        Task { await extractFromLink() }
+    }
+
     private func extractFromLink() async {
+        guard !linkBusy else { return }
         linkBusy = true; linkError = false
         if let (lat, lng) = await resolveMapsLink(mapsLink) {
             part.latitude = lat; part.longitude = lng
@@ -523,6 +545,17 @@ private struct ComposePartRow: View {
                     .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
+            // Presentación imperativa: CNContactPicker se auto-cierra al elegir; envolverlo en un
+            // .sheet dentro de otra hoja arrastraba el cierre al compose. Este contenedor invisible
+            // lo presenta sin tocar la hoja padre.
+            .background {
+                PhoneContactPickerPresenter(isPresented: $showContactPicker) { name, rawPhone in
+                    if !name.isEmpty { part.contactName = name }
+                    let digits = rawPhone.filter(\.isNumber)
+                    part.contactPhone = digits.hasPrefix("00") ? String(digits.dropFirst(2)) : digits
+                }
+                .frame(width: 0, height: 0)
+            }
             #endif
 
             boxed(TextField("Nombre", text: $part.contactName))
@@ -532,17 +565,6 @@ private struct ComposePartRow: View {
                 #endif
             )
         }
-        #if os(iOS)
-        .sheet(isPresented: $showContactPicker) {
-            PhoneContactPicker(isPresented: $showContactPicker) { name, rawPhone in
-                if !name.isEmpty { part.contactName = name }
-                // Deja los dígitos (con "+" pasa a dígitos); si es local sin código, el usuario ajusta.
-                let digits = rawPhone.filter(\.isNumber)
-                part.contactPhone = digits.hasPrefix("00") ? String(digits.dropFirst(2)) : digits
-            }
-            .ignoresSafeArea()
-        }
-        #endif
     }
 }
 

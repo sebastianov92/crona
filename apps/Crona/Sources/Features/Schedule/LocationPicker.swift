@@ -96,21 +96,15 @@ struct LocationPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Map(position: $camera)
-                    .onMapCameraChange(frequency: .continuous) { ctx in
-                        center = ctx.region.center
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                // Pin fijo en el centro; la punta apunta al centro exacto del mapa.
-                Image(systemName: "mappin")
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(.red)
-                    .shadow(radius: 2)
-                    .offset(y: -17)
-                    .allowsHitTesting(false)
-            }
-            .safeAreaInset(edge: .bottom) {
+            // La bolita va como overlay del propio Map: se centra en el FRAME del mapa, que es
+            // exactamente lo que devuelve region.center. Sin ignoresSafeArea, la barra de abajo
+            // encoge el mapa y el centro visible = centro real = coordenada que se envía.
+            Map(position: $camera)
+                .onMapCameraChange(frequency: .continuous) { ctx in
+                    center = ctx.region.center
+                }
+                .overlay { LocationCenterDot().allowsHitTesting(false) }
+                .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 8) {
                     if let c = center {
                         Text(String(format: "%.5f, %.5f", c.latitude, c.longitude))
@@ -156,10 +150,30 @@ struct LocationPickerSheet: View {
         .onChange(of: locator.coordinate?.latitude) { _, _ in
             guard let c = locator.coordinate else { return }
             if !centered { centered = true }
+            center = c   // habilita "Mandar" aunque el usuario no mueva el mapa
             withAnimation {
                 camera = .region(MKCoordinateRegion(center: c,
                     span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))
             }
+        }
+    }
+}
+
+/// Marcador central: bolita blanca con una bolita verde que late (crece y se encoge) dentro.
+/// Va centrado en el frame del mapa → coincide exactamente con region.center (la coord que se envía).
+private struct LocationCenterDot: View {
+    @State private var pulse = false
+    var body: some View {
+        ZStack {
+            Circle().fill(.white).frame(width: 28, height: 28)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            Circle().fill(Theme.accent)
+                .frame(width: 18, height: 18)
+                .scaleEffect(pulse ? 1.0 : 0.45)
+                .opacity(pulse ? 1.0 : 0.6)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) { pulse = true }
         }
     }
 }
