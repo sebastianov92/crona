@@ -10,9 +10,10 @@ import CoreLocation
 func googleMapsCoords(from text: String) -> (Double, Double)? {
     let patterns = [
         "@(-?\\d{1,3}\\.\\d+),(-?\\d{1,3}\\.\\d+)",                                    // /maps/@LAT,LNG,zoom
-        "[?&](?:q|ll|sll|center|daddr|destination)=(-?\\d{1,3}\\.\\d+),(-?\\d{1,3}\\.\\d+)", // ?q=LAT,LNG
+        "[?&](?:q|ll|sll|center|daddr|destination|saddr)=(-?\\d{1,3}\\.\\d+),(-?\\d{1,3}\\.\\d+)", // ?q=LAT,LNG
         "!3d(-?\\d{1,3}\\.\\d+)!4d(-?\\d{1,3}\\.\\d+)",                                // ...!3dLAT!4dLNG
         "^\\s*(-?\\d{1,3}\\.\\d+)\\s*,\\s*(-?\\d{1,3}\\.\\d+)\\s*$",                    // "LAT, LNG" pegado
+        "(-?\\d{1,3}\\.\\d{4,}),(-?\\d{1,3}\\.\\d{4,})",                               // último recurso: par con 4+ decimales
     ]
     for p in patterns {
         guard let re = try? NSRegularExpression(pattern: p) else { continue }
@@ -27,20 +28,42 @@ func googleMapsCoords(from text: String) -> (Double, Double)? {
     return nil
 }
 
-/// Resuelve un link de Google Maps a coordenadas. Si es directo, las saca al toque; si es corto,
-/// sigue el redirect y parsea la URL final (y el HTML como respaldo).
+/// Captura cada URL de la cadena de redirects (el link corto salta a la URL larga de Maps —con las
+/// coords— antes de caer en la página de consentimiento de Google).
+private final class RedirectCatcher: NSObject, URLSessionTaskDelegate {
+    var urls: [String] = []
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        if let u = request.url?.absoluteString { urls.append(u) }
+        completionHandler(request)
+    }
+}
+
+/// Resuelve un link de Google Maps a coordenadas. Directo (link largo) → al toque. Corto
+/// (maps.app.goo.gl / goo.gl/maps) → sigue los redirects y parsea cada URL de la cadena y el HTML,
+/// probando también su versión percent-decodificada (las coords suelen venir escapadas: %40, %2C).
 func resolveMapsLink(_ raw: String) async -> (Double, Double)? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     if let c = googleMapsCoords(from: trimmed) { return c }
     guard let url = URL(string: trimmed), url.scheme?.hasPrefix("http") == true else { return nil }
+
+    let catcher = RedirectCatcher()
+    let session = URLSession(configuration: .ephemeral, delegate: catcher, delegateQueue: nil)
+    defer { session.invalidateAndCancel() }
     var req = URLRequest(url: url)
     req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
                  forHTTPHeaderField: "User-Agent")
     req.timeoutInterval = 15
     do {
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        if let final = resp.url?.absoluteString, let c = googleMapsCoords(from: final) { return c }
-        if let html = String(data: data, encoding: .utf8), let c = googleMapsCoords(from: html) { return c }
+        let (data, resp) = try await session.data(for: req)
+        var candidates = catcher.urls
+        if let final = resp.url?.absoluteString { candidates.append(final) }
+        if let html = String(data: data, encoding: .utf8) { candidates.append(html) }
+        for c in candidates {
+            if let hit = googleMapsCoords(from: c) { return hit }
+            if let dec = c.removingPercentEncoding, let hit = googleMapsCoords(from: dec) { return hit }
+        }
     } catch { }
     return nil
 }
@@ -169,8 +192,8 @@ private struct LocationCenterDot: View {
                 .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
             Circle().fill(Theme.accent)
                 .frame(width: 18, height: 18)
-                .scaleEffect(pulse ? 1.0 : 0.45)
-                .opacity(pulse ? 1.0 : 0.6)
+                .scaleEffect(pulse ? 1.0 : 0.72)
+                .opacity(pulse ? 1.0 : 0.82)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) { pulse = true }
