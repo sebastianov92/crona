@@ -67,7 +67,11 @@ struct LoginView: View {
         }
         .padding()
         .sheet(isPresented: $showRegister) { RegisterView() }
-        .onAppear { if email.isEmpty { focus = .email } }
+        .onAppear {
+            if email.isEmpty { focus = .email }
+            // llegó por deep-link con código → abrir Registro directo (código ya prellenado)
+            if session.pendingInvite != nil { showRegister = true }
+        }
     }
 
     private func login() async {

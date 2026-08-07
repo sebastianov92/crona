@@ -91,6 +91,7 @@ struct RootView: View {
         }
         .onAppear { Appearance(rawValue: appearance)?.apply() }
         .onChange(of: appearance) { _, new in Appearance(rawValue: new)?.apply() }
+        .onOpenURL { session.handleDeepLink($0) }   // crona://setup?server=…&invite=…
         .alert("Error", isPresented: .init(
             get: { session.toastError != nil },
             set: { if !$0 { session.toastError = nil } }
@@ -179,6 +180,7 @@ struct MainView: View {
                     .tabItem { Label("Programados", systemImage: "clock") }
                 ChatsView()
                     .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
+                    .badge(session.chatsUnread)
                 HistoryView()
                     .tabItem { Label("Historial", systemImage: "clock.arrow.circlepath") }
                 SettingsView()
@@ -297,9 +299,21 @@ struct MacMainView: View {
                         Image(systemName: s.icon)
                             .font(.system(size: 15))
                             .frame(width: 22)
+                            // colapsada: punto rojo sobre el icono de Chats
+                            .overlay(alignment: .topTrailing) {
+                                if collapsed, s == .chats, session.chatsUnread > 0 {
+                                    Circle().fill(.red).frame(width: 8, height: 8).offset(x: 4, y: -2)
+                                }
+                            }
                         if !collapsed {
                             Text(s.rawValue).font(.subheadline)
                             Spacer(minLength: 0)
+                            if s == .chats, session.chatsUnread > 0 {
+                                Text("\(session.chatsUnread)")
+                                    .font(.caption2.bold()).foregroundStyle(.white)
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(.red, in: Capsule())
+                            }
                         }
                     }
                     .foregroundStyle(section == s ? Theme.accent : .primary)

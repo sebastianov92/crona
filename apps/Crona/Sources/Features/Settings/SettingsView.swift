@@ -352,6 +352,16 @@ struct AdminUsersView: View {
     @State private var resetUser: User?
     @State private var newPassword = ""
     @State private var deleteUser: User?
+    @State private var showQR = false
+
+    /// Deep-link de un escaneo: lleva la dirección del servidor + el código ya rellenados.
+    private var inviteLink: String? {
+        guard let code = invite?.code, let server = session.serverURL?.absoluteString else { return nil }
+        var comps = URLComponents()
+        comps.scheme = "crona"; comps.host = "setup"
+        comps.queryItems = [.init(name: "server", value: server), .init(name: "invite", value: code)]
+        return comps.url?.absoluteString
+    }
 
     var body: some View {
         Form {
@@ -426,11 +436,23 @@ struct AdminUsersView: View {
                     Text(invite.code).font(.system(.body, design: .monospaced)).textSelection(.enabled)
                 }
                 LabeledContent("Expira", value: invite.expiresAt.formatted(date: .abbreviated, time: .shortened))
+                if inviteLink != nil {
+                    Button {
+                        showQR = true
+                    } label: {
+                        Label("Compartir por QR / enlace", systemImage: "qrcode")
+                    }
+                }
             }
         } header: {
             Text("Invitaciones")
         } footer: {
-            Text("Los usuarios nuevos se registran desde la app con este código (expira en 7 días).")
+            Text("Comparte el QR: el usuario lo escanea con la cámara del iPhone y la app queda con el servidor y el código ya puestos. El código expira en 7 días.")
+        }
+        .sheet(isPresented: $showQR) {
+            if let link = inviteLink, let code = invite?.code {
+                InviteQRSheet(link: link, code: code)
+            }
         }
     }
 

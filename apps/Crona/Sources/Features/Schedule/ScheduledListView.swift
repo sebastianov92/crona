@@ -10,6 +10,7 @@ struct ScheduledListView: View {
     @State private var filter: Filter = .all
     @State private var search = ""
     @State private var showCompose = false
+    @State private var showInstances = false
     @State private var selected: ScheduledMessage?
 
     private var pausedCount: Int { session.upcoming.filter { $0.status == .PAUSED }.count }
@@ -61,14 +62,25 @@ struct ScheduledListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Guía de primeros pasos: se oculta sola al conectar WhatsApp y programar el 1º.
+                OnboardingChecklist(
+                    onConnect: { showInstances = true },
+                    onCompose: { showCompose = true }
+                )
                 filterChips
                 List {
                     if filtered.isEmpty {
-                        ContentUnavailableView(
-                            "No tienes mensajes programados.",
-                            systemImage: "clock.badge.questionmark",
-                            description: Text("Toca + para crear el primero.")
-                        )
+                        ContentUnavailableView {
+                            Label("No tienes mensajes programados.", systemImage: "clock.badge.questionmark")
+                        } description: {
+                            Text("Programa un mensaje para que se envíe solo a la hora que quieras.")
+                        } actions: {
+                            Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
+                                .buttonStyle(.borderedProminent)
+                            if !session.instances.contains(where: { $0.status == .CONNECTED }) {
+                                Button { showInstances = true } label: { Label("Conectar WhatsApp", systemImage: "qrcode") }
+                            }
+                        }
                         .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
                     }
@@ -113,6 +125,7 @@ struct ScheduledListView: View {
                 }
             }
             .sheet(isPresented: $showCompose) { ComposeView() }
+            .sheet(isPresented: $showInstances) { InstancesSheet() }
             .sheet(item: $selected) { msg in
                 NavigationStack { MessageDetailView(messageId: msg.id) }
                     #if os(macOS)

@@ -39,6 +39,9 @@ export function registerChatRoutes(app: FastifyInstance) {
     const hidden = await prisma.hiddenChat.findMany({ where: { userId: req.userId } });
     const hiddenAt = new Map(hidden.map((h) => [`${h.instanceId}|${h.jid}`, h.hiddenAt]));
 
+    const reads = await prisma.chatRead.findMany({ where: { userId: req.userId } });
+    const seenAt = new Map(reads.map((r) => [`${r.instanceId}|${r.jid}`, r.seenAt]));
+
     const seen = new Set<string>();
     const chats: typeof msgs = [];
     for (const m of msgs) {
@@ -50,7 +53,8 @@ export function registerChatRoutes(app: FastifyInstance) {
 
     const items = await Promise.all(
       chats.map(async (c) => {
-        const [lastOut, lastIn, pending, recipient] = await Promise.all([
+        const seen = seenAt.get(`${c.instanceId}|${c.recipientJid}`) ?? new Date(0);
+        const [lastOut, lastIn, pending, recipient, unread] = await Promise.all([
           prisma.messageLog.findFirst({
             where: {
               remoteJid: c.recipientJid,
@@ -74,6 +78,10 @@ export function registerChatRoutes(app: FastifyInstance) {
           prisma.recipient.findFirst({
             where: { instanceId: c.instanceId, jid: c.recipientJid },
           }),
+          // no leídos: entrantes posteriores a la última vez que se abrió el chat
+          prisma.chatMessage.count({
+            where: { instanceId: c.instanceId, jid: c.recipientJid, fromMe: false, sentAt: { gt: seen } },
+          }),
         ]);
 
         const outAt = lastOut?.runAt ?? null;
@@ -92,6 +100,7 @@ export function registerChatRoutes(app: FastifyInstance) {
           pictureUrl: recipient?.pictureUrl ?? c.recipientPictureUrl,
           kind: c.recipientKind,
           pendingCount: pending,
+          unread,
           last,
           lastAt: last?.at ?? c.updatedAt,
         };
@@ -115,6 +124,18 @@ export function registerChatRoutes(app: FastifyInstance) {
       where: { userId_instanceId_jid: { userId: req.userId, instanceId: q.instanceId, jid: q.jid } },
       create: { userId: req.userId, instanceId: q.instanceId, jid: q.jid },
       update: { hiddenAt: new Date() },
+    });
+    return { ok: true };
+  });
+
+  // Marcar un chat como leído (al abrirlo): pone seenAt = ahora → sus no leídos vuelven a 0.
+  app.post("/chats/seen", { preHandler: authenticate }, async (req) => {
+    const Body = z.object({ instanceId: z.string().uuid(), jid: z.string().min(3) });
+    const b = Body.parse(req.body);
+    await prisma.chatRead.upsert({
+      where: { userId_instanceId_jid: { userId: req.userId, instanceId: b.instanceId, jid: b.jid } },
+      create: { userId: req.userId, instanceId: b.instanceId, jid: b.jid },
+      update: { seenAt: new Date() },
     });
     return { ok: true };
   });

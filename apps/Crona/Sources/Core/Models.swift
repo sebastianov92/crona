@@ -114,6 +114,7 @@ struct ChatSummary: Identifiable, Codable, Hashable {
     let pictureUrl: String?
     let kind: RecipientKind
     let pendingCount: Int
+    let unread: Int?            // no leídos (entrantes desde la última apertura); opcional = server viejo
     let last: ChatLast?
     let lastAt: Date
     var id: String { "\(instanceId)|\(jid)" }

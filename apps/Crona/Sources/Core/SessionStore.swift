@@ -18,12 +18,16 @@ final class SessionStore {
         }
     }
     var history: [HistoryItem] = []
+    var chatsUnread = 0   // total de no leídos → badge de la pestaña Chats
     // Cache de destinatarios por "instanceId|kind": abre el picker al instante y refresca en 2º plano
     // (antes re-descargaba TODOS los contactos —varias páginas— cada vez que se abría).
     var recipientCache: [String: [Recipient]] = [:]
     var lastQR: (instanceId: String, qrBase64: String)?
     var toastError: String?
     var serverError: String?   // error de conexión mostrado en ServerSetupView
+    // Prefill que llega por deep-link crona://setup?server=…&invite=…
+    var pendingSetupServer: String?
+    var pendingInvite: String?
 
     private var accessToken: String?
     private let ws = WebSocketClient()
@@ -65,6 +69,23 @@ final class SessionStore {
             await afterLogin()
         } catch {
             phase = .needsLogin
+        }
+    }
+
+    /// Deep-link de invitación: crona://setup?server=…&invite=…
+    /// Guarda el prefill; si aún no hay servidor configurado, manda a la pantalla de servidor.
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme == "crona", url.host == "setup" else { return }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let server = items.first { $0.name == "server" }?.value
+        let invite = items.first { $0.name == "invite" }?.value
+        if let server, !server.isEmpty { pendingSetupServer = server }
+        if let invite, !invite.isEmpty { pendingInvite = invite }
+        // si no hay sesión aún, llevar al usuario a conectar el servidor con lo prellenado
+        if phase == .needsLogin, pendingSetupServer == nil {
+            // ya hay servidor; solo falta registrarse con el código → LoginView abre Registro
+        } else if phase != .ready {
+            phase = .needsServer
         }
     }
 
@@ -119,7 +140,15 @@ final class SessionStore {
     func refreshAll() async {
         await refreshInstances()
         await refreshMessages()
+        Task { await refreshChatsUnread() }
         Task { await prefetchContacts() }   // calienta el cache del picker (primer abrir instantáneo)
+    }
+
+    /// Suma los no leídos de todos los chats para el badge de la pestaña.
+    func refreshChatsUnread() async {
+        if let items = try? await APIClient.shared.chats().items {
+            chatsUnread = items.reduce(0) { $0 + ($1.unread ?? 0) }
+        }
     }
 
     /// Precarga los contactos de la instancia activa en segundo plano para que el selector
@@ -188,6 +217,7 @@ final class SessionStore {
         case .chatIncoming(let instanceId, let jid):
             NotificationCenter.default.post(name: .cronaChatIncoming, object: nil,
                                             userInfo: ["instanceId": instanceId, "jid": jid])
+            Task { await refreshChatsUnread() }   // actualiza el badge al llegar un entrante
         }
     }
 }

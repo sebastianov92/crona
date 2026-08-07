@@ -9,6 +9,7 @@ struct ChatsView: View {
     @State private var search = ""
     @State private var showCreateGroup = false
     @State private var showGroups = false
+    @State private var showCompose = false
 
     private var filtered: [ChatSummary] {
         search.isEmpty ? chats : chats.filter { $0.name.localizedCaseInsensitiveContains(search) }
@@ -18,11 +19,14 @@ struct ChatsView: View {
         NavigationStack {
             List {
                 if filtered.isEmpty && !loading {
-                    ContentUnavailableView(
-                        "Sin chats todavía",
-                        systemImage: "bubble.left.and.bubble.right",
-                        description: Text("Aquí aparecen las personas a las que ya programaste mensajes.")
-                    )
+                    ContentUnavailableView {
+                        Label("Sin chats todavía", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Aquí aparecen las personas a las que ya programaste mensajes.")
+                    } actions: {
+                        Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
+                            .buttonStyle(.borderedProminent)
+                    }
                     .frame(maxWidth: .infinity)
                     .listRowSeparator(.hidden)
                 }
@@ -44,12 +48,23 @@ struct ChatsView: View {
                                 Text(chat.lastAt, format: .relative(presentation: .named))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
-                                if chat.pendingCount > 0 {
-                                    Text("\(chat.pendingCount)")
-                                        .font(.caption2.bold())
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 7).padding(.vertical, 2)
-                                        .background(Theme.accent, in: Capsule())
+                                HStack(spacing: 4) {
+                                    // no leídos (rojo) — entrantes sin abrir
+                                    if let u = chat.unread, u > 0 {
+                                        Text("\(u)")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 7).padding(.vertical, 2)
+                                            .background(.red, in: Capsule())
+                                    }
+                                    // programados pendientes (verde)
+                                    if chat.pendingCount > 0 {
+                                        Text("\(chat.pendingCount)")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 7).padding(.vertical, 2)
+                                            .background(Theme.accent, in: Capsule())
+                                    }
                                 }
                             }
                         }
@@ -86,6 +101,7 @@ struct ChatsView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showCompose) { ComposeView() }
             .sheet(isPresented: $showCreateGroup) { CreateGroupView() }
             .navigationDestination(isPresented: $showGroups) { GroupsListView() }
             .searchable(text: $search, prompt: "Buscar")
@@ -109,6 +125,7 @@ struct ChatsView: View {
     private func load() async {
         do {
             chats = try await APIClient.shared.chats().items
+            session.chatsUnread = chats.reduce(0) { $0 + ($1.unread ?? 0) }  // sincroniza el badge de la pestaña
         } catch { session.report(error) }
         loading = false
     }

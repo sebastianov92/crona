@@ -238,6 +238,11 @@ extension APIClient {
             .init(name: "jid", value: jid),
         ])
     }
+    /// Marca un chat como leído (al abrirlo) → sus no leídos vuelven a 0.
+    func markChatSeen(instanceId: String, jid: String) async throws -> OkResponse {
+        struct B: Encodable { let instanceId: String; let jid: String }
+        return try await request("POST", "/chats/seen", body: B(instanceId: instanceId, jid: jid))
+    }
 
     // Listas
     func lists() async throws -> Paginated<ContactList> { try await request("GET", "/lists") }

@@ -261,6 +261,11 @@ struct ChatDetailView: View {
             bubbles = try await APIClient.shared.chatMessages(instanceId: chat.instanceId, jid: chat.jid).items
         } catch { session.report(error) }
         loading = false
+        // abrir el chat = leído: pone seenAt=ahora y refresca el badge de la pestaña
+        Task {
+            _ = try? await APIClient.shared.markChatSeen(instanceId: chat.instanceId, jid: chat.jid)
+            await session.refreshChatsUnread()
+        }
     }
 
     private func send() async {

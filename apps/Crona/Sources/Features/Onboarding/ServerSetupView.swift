@@ -42,6 +42,8 @@ struct ServerSetupView: View {
             }
             .frame(maxWidth: 420)
             .onAppear {
+                // deep-link de invitación tiene prioridad para prellenar la dirección
+                if urlText.isEmpty, let fromLink = session.pendingSetupServer { urlText = fromLink }
                 // servidor guardado que no respondió al arrancar: prellenar y mostrar el motivo
                 if urlText.isEmpty, let saved = session.serverURL?.absoluteString { urlText = saved }
                 if error == nil { error = session.serverError }
@@ -72,6 +74,7 @@ struct ServerSetupView: View {
         defer { checking = false }
         do {
             try await session.setServer(url: url)
+            session.pendingSetupServer = nil   // ya usado
         } catch {
             self.error = "No se pudo conectar: \((error as? APIError)?.errorDescription ?? error.localizedDescription)"
         }

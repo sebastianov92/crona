@@ -40,6 +40,9 @@ struct RegisterView: View {
                 Section {
                     TextField("Código de invitación", text: $inviteCode)
                         .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
                 } footer: {
                     Text("El primer usuario del servidor no necesita invitación. Los demás piden el código al administrador.")
                 }
@@ -62,7 +65,11 @@ struct RegisterView: View {
                     .disabled(!canSubmit)
                 }
             }
-            .onAppear { focus = .name }
+            .onAppear {
+                // código prellenado si se llegó por deep-link/QR de invitación
+                if inviteCode.isEmpty, let c = session.pendingInvite { inviteCode = c }
+                focus = .name
+            }
         }
         #if os(macOS)
         .frame(minWidth: 420, minHeight: 380)
@@ -74,6 +81,7 @@ struct RegisterView: View {
         defer { busy = false }
         do {
             try await session.register(email: email, password: password, name: name, inviteCode: inviteCode)
+            session.pendingInvite = nil   // ya usado
             dismiss()
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription

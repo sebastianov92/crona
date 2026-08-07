@@ -89,6 +89,7 @@ model User {
   refreshTokens RefreshToken[]
   autoReplies   AutoReply[]
   hiddenChats   HiddenChat[]
+  chatReads     ChatRead[]
   contactLists  ContactList[]
   templates     Template[]
   groupCreations GroupCreation[]
@@ -193,6 +194,18 @@ model HiddenChat {
   instanceId String
   jid        String
   hiddenAt   DateTime @default(now())
+
+  @@unique([userId, instanceId, jid])
+}
+
+// Marca de "visto" por chat: los no leídos son los ChatMessage entrantes con sentAt > seenAt.
+model ChatRead {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId String
+  jid        String
+  seenAt     DateTime @default(now())
 
   @@unique([userId, instanceId, jid])
 }
