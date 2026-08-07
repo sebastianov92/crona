@@ -18,18 +18,6 @@ struct ChatsView: View {
     var body: some View {
         NavigationStack {
             List {
-                if filtered.isEmpty && !loading {
-                    ContentUnavailableView {
-                        Label("Sin chats todavía", systemImage: "bubble.left.and.bubble.right")
-                    } description: {
-                        Text("Aquí aparecen las personas a las que ya programaste mensajes.")
-                    } actions: {
-                        Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .listRowSeparator(.hidden)
-                }
                 ForEach(filtered) { chat in
                     Button {
                         selected = chat
@@ -89,7 +77,20 @@ struct ChatsView: View {
                 }
             }
             .listStyle(.plain)
-            .overlay { if loading && chats.isEmpty { ProgressView() } }
+            .overlay {
+                if loading && chats.isEmpty {
+                    ProgressView()
+                } else if filtered.isEmpty && !loading {
+                    ContentUnavailableView {
+                        Label("Sin chats todavía", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Aquí aparecen las personas a las que ya programaste mensajes.")
+                    } actions: {
+                        Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
             .navigationTitle("Chats")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

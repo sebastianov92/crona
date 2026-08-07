@@ -285,13 +285,14 @@ struct ComposePartsEditor: View {
                            canRemove: true,
                            canReorder: parts.count > 1,
                            focused: $focused,
-                           scrollProxy: scrollProxy,
-                           onReorder: moveParts) {
+                           scrollProxy: scrollProxy) {
                 if parts.count > 1 { parts.removeAll { $0.id == part.id } }
                 else { parts = [ComposePart(kind: .text)] }
             }
             .id(part.id) // ancla para scrollTo: el cursor nunca queda tapado por el teclado
         }
+        // Reordenar arrastrando (mantén pulsada una parte y muévela): reorden nativo de la List.
+        .onMove { parts.move(fromOffsets: $0, toOffset: $1) }
         // Al enfocar una parte, desplázala justo por encima del teclado (la barra de acciones
         // va fija abajo con safeAreaInset, así que basta con dejar ver el cursor).
         .onChange(of: focused) { _, id in
@@ -305,15 +306,6 @@ struct ComposePartsEditor: View {
             if let req { focused = req; focusRequest = nil }
         }
     }
-
-    /// Mueve la parte `fromId` a la posición de `toId` (reordenar arrastrando por el asa).
-    private func moveParts(_ fromId: UUID, _ toId: UUID) {
-        guard let from = parts.firstIndex(where: { $0.id == fromId }),
-              let to = parts.firstIndex(where: { $0.id == toId }), from != to else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
-            parts.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
-    }
 }
 
 /// Fila de una parte del compose: pinta el editor según el tipo y ofrece quitar.
@@ -323,7 +315,6 @@ private struct ComposePartRow: View {
     let canReorder: Bool
     @FocusState.Binding var focused: UUID?
     let scrollProxy: ScrollViewProxy
-    let onReorder: (UUID, UUID) -> Void
     let onRemove: () -> Void
 
     // Ubicación: elegir en el mapa (modo por defecto) o pegar un link de Google Maps.
@@ -386,21 +377,6 @@ private struct ComposePartRow: View {
                 .buttonStyle(.plain)
                 .help("Quitar esta parte")
             }
-            // Asa para reordenar arrastrando (solo si hay más de una parte).
-            if canReorder {
-                Image(systemName: "line.3.horizontal")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 32)
-                    .contentShape(Rectangle())
-                    .help("Arrastra para reordenar")
-                    .draggable(part.id.uuidString)
-            }
-        }
-        // Soltar otra parte sobre esta fila la coloca en esta posición.
-        .dropDestination(for: String.self) { items, _ in
-            guard canReorder, let s = items.first, let fromId = UUID(uuidString: s) else { return false }
-            onReorder(fromId, part.id)
-            return true
         }
     }
 

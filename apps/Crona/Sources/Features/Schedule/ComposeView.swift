@@ -55,6 +55,9 @@ struct ComposeView: View {
     // Lista homogénea de partes: cada una de cualquier tipo, en el orden que el usuario quiera.
     @State private var parts: [ComposePart] = [ComposePart(kind: .text)]
     @State private var focusRequest: UUID? // pide enfocar una parte concreta (al agregar texto)
+    #if os(iOS)
+    @State private var editMode: EditMode = .inactive // modo "Reordenar" partes (asas de arrastre)
+    #endif
     @State private var schedule = ScheduleConfig()
 
     @State private var showPicker = false
@@ -135,7 +138,7 @@ struct ComposeView: View {
                     }
                 }
 
-                Section("Mensaje") {
+                Section {
                     // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
                     ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
 
@@ -158,6 +161,23 @@ struct ComposeView: View {
                         Text("Se enviarán \(sendableCount) mensajes seguidos, con una pausa corta entre cada uno.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    HStack {
+                        Text("Mensaje")
+                        Spacer()
+                        // Reordenar: entra en modo edición → aparecen las asas para arrastrar partes.
+                        // (En macOS las filas se arrastran directamente, sin modo.)
+                        #if os(iOS)
+                        if parts.count > 1 {
+                            Button(editMode == .active ? "Listo" : "Reordenar") {
+                                withAnimation { editMode = editMode == .active ? .inactive : .active }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .textCase(nil)
+                            .foregroundStyle(Theme.accent)
+                        }
+                        #endif
                     }
                 }
 
@@ -198,6 +218,7 @@ struct ComposeView: View {
             }
             .formStyle(.grouped)
             #if os(iOS)
+            .environment(\.editMode, $editMode)   // "Reordenar" activa las asas de arrastre de las partes
             .scrollDismissesKeyboard(.interactively)
             #endif
             // Barra de acciones fija sobre el teclado: siempre visible al escribir, sin depender

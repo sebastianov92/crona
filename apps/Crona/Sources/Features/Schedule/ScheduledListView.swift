@@ -69,21 +69,6 @@ struct ScheduledListView: View {
                 )
                 filterChips
                 List {
-                    if filtered.isEmpty {
-                        ContentUnavailableView {
-                            Label("No tienes mensajes programados.", systemImage: "clock.badge.questionmark")
-                        } description: {
-                            Text("Programa un mensaje para que se envíe solo a la hora que quieras.")
-                        } actions: {
-                            Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
-                                .buttonStyle(.borderedProminent)
-                            if !session.instances.contains(where: { $0.status == .CONNECTED }) {
-                                Button { showInstances = true } label: { Label("Conectar WhatsApp", systemImage: "qrcode") }
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .listRowSeparator(.hidden)
-                    }
                     // Agrupado por día: cabeceras Hoy / Mañana / fecha para escanear la carga.
                     ForEach(groupedByDay, id: \.key) { group in
                         Section(group.key) {
@@ -116,6 +101,22 @@ struct ScheduledListView: View {
                     }
                 }
                 .listStyle(.plain)
+                // Empty state como overlay (no como fila de la List: ahí el botón se estiraba).
+                .overlay {
+                    if filtered.isEmpty {
+                        ContentUnavailableView {
+                            Label("No tienes mensajes programados.", systemImage: "clock.badge.questionmark")
+                        } description: {
+                            Text("Programa un mensaje para que se envíe solo a la hora que quieras.")
+                        } actions: {
+                            Button { showCompose = true } label: { Label("Programar mensaje", systemImage: "plus") }
+                                .buttonStyle(.borderedProminent)
+                            if !session.instances.contains(where: { $0.status == .CONNECTED }) {
+                                Button { showInstances = true } label: { Label("Conectar WhatsApp", systemImage: "qrcode") }
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle("Programados")
             .searchable(text: $search, prompt: "Buscar")
