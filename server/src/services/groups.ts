@@ -35,6 +35,17 @@ async function claimDue(limit = 5): Promise<string[]> {
 
 type Participant = { jid: string; name?: string };
 
+/// El jid del grupo puede venir como string en varias claves, o como objeto {_serialized}/{id}.
+function extractGroupJid(res: any): string | undefined {
+  const cand = res?.id ?? res?.groupJid ?? res?.jid ?? res?.gid ?? res?.group?.id;
+  if (typeof cand === "string" && cand.includes("@")) return cand;
+  if (cand && typeof cand === "object") {
+    const s = cand._serialized ?? cand.id ?? cand.user;
+    if (typeof s === "string" && s.includes("@")) return s;
+  }
+  return undefined;
+}
+
 async function createOne(id: string): Promise<void> {
   const gc = await prisma.groupCreation.findUnique({
     where: { id },
@@ -64,10 +75,13 @@ async function createOne(id: string): Promise<void> {
       subject: gc.name,
       participants,
     });
-    const groupJid: string | undefined = res?.id ?? res?.groupJid ?? res?.jid;
+    const groupJid = extractGroupJid(res);
     if (!groupJid) throw new Error("Evolution no devolvió el identificador del grupo.");
 
+    // El grupo YA existe: a partir de aquí nada debe marcar FAILED (solo avisos suaves), porque
+    // fallar aquí borraría de la vista un grupo que sí se creó en WhatsApp.
     await prisma.groupCreation.update({ where: { id }, data: { groupJid } });
+    const warnings: string[] = [];
 
     // Foto del grupo (base64 puro, sin prefijo data:)
     if (gc.pictureMediaId) {
@@ -75,28 +89,32 @@ async function createOne(id: string): Promise<void> {
       if (media) {
         const b64 = (await readFile(mediaAbsPath(media))).toString("base64");
         await evolution.updateGroupPicture(instance.instanceName, key, groupJid, b64).catch(() => {
-          /* la foto es opcional: si falla, el grupo ya está creado */
+          warnings.push("No se pudo poner la foto del grupo.");
         });
       }
     }
 
-    // Mensaje inicial: 5-10 s después de crear el grupo
+    // Mensaje inicial: 5-10 s después de crear el grupo. Su fallo NO invalida el grupo.
     if (gc.parts.length > 0) {
-      await sleep(5000 + rand(0, 5000));
-      for (const [i, part] of gc.parts.entries()) {
-        if (i > 0) await sleep(500 + rand(0, 500)); // pausa 0.5-1 s entre partes del split
-        await evolution.sendText(instance.instanceName, key, {
-          number: groupJid,
-          text: part.body,
-          delay: part.typingMs ?? 1800,
-          linkPreview: true,
-        });
+      try {
+        await sleep(5000 + rand(0, 5000));
+        for (const [i, part] of gc.parts.entries()) {
+          if (i > 0) await sleep(500 + rand(0, 500)); // pausa 0.5-1 s entre partes del split
+          await evolution.sendText(instance.instanceName, key, {
+            number: groupJid,
+            text: part.body,
+            delay: part.typingMs ?? 1800,
+            linkPreview: true,
+          });
+        }
+      } catch (e) {
+        warnings.push("El grupo se creó, pero no se pudo enviar el mensaje inicial.");
       }
     }
 
     await prisma.groupCreation.update({
       where: { id },
-      data: { status: "DONE", claimedAt: null, lastError: null },
+      data: { status: "DONE", claimedAt: null, lastError: warnings.length ? warnings.join(" ") : null },
     });
     broadcast(gc.userId, "group.created", { id: gc.id, name: gc.name, groupJid });
   } catch (e) {

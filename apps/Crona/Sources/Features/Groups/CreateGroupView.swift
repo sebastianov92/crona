@@ -31,6 +31,9 @@ struct CreateGroupView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var created: GroupCreation?
+    @State private var confirmNoPhoto = false
+
+    private var hasPhoto: Bool { pickedPicture != nil || pictureMediaId != nil }
 
     private var canSubmit: Bool {
         instanceId != nil && !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -48,6 +51,19 @@ struct CreateGroupView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Crear grupo")
+            .alert("Crear el grupo sin foto?", isPresented: $confirmNoPhoto) {
+                Button("Crear igual") { Task { await submit() } }
+                Button("Elegir foto") {
+                    #if os(iOS)
+                    showPhotoPicker = true
+                    #else
+                    showFileImporter = true
+                    #endif
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("El grupo se creará sin foto de perfil. Puedes ponérsela después.")
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(created == nil ? "Cancelar" : "Cerrar") { dismiss() }
@@ -55,7 +71,7 @@ struct CreateGroupView: View {
                 if created == nil {
                     ToolbarItem(placement: .confirmationAction) {
                         Button {
-                            Task { await submit() }
+                            if hasPhoto { Task { await submit() } } else { confirmNoPhoto = true }
                         } label: {
                             if busy { ProgressView().controlSize(.small) }
                             else { Text(scheduled ? "Programar" : "Crear") }

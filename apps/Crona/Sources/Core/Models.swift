@@ -251,6 +251,18 @@ struct TemplatePart: Codable, Hashable {
     var body: String?
     var mediaId: String?
     var typingMs: Int?
+
+    init(type: MessageType = .TEXT, body: String? = nil, mediaId: String? = nil, typingMs: Int? = nil) {
+        self.type = type; self.body = body; self.mediaId = mediaId; self.typingMs = typingMs
+    }
+    // Decoder tolerante: si falta "type" (p.ej. respuestas viejas), asume TEXT en vez de fallar.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        type = (try? c.decode(MessageType.self, forKey: .type)) ?? .TEXT
+        body = try? c.decodeIfPresent(String.self, forKey: .body)
+        mediaId = try? c.decodeIfPresent(String.self, forKey: .mediaId)
+        typingMs = try? c.decodeIfPresent(Int.self, forKey: .typingMs)
+    }
 }
 
 struct MessageTemplate: Identifiable, Codable, Hashable {

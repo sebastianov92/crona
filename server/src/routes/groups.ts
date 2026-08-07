@@ -32,7 +32,10 @@ const groupDTO = (g: {
   groupJid: g.groupJid,
   lastError: g.lastError,
   createdAt: g.createdAt,
-  parts: [...(g.parts ?? [])].sort((a, b) => a.order - b.order).map((p) => ({ body: p.body, typingMs: p.typingMs })),
+  // type/mediaId: las partes de grupo son texto; se incluyen para que TemplatePart decodifique en la app.
+  parts: [...(g.parts ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .map((p) => ({ type: "TEXT", body: p.body, mediaId: null, typingMs: p.typingMs })),
 });
 
 export function registerGroupRoutes(app: FastifyInstance) {
