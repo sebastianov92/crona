@@ -2,8 +2,9 @@ import { readFile } from "node:fs/promises";
 import { prisma } from "../db.js";
 import { evolution } from "./evolution.js";
 import { decrypt } from "./crypto.js";
-import { mediaAbsPath } from "./media.js";
+import { mediaAbsPath, buildMediaPayload, buildAudioPayload, buildStickerPayload } from "./media.js";
 import { broadcast } from "../ws/hub.js";
+import type { ScheduledMessage } from "@prisma/client";
 
 /// Crea grupos de WhatsApp pendientes: grupo → foto → espera 5-10 s → mensaje inicial
 /// (cada parte con su "escribiendo…" y pausa de 0.5-1 s entre partes, igual que el split).
@@ -44,6 +45,28 @@ function extractGroupJid(res: any): string | undefined {
     if (typeof s === "string" && s.includes("@")) return s;
   }
   return undefined;
+}
+
+/// Envía una parte del mensaje inicial al grupo (texto o media), reusando los builders del worker.
+async function sendGroupPart(
+  n: string, key: string, groupJid: string, groupName: string,
+  part: { type: string; body: string | null; mediaId: string | null; typingMs: number | null },
+): Promise<void> {
+  const delay = part.typingMs ?? 1800;
+  // objeto tipo-mensaje para reusar los builders (solo leen recipientJid/mediaId/body/typingMs + recipientName/timezone)
+  const like = {
+    recipientJid: groupJid, recipientName: groupName, timezone: "UTC",
+    type: part.type, body: part.body, mediaId: part.mediaId, typingMs: part.typingMs,
+  } as unknown as ScheduledMessage;
+  if (part.type === "TEXT") {
+    await evolution.sendText(n, key, { number: groupJid, text: part.body ?? "", delay, linkPreview: true });
+  } else if (part.type === "AUDIO") {
+    await evolution.sendAudio(n, key, await buildAudioPayload(like));
+  } else if (part.type === "STICKER") {
+    await evolution.sendSticker(n, key, await buildStickerPayload(like));
+  } else {
+    await evolution.sendMedia(n, key, await buildMediaPayload(like));
+  }
 }
 
 async function createOne(id: string): Promise<void> {
@@ -100,12 +123,7 @@ async function createOne(id: string): Promise<void> {
         await sleep(5000 + rand(0, 5000));
         for (const [i, part] of gc.parts.entries()) {
           if (i > 0) await sleep(500 + rand(0, 500)); // pausa 0.5-1 s entre partes del split
-          await evolution.sendText(instance.instanceName, key, {
-            number: groupJid,
-            text: part.body,
-            delay: part.typingMs ?? 1800,
-            linkPreview: true,
-          });
+          await sendGroupPart(instance.instanceName, key, groupJid, gc.name, part);
         }
       } catch (e) {
         warnings.push("El grupo se creó, pero no se pudo enviar el mensaje inicial.");

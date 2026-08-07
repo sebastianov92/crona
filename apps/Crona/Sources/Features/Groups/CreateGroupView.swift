@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 #if os(iOS)
 import PhotosUI
 #endif
@@ -12,7 +13,9 @@ struct CreateGroupView: View {
     @State private var instanceId: String?
     @State private var name = ""
     @State private var participants: [Recipient] = []
-    @State private var parts: [PartDraft] = [PartDraft()]
+    // Mensaje inicial con el editor unificado (texto/foto/voz/sticker), igual que al programar.
+    @State private var parts: [ComposePart] = [ComposePart(kind: .text)]
+    @State private var focusRequest: UUID?
 
     @State private var pictureMediaId: String?
     @State private var pickedPicture: Data?
@@ -23,9 +26,17 @@ struct CreateGroupView: View {
     @State private var showPicker = false
     @State private var showTemplates = false
     @State private var showFileImporter = false
+    // El fileImporter se comparte entre la foto del grupo y una parte del mensaje (macOS).
+    private enum FileTarget { case groupPhoto, message }
+    @State private var fileTarget: FileTarget = .groupPhoto
+    @State private var showRecorder = false
+    @State private var showStickerPicker = false
+    @State private var uploading = false
     #if os(iOS)
-    @State private var photoItem: PhotosPickerItem?
+    @State private var photoItem: PhotosPickerItem?          // foto del grupo
     @State private var showPhotoPicker = false
+    @State private var msgPhotoItem: PhotosPickerItem?       // foto/video de una parte del mensaje
+    @State private var showMsgPhoto = false
     #endif
 
     @State private var busy = false
@@ -42,11 +53,12 @@ struct CreateGroupView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             Form {
                 if created != nil {
                     resultSection
                 } else {
-                    formSections
+                    formSections(proxy)
                 }
             }
             .formStyle(.grouped)
@@ -104,13 +116,15 @@ struct CreateGroupView: View {
                 }
             }
             .sheet(isPresented: $showTemplates) {
-                TemplatePickerSheet(kind: .GROUP_INITIAL) { tplParts in
-                    // Los grupos envían solo texto: se toman las partes de texto de la plantilla.
-                    parts = tplParts.compactMap { p in
-                        (p.body?.isEmpty == false) ? PartDraft(text: p.body ?? "", presetTypingMs: p.typingMs) : nil
-                    }
-                    if parts.isEmpty { parts = [PartDraft()] }
+                TemplatePickerSheet(kind: .GROUP_INITIAL) { tplParts in applyTemplate(tplParts) }
+            }
+            .sheet(isPresented: $showRecorder) {
+                VoiceRecorderSheet { att, durationMs in
+                    addPart(ComposePart(kind: .audio, attachment: att, durationMs: durationMs))
                 }
+            }
+            .sheet(isPresented: $showStickerPicker) {
+                StickerPickerView { att in addPart(ComposePart(kind: .sticker, attachment: att)) }
             }
             #if os(iOS)
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
@@ -121,11 +135,22 @@ struct CreateGroupView: View {
                     photoItem = nil
                 }
             }
+            .photosPicker(isPresented: $showMsgPhoto, selection: $msgPhotoItem, matching: .any(of: [.images, .videos]))
+            .onChange(of: msgPhotoItem) { _, item in
+                guard let item else { return }
+                Task { await loadMsgPhoto(item) }
+            }
             #endif
-            .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.jpeg, .png]) { result in
-                if case .success(let url) = result, url.startAccessingSecurityScopedResource() {
-                    defer { url.stopAccessingSecurityScopedResource() }
-                    pickedPicture = try? Data(contentsOf: url)
+            .fileImporter(isPresented: $showFileImporter,
+                          allowedContentTypes: fileTarget == .groupPhoto ? [.jpeg, .png] : [.image, .movie, .pdf]) { result in
+                guard case .success(let url) = result else { return }
+                if fileTarget == .groupPhoto {
+                    if url.startAccessingSecurityScopedResource() {
+                        defer { url.stopAccessingSecurityScopedResource() }
+                        pickedPicture = try? Data(contentsOf: url)
+                    }
+                } else {
+                    loadMsgFile(url)
                 }
             }
             .onAppear {
@@ -135,6 +160,7 @@ struct CreateGroupView: View {
             .onChange(of: session.instances) { _, _ in
                 if instanceId == nil { instanceId = session.activeInstance?.id }
             }
+            } // ScrollViewReader
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 580)
@@ -144,7 +170,7 @@ struct CreateGroupView: View {
     // MARK: - Formulario
 
     @ViewBuilder
-    private var formSections: some View {
+    private func formSections(_ proxy: ScrollViewProxy) -> some View {
         if session.instances.count > 1 {
             Section("Instancia") {
                 Picker("Crear desde", selection: $instanceId) {
@@ -164,7 +190,7 @@ struct CreateGroupView: View {
                         #if os(iOS)
                         showPhotoPicker = true
                         #else
-                        showFileImporter = true
+                        fileTarget = .groupPhoto; showFileImporter = true
                         #endif
                     }
                     if pickedPicture != nil || pictureMediaId != nil {
@@ -205,8 +231,9 @@ struct CreateGroupView: View {
         }
 
         Section {
-            PartsEditor(parts: $parts, minParts: 1, maxParts: 10,
-                        placeholder: "Mensaje de bienvenida (opcional)")
+            // Editor unificado (texto/foto/voz/sticker), igual que al programar un mensaje.
+            ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
+            addPartBar
             Button {
                 showTemplates = true
             } label: {
@@ -215,6 +242,10 @@ struct CreateGroupView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            if sendableCount > 1 {
+                Text("Se enviarán \(sendableCount) mensajes seguidos, con una pausa corta entre cada uno.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
         } header: {
             Text("Mensaje inicial")
         } footer: {
@@ -256,6 +287,96 @@ struct CreateGroupView: View {
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Editor del mensaje inicial (texto/foto/voz/sticker)
+
+    private var sendableCount: Int { parts.filter { $0.isSendable }.count }
+
+    @ViewBuilder private var addPartBar: some View {
+        HStack(spacing: 6) {
+            partButton("Texto", "text.bubble") { addTextPart() }
+            partButton("Foto", "photo") {
+                #if os(iOS)
+                showMsgPhoto = true
+                #else
+                fileTarget = .message; showFileImporter = true
+                #endif
+            }
+            partButton("Voz", "mic.fill") { showRecorder = true }
+            partButton("Sticker", "face.smiling") { showStickerPicker = true }
+        }
+        .disabled(parts.count >= 10)
+    }
+
+    private func partButton(_ label: String, _ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: icon).font(.system(size: 17))
+                Text(label).font(.caption2)
+            }
+            .frame(maxWidth: .infinity).frame(height: 48)
+            .background(Theme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+            .foregroundStyle(Theme.accent)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func addTextPart() {
+        if parts.count == 1, parts[0].kind == .text, parts[0].trimmed.isEmpty {
+            focusRequest = parts[0].id
+        } else {
+            let p = ComposePart(kind: .text); parts.append(p); focusRequest = p.id
+        }
+    }
+
+    /// Agrega una parte de media; sustituye la única parte si es un texto vacío sin usar.
+    private func addPart(_ part: ComposePart) {
+        if parts.count == 1, parts[0].kind == .text, parts[0].trimmed.isEmpty, parts[0].attachment == nil {
+            parts[0] = part
+        } else {
+            parts.append(part)
+        }
+    }
+
+    #if os(iOS)
+    private func loadMsgPhoto(_ item: PhotosPickerItem) async {
+        defer { msgPhotoItem = nil }
+        if let movie = try? await item.loadTransferable(type: MovieFile.self),
+           let data = try? Data(contentsOf: movie.url) {
+            addPart(ComposePart(kind: .photoVideo,
+                                attachment: Attachment(data: data, fileName: movie.url.lastPathComponent, mimeType: "video/quicktime")))
+            try? FileManager.default.removeItem(at: movie.url)
+        } else if let data = try? await item.loadTransferable(type: Data.self) {
+            addPart(ComposePart(kind: .photoVideo,
+                                attachment: Attachment(data: uprightImageData(data, mime: "image/jpeg"), fileName: "foto.jpg", mimeType: "image/jpeg")))
+        }
+    }
+    #endif
+
+    private func loadMsgFile(_ url: URL) {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+        guard let data = try? Data(contentsOf: url) else { return }
+        let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+        let bytes = mime.hasPrefix("image/") ? uprightImageData(data, mime: mime) : data
+        addPart(ComposePart(kind: .photoVideo,
+                            attachment: Attachment(data: bytes, fileName: url.lastPathComponent, mimeType: mime)))
+    }
+
+    /// Aplica una plantilla al mensaje inicial: reconstruye sus partes (texto reutiliza media por id).
+    private func applyTemplate(_ tplParts: [TemplatePart]) {
+        let mapped: [ComposePart] = tplParts.map { p in
+            switch p.type {
+            case .TEXT: return ComposePart(kind: .text, text: p.body ?? "", presetTypingMs: p.typingMs)
+            case .AUDIO: var c = ComposePart(kind: .audio); c.existingMediaId = p.mediaId; c.existingType = p.type; return c
+            case .STICKER: var c = ComposePart(kind: .sticker); c.existingMediaId = p.mediaId; c.existingType = p.type; return c
+            default:
+                var c = ComposePart(kind: .photoVideo, text: p.body ?? ""); c.existingMediaId = p.mediaId; c.existingType = p.type; return c
+            }
+        }
+        if !mapped.isEmpty { parts = mapped }
     }
 
     // MARK: - Resultado
@@ -300,12 +421,31 @@ struct CreateGroupView: View {
                 mediaId = try await APIClient.shared.uploadMedia(
                     data: pickedPicture, fileName: "grupo.jpg", mimeType: "image/jpeg").mediaId
             }
+            // Mensaje inicial: sube el media de cada parte y arma las partes (texto/foto/voz/sticker).
+            let sendParts = parts.filter { $0.isSendable }
+            var mediaIds: [UUID: String] = [:]
+            let withMedia = sendParts.filter { $0.attachment != nil }
+            if !withMedia.isEmpty {
+                uploading = true
+                for part in withMedia {
+                    guard let att = part.attachment else { continue }
+                    mediaIds[part.id] = try await APIClient.shared.uploadMedia(
+                        data: att.data, fileName: att.fileName, mimeType: att.mimeType).mediaId
+                }
+                uploading = false
+            }
+            for part in sendParts where part.attachment == nil {
+                if let mid = part.existingMediaId { mediaIds[part.id] = mid }
+            }
+            let messageParts = sendParts.map { part in
+                TemplatePart(type: part.messageType, body: part.bodyText, mediaId: mediaIds[part.id], typingMs: part.typingMs)
+            }
             let body = CreateGroupBody(
                 instanceId: instanceId,
                 name: name.trimmingCharacters(in: .whitespaces),
                 pictureMediaId: mediaId,
                 participants: participants.map { GroupParticipant(jid: $0.jid, name: $0.shownName) },
-                parts: parts.filter { !$0.isEmpty }.map(\.templatePart),
+                parts: messageParts,
                 scheduledAt: scheduled ? date : nil
             )
             created = try await APIClient.shared.createGroup(body)

@@ -179,7 +179,9 @@ model GroupMessagePart {
   creationId String
   creation   GroupCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
   order      Int
-  body       String
+  type       MessageType   @default(TEXT) // texto o media (foto/video/doc/voz/sticker)
+  body       String? // texto o caption; null en media sin caption
+  mediaId    String?
   typingMs   Int?
 
   @@index([creationId, order])

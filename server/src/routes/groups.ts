@@ -20,7 +20,7 @@ const groupDTO = (g: {
   groupJid: string | null;
   lastError: string | null;
   createdAt: Date;
-  parts?: { order: number; body: string; typingMs: number | null }[];
+  parts?: { order: number; type: string; body: string | null; mediaId: string | null; typingMs: number | null }[];
 }) => ({
   id: g.id,
   instanceId: g.instanceId,
@@ -32,10 +32,9 @@ const groupDTO = (g: {
   groupJid: g.groupJid,
   lastError: g.lastError,
   createdAt: g.createdAt,
-  // type/mediaId: las partes de grupo son texto; se incluyen para que TemplatePart decodifique en la app.
   parts: [...(g.parts ?? [])]
     .sort((a, b) => a.order - b.order)
-    .map((p) => ({ type: "TEXT", body: p.body, mediaId: null, typingMs: p.typingMs })),
+    .map((p) => ({ type: p.type, body: p.body, mediaId: p.mediaId, typingMs: p.typingMs })),
 });
 
 export function registerGroupRoutes(app: FastifyInstance) {
@@ -57,11 +56,13 @@ export function registerGroupRoutes(app: FastifyInstance) {
       .array(z.object({ jid: z.string().min(3), name: z.string().optional() }))
       .min(1)
       .max(256),
-    // mensaje inicial (opcional): una o varias partes, cada una con su tiempo de escritura
+    // mensaje inicial (opcional): texto o media (foto/video/doc/voz/sticker), cada parte con su typing
     parts: z
       .array(
         z.object({
-          body: z.string().min(1).max(4096),
+          type: z.enum(["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]).default("TEXT"),
+          body: z.string().max(4096).nullable().optional(),
+          mediaId: z.string().uuid().nullable().optional(),
           typingMs: z.number().int().min(500).max(25_000).nullable().optional(),
         }),
       )
@@ -82,6 +83,17 @@ export function registerGroupRoutes(app: FastifyInstance) {
     if (body.scheduledAt && body.scheduledAt.getTime() < Date.now() + 60_000) {
       throw errors.validation("La fecha de creación debe ser al menos 1 minuto en el futuro.");
     }
+    // Validar partes: media necesita mediaId (y ser del usuario); texto necesita body.
+    const NEEDS_MEDIA = new Set(["IMAGE", "VIDEO", "DOCUMENT", "AUDIO", "STICKER"]);
+    for (const p of body.parts) {
+      if (NEEDS_MEDIA.has(p.type)) {
+        if (!p.mediaId) throw errors.validation("Una parte de tipo media no tiene archivo adjunto.");
+        const m = await prisma.media.findFirst({ where: { id: p.mediaId, userId: req.userId } });
+        if (!m) throw errors.notFound("El archivo adjunto de una parte");
+      } else if (!p.body || !p.body.trim()) {
+        throw errors.validation("Una parte de texto está vacía.");
+      }
+    }
 
     const created = await prisma.groupCreation.create({
       data: {
@@ -92,7 +104,13 @@ export function registerGroupRoutes(app: FastifyInstance) {
         participants: body.participants,
         runAt: body.scheduledAt ?? new Date(),
         parts: {
-          create: body.parts.map((p, i) => ({ order: i, body: p.body, typingMs: p.typingMs ?? null })),
+          create: body.parts.map((p, i) => ({
+            order: i,
+            type: p.type,
+            body: p.body ?? null,
+            mediaId: p.mediaId ?? null,
+            typingMs: p.typingMs ?? null,
+          })),
         },
       },
       include: { parts: true },
