@@ -34,6 +34,7 @@ targets:
         UILaunchScreen: {}
         LSApplicationCategoryType: public.app-category.productivity
         NSMicrophoneUsageDescription: Crona usa el micrófono para grabar notas de voz que luego se envían por WhatsApp.
+        NSLocationWhenInUseUsageDescription: Crona usa tu ubicación solo cuando eliges "Mi ubicación" para adjuntar un punto del mapa a un mensaje.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sebastianov.crona

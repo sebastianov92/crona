@@ -388,18 +388,24 @@ export function registerMessageRoutes(app: FastifyInstance) {
     if (!["SENT", "DELIVERED", "READ"].includes(log.status)) {
       throw errors.validation("Solo se puede eliminar un mensaje que se envió correctamente.");
     }
-    if (!log.evolutionMessageId) throw errors.validation("Este mensaje no tiene identificador de WhatsApp para eliminarlo.");
+    // Todas las partes del split (compat: si el log es viejo y solo trae el id único, usar ese).
+    const ids = log.evolutionMessageIds.length ? log.evolutionMessageIds : (log.evolutionMessageId ? [log.evolutionMessageId] : []);
+    if (!ids.length) throw errors.validation("Este mensaje no tiene identificador de WhatsApp para eliminarlo.");
     const sent = log.sentAt ?? log.runAt;
     if (Date.now() - sent.getTime() > 2 * 24 * 3600_000) {
       throw errors.validation("Ya pasó el tiempo para eliminarlo para todos (WhatsApp permite ~2 días).");
     }
     const inst = log.scheduledMessage.instance;
-    await evolution.deleteForEveryone(inst.instanceName, decrypt(inst.tokenEnc), {
-      id: log.evolutionMessageId,
-      remoteJid: log.remoteJid,
-      fromMe: true,
-    });
-    return { ok: true };
+    const key = decrypt(inst.tokenEnc);
+    // Borra cada parte; junta los errores para no cortar en la primera que falle.
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await evolution.deleteForEveryone(inst.instanceName, key, { id, remoteJid: log.remoteJid, fromMe: true });
+      } catch { failed++; }
+    }
+    if (failed === ids.length) throw errors.validation("No se pudo eliminar el mensaje en WhatsApp.");
+    return { ok: true, deleted: ids.length - failed, total: ids.length };
   });
 
   app.delete("/messages/:id", { preHandler: authenticate }, async (req) => {

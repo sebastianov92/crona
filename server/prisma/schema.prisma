@@ -416,7 +416,8 @@ model MessageLog {
   scheduledMessage   ScheduledMessage @relation(fields: [scheduledMessageId], references: [id], onDelete: Cascade)
   runAt              DateTime
   status             LogStatus
-  evolutionMessageId String? // response.key.id — clave para matchear webhooks
+  evolutionMessageId String? // response.key.id de la 1ª parte — clave para matchear webhooks
+  evolutionMessageIds String[] @default([]) // todas las partes del split (para "eliminar para todos")
   remoteJid          String
   error              String?
   sentAt             DateTime?

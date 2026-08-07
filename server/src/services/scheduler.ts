@@ -167,12 +167,16 @@ async function createLog(msg: FullMessage): Promise<MessageLog> {
   });
 }
 
-async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAILED", evolutionMessageId?: string, error?: string) {
+async function markLog(msg: FullMessage, log: MessageLog, status: "SENT" | "FAILED", ids?: string[], error?: string) {
+  const all = (ids ?? []).filter((x): x is string => !!x);
   const updated = await prisma.messageLog.update({
     where: { id: log.id },
     data: {
       status,
-      evolutionMessageId: evolutionMessageId ?? null,
+      // evolutionMessageId = 1ª parte (compat); evolutionMessageIds = todas las partes del split
+      // (así "eliminar para todos" borra las N fotos/mensajes, no solo la primera).
+      evolutionMessageId: all[0] ?? null,
+      evolutionMessageIds: all,
       error: error ?? null,
       ...(status === "SENT" ? { sentAt: new Date() } : {}),
     },
@@ -286,7 +290,9 @@ async function sendOne(msg: FullMessage): Promise<void> {
   const key = decrypt(msg.instance.tokenEnc);
   const log = await createLog(msg);
   try {
-    const keyId = await sendPart(msg, key, null);
+    const ids: string[] = [];
+    const first = await sendPart(msg, key, null);
+    if (first) ids.push(first);
 
     // Split: el resto de partes salen seguidas, con pausa aleatoria de 0.5-1 s entre cada una
     // (cada parte muestra su propio "escribiendo…" antes de enviarse).
@@ -296,10 +302,11 @@ async function sendOne(msg: FullMessage): Promise<void> {
     });
     for (const p of parts) {
       await sleep(500 + rand(0, 500));
-      await sendPart(msg, key, p);
+      const pid = await sendPart(msg, key, p);
+      if (pid) ids.push(pid);
     }
 
-    await markLog(msg, log, "SENT", keyId);
+    await markLog(msg, log, "SENT", ids);
     await onOccurrenceSuccess(msg);
     if (msg.user.notifyOnSent) {
       const local = DateTime.now().setZone(msg.timezone).setLocale("es").toFormat("h:mm a");

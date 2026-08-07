@@ -280,9 +280,9 @@ struct ComposePartsEditor: View {
 
     var body: some View {
         ForEach($parts) { $part in
-            // Se puede quitar cualquier parte con contenido; quitar la última la vuelve a texto vacío.
+            // Siempre se puede quitar cualquier parte, sea cual sea; quitar la última la vuelve a texto vacío.
             ComposePartRow(part: $part,
-                           canRemove: parts.count > 1 || part.isSendable,
+                           canRemove: true,
                            focused: $focused,
                            scrollProxy: scrollProxy) {
                 if parts.count > 1 { parts.removeAll { $0.id == part.id } }
@@ -312,6 +312,14 @@ private struct ComposePartRow: View {
     @FocusState.Binding var focused: UUID?
     let scrollProxy: ScrollViewProxy
     let onRemove: () -> Void
+
+    // Ubicación: pegar link de Google Maps o elegir en el mapa.
+    @State private var mapsLink = ""
+    @State private var linkBusy = false
+    @State private var linkError = false
+    @State private var showMap = false
+    // Contacto: elegir de la agenda del teléfono.
+    @State private var showContactPicker = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -442,28 +450,81 @@ private struct ComposePartRow: View {
     private var locationEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Ubicación", systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(Theme.accent)
-            boxed(TextField("Nombre (ej. Oficina)", text: $part.locName))
-            boxed(TextField("Dirección (opcional)", text: $part.locAddress))
+
+            // Opción 1: pegar un link de Google Maps (corto o largo) y extraer las coordenadas.
             HStack(spacing: 8) {
-                boxed(TextField("Latitud", value: $part.latitude, format: .number)
+                boxed(TextField("Pega un link de Google Maps", text: $mapsLink)
+                    .autocorrectionDisabled()
                     #if os(iOS)
-                    .keyboardType(.numbersAndPunctuation)
+                    .textInputAutocapitalization(.never)
                     #endif
                 )
-                boxed(TextField("Longitud", value: $part.longitude, format: .number)
-                    #if os(iOS)
-                    .keyboardType(.numbersAndPunctuation)
-                    #endif
-                )
+                Button {
+                    Task { await extractFromLink() }
+                } label: {
+                    if linkBusy { ProgressView() }
+                    else { Text("Extraer").font(.subheadline.weight(.semibold)) }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.accent)
+                .disabled(linkBusy || mapsLink.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            Text("En Google Maps: mantén pulsado el lugar → copia las coordenadas (lat, long) y pégalas.")
-                .font(.caption2).foregroundStyle(.secondary)
+            if linkError {
+                Text("No pude leer coordenadas de ese link. Prueba con “Elegir en el mapa”.")
+                    .font(.caption2).foregroundStyle(.red)
+            }
+
+            // Opción 2: elegir un punto en el mapa (arranca en tu ubicación actual en iPhone).
+            Button { showMap = true } label: {
+                Label("Elegir en el mapa", systemImage: "map").font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 9)
+                    .background(Theme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+
+            // Coordenadas elegidas (confirmación / ajuste manual fino).
+            if let lat = part.latitude, let lng = part.longitude {
+                Text(String(format: "📍 %.5f, %.5f", lat, lng))
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            boxed(TextField("Nombre (ej. Oficina) — opcional", text: $part.locName))
+            boxed(TextField("Dirección (opcional)", text: $part.locAddress))
         }
+        .sheet(isPresented: $showMap) {
+            LocationPickerSheet { lat, lng in
+                part.latitude = lat
+                part.longitude = lng
+            }
+        }
+    }
+
+    private func extractFromLink() async {
+        linkBusy = true; linkError = false
+        if let (lat, lng) = await resolveMapsLink(mapsLink) {
+            part.latitude = lat; part.longitude = lng
+        } else {
+            linkError = true
+        }
+        linkBusy = false
     }
 
     private var contactEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Contacto", systemImage: "person.crop.rectangle").font(.caption).foregroundStyle(Theme.accent)
+
+            #if os(iOS)
+            // Elegir de la agenda del teléfono: rellena nombre y número automáticamente.
+            Button { showContactPicker = true } label: {
+                Label("Elegir de mis contactos", systemImage: "person.crop.circle.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 9)
+                    .background(Theme.accent.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            #endif
+
             boxed(TextField("Nombre", text: $part.contactName))
             boxed(TextField("Número con código de país (ej. 593991234567)", text: $part.contactPhone)
                 #if os(iOS)
@@ -471,6 +532,17 @@ private struct ComposePartRow: View {
                 #endif
             )
         }
+        #if os(iOS)
+        .sheet(isPresented: $showContactPicker) {
+            PhoneContactPicker(isPresented: $showContactPicker) { name, rawPhone in
+                if !name.isEmpty { part.contactName = name }
+                // Deja los dígitos (con "+" pasa a dígitos); si es local sin código, el usuario ajusta.
+                let digits = rawPhone.filter(\.isNumber)
+                part.contactPhone = digits.hasPrefix("00") ? String(digits.dropFirst(2)) : digits
+            }
+            .ignoresSafeArea()
+        }
+        #endif
     }
 }
 
