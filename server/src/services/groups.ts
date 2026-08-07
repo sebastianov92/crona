@@ -101,11 +101,16 @@ async function createOne(id: string): Promise<void> {
     const groupJid = extractGroupJid(res);
     if (!groupJid) throw new Error("Evolution no devolvió el identificador del grupo.");
 
-    // El grupo YA existe: a partir de aquí nada debe marcar FAILED (solo avisos suaves), porque
-    // fallar aquí borraría de la vista un grupo que sí se creó en WhatsApp.
-    await prisma.groupCreation.update({ where: { id }, data: { groupJid } });
-    const warnings: string[] = [];
+    // El grupo YA existe → marcarlo DONE y avisar POR WS AL INSTANTE. La foto y el mensaje
+    // inicial van después (sin dejar la app en "Creando…" durante la espera del mensaje).
+    // A partir de aquí nada marca FAILED: fallar borraría de la vista un grupo real.
+    await prisma.groupCreation.update({
+      where: { id },
+      data: { groupJid, status: "DONE", claimedAt: null, lastError: null },
+    });
+    broadcast(gc.userId, "group.created", { id: gc.id, name: gc.name, groupJid });
 
+    const warnings: string[] = [];
     // Foto del grupo (base64 puro, sin prefijo data:)
     if (gc.pictureMediaId) {
       const media = await prisma.media.findUnique({ where: { id: gc.pictureMediaId } });
@@ -130,11 +135,10 @@ async function createOne(id: string): Promise<void> {
       }
     }
 
-    await prisma.groupCreation.update({
-      where: { id },
-      data: { status: "DONE", claimedAt: null, lastError: warnings.length ? warnings.join(" ") : null },
-    });
-    broadcast(gc.userId, "group.created", { id: gc.id, name: gc.name, groupJid });
+    // Avisos (foto/mensaje) sin cambiar el estado: el grupo sigue creado.
+    if (warnings.length) {
+      await prisma.groupCreation.update({ where: { id }, data: { lastError: warnings.join(" ") } });
+    }
   } catch (e) {
     await prisma.groupCreation.update({
       where: { id },
