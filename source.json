@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.6.4",
+          "date": "2026-08-07",
+          "size": 5498551,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.6.4/Crona.ipa",
+          "localizedDescription": "Ahora sí funciona pegar el link corto de \"compartir lugar\" de Google Maps: como esos links traen la dirección (no las coordenadas), la app la convierte a coordenadas automáticamente.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.6.3",
           "date": "2026-08-07",
           "size": 5494353,
