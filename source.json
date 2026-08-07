@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.7.1",
+          "date": "2026-08-07",
+          "size": 5552321,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.7.1/Crona.ipa",
+          "localizedDescription": "Reordenar partes ahora funciona: toca \"Reordenar\" en la sección Mensaje y arrastra las partes; \"Listo\" para terminar. Y se quita la barra verde que salía en la pantalla de Programados vacía.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.7.0",
           "date": "2026-08-07",
           "size": 5550946,
