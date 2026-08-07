@@ -243,13 +243,18 @@ private struct LocationCenterDot: View {
 
 /// Pin selector fijo en el centro de la pantalla: su PUNTA (abajo) cae en el centro del mapa =
 /// region.center = la coordenada que se envía. Mueve el mapa para colocar la punta donde quieras.
+/// Forma = asset "MapPin" (template) con viewBox ajustado: la punta está en el borde inferior.
 private struct CenterPin: View {
+    private let height: CGFloat = 46
     var body: some View {
-        Image(systemName: "mappin")
-            .font(.system(size: 38, weight: .bold))
+        Image("MapPin")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
             .foregroundStyle(.red)
             .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
-            .offset(y: -19)   // la punta del pin queda en el centro exacto del frame
+            .offset(y: -height / 2)   // la punta (borde inferior) queda en el centro exacto del frame
             .allowsHitTesting(false)
     }
 }
