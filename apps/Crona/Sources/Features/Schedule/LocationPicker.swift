@@ -153,14 +153,20 @@ struct LocationPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            // La bolita va como overlay del propio Map: se centra en el FRAME del mapa, que es
-            // exactamente lo que devuelve region.center. Sin ignoresSafeArea, la barra de abajo
-            // encoge el mapa y el centro visible = centro real = coordenada que se envía.
-            Map(position: $camera)
+            // Bolita = MI ubicación real (anotación fija a la coordenada del GPS: no se mueve del sitio,
+            // se queda pegada al punto al panear). Pin central (overlay) = la ubicación a elegir: su
+            // punta cae en el centro del mapa, que es lo que devuelve region.center y lo que se envía.
+            Map(position: $camera) {
+                if let me = locator.coordinate {
+                    Annotation("", coordinate: me, anchor: .center) {
+                        LocationCenterDot()
+                    }
+                }
+            }
                 .onMapCameraChange(frequency: .continuous) { ctx in
                     center = ctx.region.center
                 }
-                .overlay { LocationCenterDot().allowsHitTesting(false) }
+                .overlay { CenterPin() }
                 .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 8) {
                     if let c = center {
@@ -216,8 +222,8 @@ struct LocationPickerSheet: View {
     }
 }
 
-/// Marcador central: bolita blanca con una bolita verde que late (crece y se encoge) dentro.
-/// Va centrado en el frame del mapa → coincide exactamente con region.center (la coord que se envía).
+/// "Estás aquí": bolita blanca con una bolita verde que late dentro. Va como anotación fija a la
+/// coordenada real del GPS (no se mueve del sitio; se queda pegada al punto al panear el mapa).
 private struct LocationCenterDot: View {
     @State private var pulse = false
     var body: some View {
@@ -232,5 +238,18 @@ private struct LocationCenterDot: View {
         .onAppear {
             withAnimation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true)) { pulse = true }
         }
+    }
+}
+
+/// Pin selector fijo en el centro de la pantalla: su PUNTA (abajo) cae en el centro del mapa =
+/// region.center = la coordenada que se envía. Mueve el mapa para colocar la punta donde quieras.
+private struct CenterPin: View {
+    var body: some View {
+        Image(systemName: "mappin")
+            .font(.system(size: 38, weight: .bold))
+            .foregroundStyle(.red)
+            .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+            .offset(y: -19)   // la punta del pin queda en el centro exacto del frame
+            .allowsHitTesting(false)
     }
 }

@@ -352,7 +352,10 @@ struct AdminUsersView: View {
     @State private var resetUser: User?
     @State private var newPassword = ""
     @State private var deleteUser: User?
-    @State private var showQR = false
+    @State private var qrItem: QRItem?
+
+    // .sheet(item:) evita el bug de abrir/cerrar la 1ª vez que daba .sheet(isPresented:) con contenido condicional.
+    struct QRItem: Identifiable { let id = UUID(); let link: String; let code: String }
 
     /// Deep-link de un escaneo: lleva la dirección del servidor + el código ya rellenados.
     private var inviteLink: String? {
@@ -371,6 +374,9 @@ struct AdminUsersView: View {
         .formStyle(.grouped)
         .navigationTitle("Usuarios")
         .task { await load() }
+        .sheet(item: $qrItem) { item in
+            InviteQRSheet(link: item.link, code: item.code)
+        }
         .alert("Nueva contraseña para \(resetUser?.name ?? "")", isPresented: .init(
             get: { resetUser != nil }, set: { if !$0 { resetUser = nil } }
         )) {
@@ -436,9 +442,9 @@ struct AdminUsersView: View {
                     Text(invite.code).font(.system(.body, design: .monospaced)).textSelection(.enabled)
                 }
                 LabeledContent("Expira", value: invite.expiresAt.formatted(date: .abbreviated, time: .shortened))
-                if inviteLink != nil {
+                if let link = inviteLink {
                     Button {
-                        showQR = true
+                        qrItem = QRItem(link: link, code: invite.code)
                     } label: {
                         Label("Compartir por QR / enlace", systemImage: "qrcode")
                     }
@@ -448,11 +454,6 @@ struct AdminUsersView: View {
             Text("Invitaciones")
         } footer: {
             Text("Comparte el QR: el usuario lo escanea con la cámara del iPhone y la app queda con el servidor y el código ya puestos. El código expira en 7 días.")
-        }
-        .sheet(isPresented: $showQR) {
-            if let link = inviteLink, let code = invite?.code {
-                InviteQRSheet(link: link, code: code)
-            }
         }
     }
 
