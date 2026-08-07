@@ -283,6 +283,28 @@ struct GroupCreation: Identifiable, Codable, Hashable {
     var parts: [TemplatePart]
 }
 
+// Gestión post-creación (F6)
+struct GroupInvite: Codable, Hashable { let code: String; let link: String }
+
+struct GroupMember: Identifiable, Codable, Hashable {
+    let jid: String
+    let admin: String?   // "admin" | "superadmin" | null
+    var id: String { jid }
+    var isAdmin: Bool { admin != nil }
+    /// Número legible desde el jid (5939…@s.whatsapp.net → +5939…)
+    var phone: String {
+        let digits = (jid.split(separator: "@").first.map(String.init) ?? jid).filter(\.isNumber)
+        return digits.isEmpty ? jid : "+\(digits)"
+    }
+}
+
+struct GroupInfo: Codable, Hashable {
+    let subject: String
+    let description: String?
+    let size: Int
+    let participants: [GroupMember]
+}
+
 struct CreateGroupBody: Encodable {
     var instanceId: String
     var name: String

@@ -376,6 +376,18 @@ extension APIClient {
     func groups() async throws -> Paginated<GroupCreation> { try await request("GET", "/groups") }
     func createGroup(_ body: CreateGroupBody) async throws -> GroupCreation { try await request("POST", "/groups", body: body) }
     func deleteGroup(id: String) async throws -> OkResponse { try await request("DELETE", "/groups/\(id)") }
+    // Gestión post-creación (F6)
+    func groupInvite(id: String) async throws -> GroupInvite { try await request("GET", "/groups/\(id)/invite") }
+    func revokeGroupInvite(id: String) async throws -> GroupInvite { try await request("POST", "/groups/\(id)/invite/revoke") }
+    func groupParticipants(id: String) async throws -> GroupInfo { try await request("GET", "/groups/\(id)/participants") }
+    func updateGroupParticipants(id: String, action: String, jids: [String]) async throws -> OkResponse {
+        struct B: Encodable { let action: String; let jids: [String] }
+        return try await request("POST", "/groups/\(id)/participants", body: B(action: action, jids: jids))
+    }
+    func patchGroup(id: String, subject: String? = nil, description: String? = nil) async throws -> OkResponse {
+        struct B: Encodable { let subject: String?; let description: String? }
+        return try await request("PATCH", "/groups/\(id)", body: B(subject: subject, description: description))
+    }
 
     // Respuestas automáticas
     func autoReplies() async throws -> Paginated<AutoReply> { try await request("GET", "/autoreplies") }

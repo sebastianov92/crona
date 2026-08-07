@@ -386,22 +386,12 @@ struct GroupsListView: View {
                 .listRowSeparator(.hidden)
             }
             ForEach(groups) { g in
-                HStack(spacing: 12) {
-                    GroupPictureView(data: nil, mediaId: g.pictureMediaId)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(g.name).font(.headline)
-                        Text("\(g.participants.count) participantes")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if let err = g.lastError {
-                            Text(err).font(.caption2).foregroundStyle(.red).lineLimit(2)
-                        }
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(scheduleLabel(g.runAt)).font(.caption).foregroundStyle(Theme.accent)
-                        Image(systemName: g.status.systemImage)
-                            .font(.caption)
-                            .foregroundStyle(g.status.tint)
+                Group {
+                    // Grupo ya creado → navega a su gestión (enlace, asunto, participantes).
+                    if g.status == .DONE, g.groupJid != nil {
+                        NavigationLink { GroupManageView(group: g) } label: { row(g) }
+                    } else {
+                        row(g)
                     }
                 }
                 .swipeActions(edge: .trailing) {
@@ -422,6 +412,27 @@ struct GroupsListView: View {
         .navigationTitle("Grupos")
         .refreshable { await load() }
         .task { await load() }
+    }
+
+    @ViewBuilder private func row(_ g: GroupCreation) -> some View {
+        HStack(spacing: 12) {
+            GroupPictureView(data: nil, mediaId: g.pictureMediaId)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(g.name).font(.headline)
+                Text("\(g.participants.count) participantes")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let err = g.lastError {
+                    Text(err).font(.caption2).foregroundStyle(.red).lineLimit(2)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(scheduleLabel(g.runAt)).font(.caption).foregroundStyle(Theme.accent)
+                Image(systemName: g.status.systemImage)
+                    .font(.caption)
+                    .foregroundStyle(g.status.tint)
+            }
+        }
     }
 
     private func load() async {

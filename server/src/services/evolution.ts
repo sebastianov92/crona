@@ -107,6 +107,26 @@ export const evolution = {
       apikey: k,
       timeoutMs: 120_000,
     }),
+  // Gestión post-creación de un grupo (v2). groupJid = 1203…@g.us
+  groupInfo: (n: string, k: string, groupJid: string) =>
+    evoFetch(`/group/findGroupInfos/${n}?groupJid=${encodeURIComponent(groupJid)}`, { apikey: k }),
+  groupInviteCode: (n: string, k: string, groupJid: string) =>
+    evoFetch(`/group/inviteCode/${n}?groupJid=${encodeURIComponent(groupJid)}`, { apikey: k }),
+  groupRevokeInvite: (n: string, k: string, groupJid: string) =>
+    evoFetch(`/group/revokeInviteCode/${n}?groupJid=${encodeURIComponent(groupJid)}`, { method: "POST", apikey: k }),
+  groupUpdateSubject: (n: string, k: string, groupJid: string, subject: string) =>
+    evoFetch(`/group/updateGroupSubject/${n}?groupJid=${encodeURIComponent(groupJid)}`, {
+      method: "POST", body: { subject }, apikey: k,
+    }),
+  groupUpdateDescription: (n: string, k: string, groupJid: string, description: string) =>
+    evoFetch(`/group/updateGroupDescription/${n}?groupJid=${encodeURIComponent(groupJid)}`, {
+      method: "POST", body: { description }, apikey: k,
+    }),
+  // action: "add" | "remove" | "promote" | "demote"; participants: ["5939…@s.whatsapp.net", …]
+  groupUpdateParticipant: (n: string, k: string, groupJid: string, action: string, participants: string[]) =>
+    evoFetch(`/group/updateParticipant/${n}?groupJid=${encodeURIComponent(groupJid)}`, {
+      method: "POST", body: { action, participants }, apikey: k, timeoutMs: 60_000,
+    }),
   // Reconfigura el webhook de una instancia existente (p. ej. para suscribir MESSAGES_UPSERT)
   setWebhook: async (n: string, url: string, events: string[]) =>
     evoFetch(`/webhook/set/${n}`, {

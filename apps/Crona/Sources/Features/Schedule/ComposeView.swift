@@ -48,6 +48,9 @@ struct ComposeView: View {
     var editing: ScheduledMessage? = nil
     // avisa al presentador que se guardó (p.ej. cerrar el detalle del mensaje original ya borrado)
     var onSaved: (() -> Void)? = nil
+    // preseleccionar destinatario(s) e instancia (p.ej. "programar mensaje a este grupo")
+    var initialRecipients: [Recipient]? = nil
+    var initialInstanceId: String? = nil
 
     @State private var didLoadEdit = false
     @State private var instanceId: String?
@@ -324,6 +327,11 @@ struct ComposeView: View {
                 if let editing {
                     if !didLoadEdit { didLoadEdit = true; Task { await loadEditing(editing) } }
                     return // editando: destinatario y partes vienen del mensaje, no se abre el picker
+                }
+                // Destinatario preseleccionado (p.ej. desde la gestión de un grupo): no abrir el picker.
+                if recipients.isEmpty, let initial = initialRecipients, !initial.isEmpty {
+                    recipients = initial
+                    if let iid = initialInstanceId { instanceId = iid }
                 }
                 // Mensaje nuevo (no edición/duplicado): abrir el selector de contacto de una vez.
                 if prefill == nil, recipients.isEmpty, !didAutoOpenPicker {

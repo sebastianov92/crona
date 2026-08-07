@@ -4,6 +4,8 @@ import { prisma } from "../db.js";
 import { authenticate } from "../plugins/auth.js";
 import { errors } from "../lib/errors.js";
 import { groupTick } from "../services/groups.js";
+import { evolution } from "../services/evolution.js";
+import { decrypt } from "../services/crypto.js";
 
 // Creación de grupos de WhatsApp: inmediata o programada (switch en la app).
 
@@ -103,6 +105,78 @@ export function registerGroupRoutes(app: FastifyInstance) {
     if (!gc) throw errors.notFound("La creación de grupo");
     if (gc.status === "CREATING") throw errors.validation("El grupo se está creando ahora mismo.");
     await prisma.groupCreation.delete({ where: { id } });
+    return { ok: true };
+  });
+
+  // --- Gestión de un grupo ya creado (usa el groupJid del GroupCreation DONE) ---
+
+  /// Devuelve la creación con su groupJid + la instancia (con la key desencriptada), validando dueño.
+  async function liveGroup(userId: string, id: string) {
+    const gc = await prisma.groupCreation.findFirst({ where: { id, userId } });
+    if (!gc) throw errors.notFound("El grupo");
+    if (!gc.groupJid) throw errors.validation("El grupo aún no se ha creado.");
+    const inst = await prisma.instance.findFirst({ where: { id: gc.instanceId, userId } });
+    if (!inst) throw errors.notFound("La instancia");
+    return { gc, inst, jid: gc.groupJid, key: decrypt(inst.tokenEnc) };
+  }
+  const linkFor = (code: string) => `https://chat.whatsapp.com/${code}`;
+  const inviteCodeOf = (r: any): string =>
+    r?.inviteCode ?? r?.code ?? (typeof r?.inviteUrl === "string" ? r.inviteUrl.split("/").pop() : "") ?? "";
+
+  app.get("/groups/:id/invite", { preHandler: authenticate }, async (req) => {
+    const { gc, inst, jid, key } = await liveGroup(req.userId, (req.params as { id: string }).id);
+    const code = inviteCodeOf(await evolution.groupInviteCode(inst.instanceName, key, jid));
+    if (!code) throw errors.validation("No se pudo obtener el enlace del grupo.");
+    return { code, link: linkFor(code) };
+  });
+
+  app.post("/groups/:id/invite/revoke", { preHandler: authenticate }, async (req) => {
+    const { inst, jid, key } = await liveGroup(req.userId, (req.params as { id: string }).id);
+    const code = inviteCodeOf(await evolution.groupRevokeInvite(inst.instanceName, key, jid));
+    if (!code) throw errors.validation("No se pudo regenerar el enlace.");
+    return { code, link: linkFor(code) };
+  });
+
+  app.get("/groups/:id/participants", { preHandler: authenticate }, async (req) => {
+    const { gc, inst, jid, key } = await liveGroup(req.userId, (req.params as { id: string }).id);
+    const r: any = await evolution.groupInfo(inst.instanceName, key, jid);
+    const raw: any[] = Array.isArray(r?.participants) ? r.participants : [];
+    const participants = raw
+      .map((p) => ({ jid: (p.id ?? p.jid ?? "") as string, admin: (p.admin ?? null) as string | null }))
+      .filter((p) => p.jid);
+    return {
+      subject: r?.subject ?? gc.name,
+      description: r?.desc ?? r?.description ?? null,
+      size: r?.size ?? participants.length,
+      participants,
+    };
+  });
+
+  const ParticipantsBody = z.object({
+    action: z.enum(["add", "remove", "promote", "demote"]),
+    jids: z.array(z.string().min(3)).min(1).max(50),
+  });
+  app.post("/groups/:id/participants", { preHandler: authenticate }, async (req) => {
+    const b = ParticipantsBody.parse(req.body);
+    const { inst, jid, key } = await liveGroup(req.userId, (req.params as { id: string }).id);
+    await evolution.groupUpdateParticipant(inst.instanceName, key, jid, b.action, b.jids);
+    return { ok: true };
+  });
+
+  const UpdateBody = z.object({
+    subject: z.string().min(1).max(80).optional(),
+    description: z.string().max(2000).optional(),
+  });
+  app.patch("/groups/:id", { preHandler: authenticate }, async (req) => {
+    const b = UpdateBody.parse(req.body);
+    const { gc, inst, jid, key } = await liveGroup(req.userId, (req.params as { id: string }).id);
+    if (b.subject !== undefined) {
+      await evolution.groupUpdateSubject(inst.instanceName, key, jid, b.subject.trim());
+      await prisma.groupCreation.update({ where: { id: gc.id }, data: { name: b.subject.trim() } });
+    }
+    if (b.description !== undefined) {
+      await evolution.groupUpdateDescription(inst.instanceName, key, jid, b.description);
+    }
     return { ok: true };
   });
 }
