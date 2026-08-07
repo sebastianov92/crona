@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.8.3",
+          "date": "2026-08-07",
+          "size": 5656486,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.8.3/Crona.ipa",
+          "localizedDescription": "Al crear un grupo ya no se queda en \"Creando…\": el resultado se actualiza en cuanto termina. Y el editor del mensaje inicial del grupo es idéntico al de programar (botones de texto/foto/voz/sticker fijos sobre el teclado).",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.8.2",
           "date": "2026-08-07",
           "size": 5647384,
