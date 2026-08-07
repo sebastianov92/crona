@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.8.1",
+          "date": "2026-08-07",
+          "size": 5635894,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.8.1/Crona.ipa",
+          "localizedDescription": "Se corrige el error al crear un grupo (\"The data couldn't be read…\"): el grupo sí se creaba pero la app fallaba al leer la respuesta. Ahora puedes crear un grupo sin foto (con un aviso), y si falla la foto o el mensaje inicial el grupo ya no se marca como fallido. Requiere actualizar el servidor.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.8.0",
           "date": "2026-08-07",
           "size": 5629428,
