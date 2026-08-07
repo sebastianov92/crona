@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.8.2",
+          "date": "2026-08-07",
+          "size": 5647384,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.8.2/Crona.ipa",
+          "localizedDescription": "Al crear un grupo, el mensaje inicial usa el mismo editor que al programar: texto, foto/video, nota de voz y stickers en varias partes. Requiere actualizar el servidor.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.8.1",
           "date": "2026-08-07",
           "size": 5635894,
