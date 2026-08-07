@@ -40,9 +40,39 @@ private final class RedirectCatcher: NSObject, URLSessionTaskDelegate {
     }
 }
 
-/// Resuelve un link de Google Maps a coordenadas. Directo (link largo) → al toque. Corto
-/// (maps.app.goo.gl / goo.gl/maps) → sigue los redirects y parsea cada URL de la cadena y el HTML,
-/// probando también su versión percent-decodificada (las coords suelen venir escapadas: %40, %2C).
+/// Saca una dirección legible de una URL de Maps que NO trae coordenadas: el `q=<dirección>`
+/// (cuando no es un par de números) o el nombre en `/place/<nombre>/`.
+private func addressFromMapsURL(_ s: String) -> String? {
+    if let comps = URLComponents(string: s) {
+        for name in ["q", "daddr", "destination"] {
+            if let raw = comps.queryItems?.first(where: { $0.name == name })?.value {
+                let v = raw.replacingOccurrences(of: "+", with: " ") // '+' en query = espacio
+                if !v.isEmpty, googleMapsCoords(from: v) == nil { return v }
+            }
+        }
+    }
+    if let r = s.range(of: "/place/") {
+        let after = s[r.upperBound...].prefix { $0 != "/" && $0 != "?" }
+        let decoded = String(after).replacingOccurrences(of: "+", with: " ").removingPercentEncoding
+        if let d = decoded, !d.isEmpty, !d.hasPrefix("@") { return d }
+    }
+    return nil
+}
+
+/// Geocodifica una dirección a coordenadas con el servicio de Apple (CLGeocoder): gratis, sin API
+/// key ni permisos. Da un punto aproximado del lugar cuando el link solo trae la dirección.
+private func geocodeAddress(_ address: String) async -> (Double, Double)? {
+    let geo = CLGeocoder()
+    if let marks = try? await geo.geocodeAddressString(address), let loc = marks.first?.location {
+        return (loc.coordinate.latitude, loc.coordinate.longitude)
+    }
+    return nil
+}
+
+/// Resuelve un link de Google Maps a coordenadas. Directo (link largo con @LAT,LNG) → al toque.
+/// Corto (maps.app.goo.gl) → con un User-Agent NO de navegador, Google hace 302 a la URL real.
+/// Si esa URL trae coords, las usa; si solo trae la dirección (caso común de "compartir lugar"),
+/// la geocodifica con Apple. (Con UA de navegador Google devuelve una página JS sin datos.)
 func resolveMapsLink(_ raw: String) async -> (Double, Double)? {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     if let c = googleMapsCoords(from: trimmed) { return c }
@@ -52,17 +82,21 @@ func resolveMapsLink(_ raw: String) async -> (Double, Double)? {
     let session = URLSession(configuration: .ephemeral, delegate: catcher, delegateQueue: nil)
     defer { session.invalidateAndCancel() }
     var req = URLRequest(url: url)
-    req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-                 forHTTPHeaderField: "User-Agent")
+    req.setValue("Crona/1.0", forHTTPHeaderField: "User-Agent") // NO navegador → Google hace el 302 real
     req.timeoutInterval = 15
     do {
         let (data, resp) = try await session.data(for: req)
         var candidates = catcher.urls
         if let final = resp.url?.absoluteString { candidates.append(final) }
         if let html = String(data: data, encoding: .utf8) { candidates.append(html) }
+        // 1) coordenadas directas en cualquier URL de la cadena o el HTML (crudo o decodificado)
         for c in candidates {
             if let hit = googleMapsCoords(from: c) { return hit }
             if let dec = c.removingPercentEncoding, let hit = googleMapsCoords(from: dec) { return hit }
+        }
+        // 2) sin coords → geocodifica la dirección del link (q=… o /place/…)
+        for c in candidates {
+            if let addr = addressFromMapsURL(c), let hit = await geocodeAddress(addr) { return hit }
         }
     } catch { }
     return nil
