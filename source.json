@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.7.2",
+          "date": "2026-08-07",
+          "size": 5557225,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.7.2/Crona.ipa",
+          "localizedDescription": "Invitar por QR abre bien a la primera. En el mapa de ubicación: una bolita marca tu posición real (fija) y un pin central decide la ubicación — mueve el mapa para colocar la punta del pin donde quieras.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.7.1",
           "date": "2026-08-07",
           "size": 5552321,
