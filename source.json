@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.7.0",
+          "date": "2026-08-07",
+          "size": 5550946,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.7.0/Crona.ipa",
+          "localizedDescription": "Guía de primeros pasos y pantallas vacías con acciones. Badge de no leídos en Chats (se marca leído al abrir). Reordena las partes de un mensaje arrastrándolas. Invita por QR desde Ajustes: el nuevo usuario lo escanea y la app queda con el servidor y el código listos. Requiere actualizar el servidor.",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.6.4",
           "date": "2026-08-07",
           "size": 5498551,
