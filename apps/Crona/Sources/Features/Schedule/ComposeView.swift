@@ -53,6 +53,8 @@ struct ComposeView: View {
     var initialInstanceId: String? = nil
 
     @State private var didLoadEdit = false
+    @State private var didRestoreDraft = false
+    @State private var draftRestored = false     // muestra el aviso "borrador recuperado"
     @State private var instanceId: String?
     @State private var recipients: [Recipient] = []
     // Lista homogénea de partes: cada una de cualquier tipo, en el orden que el usuario quiera.
@@ -72,10 +74,12 @@ struct ComposeView: View {
     @State private var error: String?
 
     #if os(iOS)
-    @State private var photoItem: PhotosPickerItem?
+    @State private var photoItems: [PhotosPickerItem] = []   // multi-selección de fotos/videos
     @State private var showPhotoPicker = false
     #endif
     @State private var showFileImporter = false
+    private enum ImportKind { case media, document }         // el fileImporter sirve para foto (macOS) o documento
+    @State private var importKind: ImportKind = .media
     @State private var showStickerPicker = false
     @State private var showRecorder = false
     @State private var showTemplates = false
@@ -94,6 +98,7 @@ struct ComposeView: View {
         NavigationStack {
             ScrollViewReader { proxy in
             Form {
+                if draftRestored { draftBanner }
                 if session.instances.count > 1 {
                     Section("Instancia") {
                         Picker("Enviar desde", selection: $instanceId) {
@@ -104,113 +109,11 @@ struct ComposeView: View {
                     }
                 }
 
-                Section("Destinatarios") {
-                    ForEach(recipients, id: \.jid) { r in
-                        HStack(spacing: 12) {
-                            AvatarView(name: r.shownName, pictureUrl: r.pictureUrl, size: 36)
-                            Text(r.shownName)
-                            Spacer()
-                            Button {
-                                recipients.removeAll { $0.jid == r.jid }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    Button {
-                        showPicker = true
-                    } label: {
-                        HStack {
-                            Label(recipients.isEmpty ? "Elegir contactos o grupos" : "Agregar más",
-                                  systemImage: "person.crop.circle.badge.plus")
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())   // toda la fila clickeable, no solo texto/icono
-                    }
-                    .buttonStyle(.plain)
+                recipientsSection
 
-                    // Aviso (no bloquea): difundir a muchos de golpe es lo que más arriesga el número.
-                    if recipients.count >= 5 {
-                        Label("Vas a programar \(recipients.count) envíos. Saldrán escalonados para cuidar tu número.",
-                              systemImage: "exclamationmark.triangle")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                }
+                messageSection(proxy)
 
-                Section {
-                    // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
-                    ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
-
-                    Button {
-                        showTemplates = true
-                    } label: {
-                        Label("Usar plantilla", systemImage: "doc.text")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if parts.contains(where: { $0.hasTextField }) {
-                        VariableChips { insertVariable($0) }
-                        Text("Toca una variable para insertarla; se reemplaza al enviar (ej. {primer_nombre} → Dani).")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    if sendableCount > 1 {
-                        Text("Se enviarán \(sendableCount) mensajes seguidos, con una pausa corta entre cada uno.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    HStack {
-                        Text("Mensaje")
-                        Spacer()
-                        // Reordenar: entra en modo edición → aparecen las asas para arrastrar partes.
-                        // (En macOS las filas se arrastran directamente, sin modo.)
-                        #if os(iOS)
-                        if parts.count > 1 {
-                            Button(editMode == .active ? "Listo" : "Reordenar") {
-                                withAnimation { editMode = editMode == .active ? .inactive : .active }
-                            }
-                            .font(.caption.weight(.semibold))
-                            .textCase(nil)
-                            .foregroundStyle(Theme.accent)
-                        }
-                        #endif
-                    }
-                }
-
-                Section("Envío") {
-                    // Franja rápida inline: 1 tap fija la hora, sin abrir la hoja.
-                    QuickHourChips(date: $schedule.date)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                    // Fecha/hora exacta, recurrencia y zona horaria → hoja completa.
-                    Button {
-                        showSchedule = true
-                    } label: {
-                        HStack {
-                            Label(scheduleLabel(schedule.date), systemImage: "calendar")
-                            Spacer()
-                            if schedule.recurrence != .NONE {
-                                HStack(spacing: 4) {
-                                    Image(systemName: recurrenceIcon)
-                                    Text(recurrenceLabel)
-                                }
-                                .font(.caption)
-                                .foregroundStyle(Theme.accent)
-                            }
-                            Text("Otra fecha").font(.caption).foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+                scheduleSection
 
                 if uploading {
                     Section { ProgressView("Subiendo archivo…") }
@@ -311,16 +214,20 @@ struct ComposeView: View {
                 StickerPickerView { att in addPart(ComposePart(kind: .sticker, attachment: att)) }
             }
             #if os(iOS)
-            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .any(of: [.images, .videos]))
-            .onChange(of: photoItem) { _, item in
-                guard let item else { return }
-                Task { await loadPhoto(item) }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
+                          maxSelectionCount: max(1, maxParts - parts.count), matching: .any(of: [.images, .videos]))
+            .onChange(of: photoItems) { _, items in
+                guard !items.isEmpty else { return }
+                Task { await loadPhotos(items) }
             }
             #endif
-            // Foto/video (macOS): solo imágenes y videos; el audio va por la grabadora.
+            // fileImporter compartido: foto/video (macOS) o documento (PDF/otros) según importKind.
             .fileImporter(isPresented: $showFileImporter,
-                          allowedContentTypes: [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie]) { result in
-                if case .success(let url) = result { loadFile(url) }
+                          allowedContentTypes: importKind == .document
+                            ? [.pdf, .plainText, .commaSeparatedText, .zip, .data]
+                            : [.jpeg, .png, .webP, .mpeg4Movie, .quickTimeMovie],
+                          allowsMultipleSelection: importKind != .document) { result in
+                if case .success(let urls) = result { for url in urls { loadFile(url) } }
             }
             .onAppear {
                 applyPrefill()
@@ -332,6 +239,19 @@ struct ComposeView: View {
                 if recipients.isEmpty, let initial = initialRecipients, !initial.isEmpty {
                     recipients = initial
                     if let iid = initialInstanceId { instanceId = iid }
+                }
+                // Borrador recuperado (solo en un compose nuevo): restaura destinatarios/texto/fecha.
+                if isFreshCompose, !didRestoreDraft {
+                    didRestoreDraft = true
+                    if let d = DraftStore.load() {
+                        recipients = d.recipients
+                        if let iid = d.instanceId { instanceId = iid }
+                        let textParts = d.texts.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                            .map { ComposePart(kind: .text, text: $0) }
+                        if !textParts.isEmpty { parts = textParts }
+                        schedule.date = d.date
+                        draftRestored = true
+                    }
                 }
                 // Mensaje nuevo (no edición/duplicado): abrir el selector de contacto de una vez.
                 if prefill == nil, recipients.isEmpty, !didAutoOpenPicker {
@@ -355,11 +275,161 @@ struct ComposeView: View {
                     }
                 }
             }
+            // Autoguardado del borrador (solo en un compose nuevo): un solo onChange sobre una
+            // firma combinada (destinatarios + textos + fecha) para no alargar la cadena.
+            .onChange(of: draftKey) { _, _ in saveDraft() }
             } // ScrollViewReader
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 560)
         #endif
+    }
+
+    /// Compose "en blanco" (no edición, ni duplicado, ni destinatario preseleccionado): el único
+    /// caso en que tiene sentido autoguardar/recuperar un borrador.
+    private var isFreshCompose: Bool { editing == nil && prefill == nil && (initialRecipients?.isEmpty ?? true) }
+
+    /// Firma del borrador: cambia cuando cambian destinatarios, textos o fecha.
+    private var draftKey: String {
+        recipients.map(\.jid).joined(separator: ",") + "|"
+        + parts.filter { $0.kind == .text }.map(\.text).joined(separator: "\u{1}") + "|"
+        + String(schedule.date.timeIntervalSince1970)
+    }
+
+    private func saveDraft() {
+        guard isFreshCompose else { return }
+        let texts = parts.filter { $0.kind == .text }.map(\.text)
+        DraftStore.save(ComposeDraft(instanceId: instanceId, recipients: recipients,
+                                     texts: texts, date: schedule.date, savedAt: Date()))
+    }
+
+    @ViewBuilder private var recipientsSection: some View {
+        Section("Destinatarios") {
+            ForEach(recipients, id: \.jid) { r in
+                HStack(spacing: 12) {
+                    AvatarView(name: r.shownName, pictureUrl: r.pictureUrl, size: 36)
+                    Text(r.shownName)
+                    Spacer()
+                    Button {
+                        recipients.removeAll { $0.jid == r.jid }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button {
+                showPicker = true
+            } label: {
+                HStack {
+                    Label(recipients.isEmpty ? "Elegir contactos o grupos" : "Agregar más",
+                          systemImage: "person.crop.circle.badge.plus")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())   // toda la fila clickeable, no solo texto/icono
+            }
+            .buttonStyle(.plain)
+
+            // Aviso (no bloquea): difundir a muchos de golpe es lo que más arriesga el número.
+            if recipients.count >= 5 {
+                Label("Vas a programar \(recipients.count) envíos. Saldrán escalonados para cuidar tu número.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    @ViewBuilder private func messageSection(_ proxy: ScrollViewProxy) -> some View {
+        Section {
+            // Lista unificada de partes: texto, foto/video, nota de voz o sticker, en orden.
+            ComposePartsEditor(parts: $parts, focusRequest: $focusRequest, scrollProxy: proxy)
+
+            Button {
+                showTemplates = true
+            } label: {
+                Label("Usar plantilla", systemImage: "doc.text")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if parts.contains(where: { $0.hasTextField }) {
+                VariableChips { insertVariable($0) }
+                Text("Toca una variable para insertarla; se reemplaza al enviar (ej. {primer_nombre} → Dani).")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if sendableCount > 1 {
+                Text("Se enviarán \(sendableCount) mensajes seguidos, con una pausa corta entre cada uno.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            HStack {
+                Text("Mensaje")
+                Spacer()
+                #if os(iOS)
+                if parts.count > 1 {
+                    Button(editMode == .active ? "Listo" : "Reordenar") {
+                        withAnimation { editMode = editMode == .active ? .inactive : .active }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .textCase(nil)
+                    .foregroundStyle(Theme.accent)
+                }
+                #endif
+            }
+        }
+    }
+
+    @ViewBuilder private var scheduleSection: some View {
+        Section("Envío") {
+            // Franja rápida inline: 1 tap fija la hora, sin abrir la hoja.
+            QuickHourChips(date: $schedule.date)
+                .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+            // Fecha/hora exacta, recurrencia y zona horaria → hoja completa.
+            Button {
+                showSchedule = true
+            } label: {
+                HStack {
+                    Label(scheduleLabel(schedule.date), systemImage: "calendar")
+                    Spacer()
+                    if schedule.recurrence != .NONE {
+                        HStack(spacing: 4) {
+                            Image(systemName: recurrenceIcon)
+                            Text(recurrenceLabel)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Theme.accent)
+                    }
+                    Text("Otra fecha").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder private var draftBanner: some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.uturn.backward.circle").foregroundStyle(Theme.accent)
+                Text("Recuperamos tu borrador.").font(.subheadline)
+                Spacer()
+                Button("Descartar") {
+                    DraftStore.clear()
+                    recipients = []
+                    parts = [ComposePart(kind: .text)]
+                    draftRestored = false
+                }
+                .font(.caption).foregroundStyle(.red)
+            }
+        }
     }
 
     /// Barra inline para agregar una parte de cualquier tipo — 1 tap por tipo, estilo WhatsApp.
@@ -371,12 +441,13 @@ struct ComposeView: View {
                 #if os(iOS)
                 showPhotoPicker = true
                 #else
-                showFileImporter = true
+                importKind = .media; showFileImporter = true
                 #endif
             }
             partButton("Voz", "mic.fill") { showRecorder = true }
             partButton("Sticker", "face.smiling") { showStickerPicker = true }
             Menu {
+                Button { importKind = .document; showFileImporter = true } label: { Label("Documento", systemImage: "doc") }
                 Button { addPart(ComposePart(kind: .poll)) } label: { Label("Encuesta", systemImage: "chart.bar.doc.horizontal") }
                 Button { addPart(ComposePart(kind: .location)) } label: { Label("Ubicación", systemImage: "mappin.and.ellipse") }
                 Button { addPart(ComposePart(kind: .contact)) } label: { Label("Contacto", systemImage: "person.crop.rectangle") }
@@ -484,6 +555,12 @@ struct ComposeView: View {
     }
 
     #if os(iOS)
+    /// Carga varias fotos/videos elegidos a la vez, en orden, como partes.
+    private func loadPhotos(_ items: [PhotosPickerItem]) async {
+        for item in items { await loadPhoto(item) }
+        photoItems = []
+    }
+
     private func loadPhoto(_ item: PhotosPickerItem) async {
         do {
             if let movie = try await item.loadTransferable(type: MovieFile.self) {
@@ -497,7 +574,6 @@ struct ComposeView: View {
                                     attachment: Attachment(data: uprightImageData(data, mime: "image/jpeg"),
                                                            fileName: "foto.jpg", mimeType: "image/jpeg")))
             }
-            photoItem = nil
         } catch {
             self.error = "No se pudo cargar el archivo: \(error.localizedDescription)"
         }
@@ -667,6 +743,7 @@ struct ComposeView: View {
                 session.upcoming.removeAll { $0.id == editing.id }
             }
             session.upcoming.sort { $0.nextRunAt < $1.nextRunAt }
+            DraftStore.clear()   // enviado → el borrador ya no aplica
             onSaved?()
             dismiss()
         } catch {

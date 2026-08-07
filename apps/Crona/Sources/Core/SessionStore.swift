@@ -18,6 +18,7 @@ final class SessionStore {
         }
     }
     var history: [HistoryItem] = []
+    var historyCursor: String?   // paginación del historial (scroll infinito)
     var chatsUnread = 0   // total de no leídos → badge de la pestaña Chats
     // Cache de destinatarios por "instanceId|kind": abre el picker al instante y refresca en 2º plano
     // (antes re-descargaba TODOS los contactos —varias páginas— cada vez que se abría).
@@ -175,7 +176,22 @@ final class SessionStore {
     }
 
     func refreshHistory() async {
-        do { history = try await APIClient.shared.history().items } catch { report(error) }
+        do {
+            let page = try await APIClient.shared.history()
+            history = page.items
+            historyCursor = page.nextCursor
+        } catch { report(error) }
+    }
+
+    /// Carga la siguiente página del historial (scroll infinito). No hace nada si no hay más.
+    func loadMoreHistory() async {
+        guard let cursor = historyCursor else { return }
+        do {
+            let page = try await APIClient.shared.history(cursor: cursor)
+            let seen = Set(history.map(\.id))
+            history.append(contentsOf: page.items.filter { !seen.contains($0.id) })
+            historyCursor = page.nextCursor
+        } catch { report(error) }
     }
 
     func report(_ error: Error) {

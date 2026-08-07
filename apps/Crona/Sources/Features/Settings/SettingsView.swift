@@ -32,6 +32,7 @@ struct SettingsView: View {
                     NavigationLink("Conectar a WhatsApp") { InstanceListView() }
                     NavigationLink("Respuestas automáticas") { AutoRepliesView() }
                     NavigationLink("Plantillas") { TemplatesView() }
+                    NavigationLink("Biblioteca de stickers") { StickerLibraryView() }
                     NavigationLink("Creación de grupos") { GroupSettingsView() }
                 }
 

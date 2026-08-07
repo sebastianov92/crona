@@ -108,6 +108,17 @@ struct HistoryView: View {
                             .tint(.orange)
                         }
                     }
+                    // Scroll infinito: al asomar el último visible, carga la siguiente página.
+                    .onAppear {
+                        if item.id == filtered.last?.id, session.historyCursor != nil {
+                            Task { await session.loadMoreHistory() }
+                        }
+                    }
+                }
+                // Indicador de "cargando más" mientras queden páginas.
+                if session.historyCursor != nil, !filtered.isEmpty, search.isEmpty {
+                    HStack { Spacer(); ProgressView(); Spacer() }
+                        .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)

@@ -12,6 +12,10 @@ struct ScheduledListView: View {
     @State private var showCompose = false
     @State private var showInstances = false
     @State private var selected: ScheduledMessage?
+    // Selección múltiple / acciones en lote
+    @State private var selectMode = false
+    @State private var selectedIDs = Set<String>()
+    @State private var bulkBusy = false
 
     private var pausedCount: Int { session.upcoming.filter { $0.status == .PAUSED }.count }
 
@@ -73,7 +77,18 @@ struct ScheduledListView: View {
                     ForEach(groupedByDay, id: \.key) { group in
                         Section(group.key) {
                             ForEach(group.items) { msg in
-                                Button { selected = msg } label: { MessageRow(message: msg) }
+                                Button {
+                                    if selectMode { toggleSelect(msg) } else { selected = msg }
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        if selectMode {
+                                            Image(systemName: selectedIDs.contains(msg.id) ? "checkmark.circle.fill" : "circle")
+                                                .font(.title3)
+                                                .foregroundStyle(selectedIDs.contains(msg.id) ? Theme.accent : .secondary)
+                                        }
+                                        MessageRow(message: msg)
+                                    }
+                                }
                                     .buttonStyle(.plain)
                                     // Acciones rápidas sin abrir el detalle. Cancelar no es full-swipe:
                                     // hace falta tocar el botón (evita cancelar por un arrastre accidental).
@@ -118,13 +133,28 @@ struct ScheduledListView: View {
                     }
                 }
             }
-            .navigationTitle("Programados")
+            .navigationTitle(selectMode ? "\(selectedIDs.count) seleccionados" : "Programados")
             .searchable(text: $search, prompt: "Buscar")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { showCompose = true } label: { Label("Nuevo mensaje", systemImage: "plus") }
+                    if selectMode {
+                        Button("Listo") { selectMode = false; selectedIDs.removeAll() }
+                    } else {
+                        Button { showCompose = true } label: { Label("Nuevo mensaje", systemImage: "plus") }
+                    }
                 }
+                #if os(iOS)
+                ToolbarItem(placement: .topBarLeading) {
+                    if !session.upcoming.isEmpty {
+                        Button(selectMode ? "Cancelar" : "Seleccionar") {
+                            selectMode.toggle(); selectedIDs.removeAll()
+                        }
+                    }
+                }
+                #endif
             }
+            // Barra de acciones en lote sobre la selección.
+            .safeAreaInset(edge: .bottom) { if selectMode { bulkBar } }
             .sheet(isPresented: $showCompose) { ComposeView() }
             .sheet(isPresented: $showInstances) { InstancesSheet() }
             .sheet(item: $selected) { msg in
@@ -153,6 +183,46 @@ struct ScheduledListView: View {
                 id: msg.id, PatchMessageBody(status: msg.status == .PAUSED ? .ACTIVE : .PAUSED))
             await session.refreshMessages()
         } catch { session.report(error) }
+    }
+
+    // MARK: - Selección múltiple / lote
+
+    @ViewBuilder private var bulkBar: some View {
+        let msgs = session.upcoming.filter { selectedIDs.contains($0.id) }
+        HStack(spacing: 16) {
+            Button { Task { await bulkSetPaused(true, msgs) } } label: { Label("Pausar", systemImage: "pause.fill") }
+            Button { Task { await bulkSetPaused(false, msgs) } } label: { Label("Reanudar", systemImage: "play.fill") }
+            Spacer()
+            Button(role: .destructive) { Task { await bulkCancel(msgs) } } label: { Label("Cancelar", systemImage: "xmark.circle") }
+                .tint(.red)
+        }
+        .font(.subheadline.weight(.medium))
+        .disabled(selectedIDs.isEmpty || bulkBusy)
+        .padding(.horizontal).padding(.vertical, 10)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private func toggleSelect(_ msg: ScheduledMessage) {
+        if selectedIDs.contains(msg.id) { selectedIDs.remove(msg.id) } else { selectedIDs.insert(msg.id) }
+    }
+
+    private func bulkSetPaused(_ paused: Bool, _ msgs: [ScheduledMessage]) async {
+        bulkBusy = true; defer { bulkBusy = false }
+        for m in msgs where m.status == .ACTIVE || m.status == .PAUSED {
+            _ = try? await APIClient.shared.patchMessage(id: m.id, PatchMessageBody(status: paused ? .PAUSED : .ACTIVE))
+        }
+        await session.refreshMessages()
+        selectMode = false; selectedIDs.removeAll()
+    }
+
+    private func bulkCancel(_ msgs: [ScheduledMessage]) async {
+        bulkBusy = true; defer { bulkBusy = false }
+        for m in msgs where m.status == .ACTIVE || m.status == .PAUSED {
+            _ = try? await APIClient.shared.cancelMessage(id: m.id)
+        }
+        await session.refreshMessages()
+        selectMode = false; selectedIDs.removeAll()
     }
 
     private func duplicateMsg(_ msg: ScheduledMessage) async {
