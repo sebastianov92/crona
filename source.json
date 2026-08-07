@@ -18,6 +18,14 @@
       "screenshots": [],
       "versions": [
         {
+          "version": "1.9.0",
+          "date": "2026-08-07",
+          "size": 5719834,
+          "downloadURL": "https://github.com/sebastianov92/crona/releases/download/v1.9.0/Crona.ipa",
+          "localizedDescription": "Selección múltiple en Programados (pausar/reanudar/cancelar varios a la vez). Historial con scroll infinito. Borradores: recupera lo que escribiste si cierras sin enviar. Adjuntar varias fotos a la vez y documentos (PDF) desde 'Más'. Biblioteca de stickers en Ajustes (ver y borrar).",
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.8.3",
           "date": "2026-08-07",
           "size": 5656486,
