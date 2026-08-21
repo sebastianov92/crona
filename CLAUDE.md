@@ -9,7 +9,7 @@
 - Backend dev:      cd server && npm run dev
 - Migraciones:      cd server && npx prisma migrate dev --name <nombre>
 - Build backend:    cd server && npm run build
-- Proyecto Xcode:   cd apps/Crona && xcodegen generate
+- Proyecto Xcode:   cd app && xcodegen generate
 
 ## Estilo
 - Server: TypeScript strict, ESM, sin `any` (salvo payloads crudos de Evolution), zod en todos los bodies.

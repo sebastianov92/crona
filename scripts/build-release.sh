@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${VERSION:-1.0.0}"   # en CI viene del tag (vX.Y.Z)
-APP_DIR="$ROOT/apps/Crona"
+APP_DIR="$ROOT/app"
 DIST="$ROOT/dist"
 DD="$(mktemp -d)/dd"
 

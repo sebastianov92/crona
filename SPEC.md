@@ -507,7 +507,7 @@ Setup del usuario (documentar en el README y en la pantalla de Ajustes): instala
 
 ---
 
-## 9. Apps SwiftUI (iOS + macOS) — `apps/Crona/`
+## 9. Apps SwiftUI (iOS + macOS) — `app/`
 
 ### 9.1 Proyecto
 
@@ -1055,7 +1055,7 @@ export function broadcast(userId: string, type: string, payload: unknown) {
 
 ## 18. App SwiftUI — configuración exacta y esqueletos
 
-### 18.1 `apps/Crona/project.yml` (XcodeGen)
+### 18.1 `app/project.yml` (XcodeGen)
 
 ```yaml
 name: Crona
@@ -1304,7 +1304,7 @@ curl -s -X POST $URL/admin/settings/test -H "Authorization: Bearer $TOKEN"   # �
 
 ```bash
 brew install xcodegen
-cd apps/Crona && xcodegen generate && open Crona.xcodeproj
+cd app && xcodegen generate && open Crona.xcodeproj
 ```
 
 En Xcode: Signing & Capabilities → Team = tu **Personal Team** → Run en "My Mac" y luego en el iPhone conectado. En el iPhone: Ajustes → General → VPN y gestión de dispositivos → confiar en tu Apple ID. ⚠️ El perfil gratuito expira a los **7 días**: repetir Run desde Xcode (los envíos NO se detienen mientras tanto).
@@ -1329,7 +1329,7 @@ Instalar **ntfy** desde el App Store → suscribirse al topic que muestra Crona 
 - Backend dev:      cd server && npm run dev
 - Migraciones:      cd server && npx prisma migrate dev --name <nombre>
 - Build backend:    cd server && npm run build
-- Proyecto Xcode:   cd apps/Crona && xcodegen generate
+- Proyecto Xcode:   cd app && xcodegen generate
 
 ## Estilo
 - Server: TypeScript strict, ESM, sin `any` (salvo payloads crudos de Evolution), zod en todos los bodies.
