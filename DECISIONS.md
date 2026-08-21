@@ -2,7 +2,7 @@
 
 ## 2026-07-16 — Setup inicial
 
-- **Entorno de desarrollo local**: se usa un contenedor Postgres 16 local (`docker run … postgres:16`) para migraciones y pruebas con `curl`. En producción se usa el Postgres de Evolution con la base `catchapp` (SPEC §2).
+- **Entorno de desarrollo local**: se usa un contenedor Postgres 16 local (`docker run … postgres:16`) para migraciones y pruebas con `curl`. En producción se usa el Postgres de Evolution con la base `crona` (SPEC §2).
 - **Pruebas contra Evolution real**: la Evolution API vive en el VPS del usuario y no es accesible desde la máquina de desarrollo. Los criterios ✔ que requieren Evolution/WhatsApp real (Fases 1–5) se verifican localmente hasta donde es posible (rutas, validaciones, flujo del worker) y quedan marcados como **pendiente de verificación en VPS** con el comando `curl` exacto a ejecutar allí.
 
 ## Fase 0 — Scaffold ✔
@@ -11,10 +11,10 @@ Evidencia (2026-07-16):
 
 ```
 $ curl -s localhost:3000/health
-{"ok":true,"service":"catchapp","ts":"2026-07-16T16:41:48.474Z"}
+{"ok":true,"service":"crona","ts":"2026-07-16T16:41:48.474Z"}
 ```
 
-- Migración inicial `20260716164116_init` aplicada contra Postgres 16 local (contenedor `catchapp-dev-pg`, puerto 5433).
+- Migración inicial `20260716164116_init` aplicada contra Postgres 16 local (contenedor `crona-dev-pg`, puerto 5433).
 - `npm run build` (tsc strict) pasa limpio.
 
 ## Fase 1 — Auth + Admin ✔ (parcial: test Evolution pendiente de VPS)
@@ -49,7 +49,7 @@ Decisiones:
 - La respuesta de `/instance/create` varía entre 2.x: `hash` puede ser string u objeto `{apikey}` — se manejan ambos.
 - `res.code` de `/instance/connect` es el string crudo del QR (`2@…`), NO un pairing code; `pairingCode` solo se toma de `qrcode.pairingCode`/`pairingCode`.
 - Errores de Evolution (`EvolutionError`) se mapean a 502 `EVOLUTION_UNREACHABLE` en el error handler global.
-- En dev local, `INTERNAL_URL=http://host.docker.internal:3000` para que el contenedor de Evolution alcance CatchApp; en VPS es `http://catchapp:3000` (red Docker compartida).
+- En dev local, `INTERNAL_URL=http://host.docker.internal:3000` para que el contenedor de Evolution alcance Crona; en VPS es `http://crona:3000` (red Docker compartida).
 
 ## Fase 3 — Mensajes de texto programados ✔ (entrega real a WhatsApp pendiente de VPS)
 
@@ -87,7 +87,7 @@ Evidencia (2026-07-16):
 
 - `GET /ws?token=…`: token válido conecta; token inválido cierra con **4401**.
 - Broadcast en vivo: al crear un mensaje por REST, el WS del mismo usuario recibió `{"type":"message.updated","payload":{…body:"evento ws"}}`.
-- ntfy verificado contra **mock local**: mensaje forzado a 3er fallo → el worker publicó `{"topic":"catchapp-seb-test01","title":"Mensaje no enviado","message":"No se envió tu mensaje a WS Test: INSTANCIA_DESCONECTADA","priority":4,"tags":["x"]}` y el mensaje quedó `FAILED / attempts=3`.
+- ntfy verificado contra **mock local**: mensaje forzado a 3er fallo → el worker publicó `{"topic":"crona-seb-test01","title":"Mensaje no enviado","message":"No se envió tu mensaje a WS Test: INSTANCIA_DESCONECTADA","priority":4,"tags":["x"]}` y el mensaje quedó `FAILED / attempts=3`.
 - Los eventos `instance.updated` (webhook CONNECTION_UPDATE), `qr.updated` (QRCODE_UPDATED) y `log.updated` (acks) ya emiten broadcast desde la Fase 2/3.
 - **Pendiente usuario**: probar push real en iPhone con la app ntfy suscrita al topic.
 
@@ -118,7 +118,7 @@ Decisiones:
 
 El usuario vinculó su número real escaneando el QR desde la app macOS (✔ criterio Fase 2: instancia CONNECTED). El sync inicial devolvió 0/0 — dos causas encontradas con el payload real:
 
-1. **Contactos (bug de CatchApp, corregido)**: en Evolution 2.3.x `findContacts` devuelve `id` = cuid interno de su DB y el JID va en `remoteJid`. El mapeo tomaba `id` primero → el filtro `@s.whatsapp.net` descartaba todo. Fix: `pickJid()` prefiere `remoteJid` y solo acepta valores con `@`. Resultado: **618 contactos sincronizados**.
+1. **Contactos (bug de Crona, corregido)**: en Evolution 2.3.x `findContacts` devuelve `id` = cuid interno de su DB y el JID va en `remoteJid`. El mapeo tomaba `id` primero → el filtro `@s.whatsapp.net` descartaba todo. Fix: `pickJid()` prefiere `remoteJid` y solo acepta valores con `@`. Resultado: **618 contactos sincronizados**.
 2. **Grupos (limitación de Evolution 2.3.7)**: `GET /group/fetchAllGroups` devuelve `[]` siempre (el `groupFetchAllParticipating` de Baileys falla silenciosamente; probado con restart de instancia y con la imagen `latest` — misma versión 2.3.7). Workaround: fallback que toma los chats `@g.us` de `POST /chat/findChats` (nombre en `pushName`). Limitación honesta: solo aparecen grupos **con actividad desde la vinculación** (syncFullHistory=false) — el usuario debe mandar/recibir un mensaje en el grupo y re-sincronizar.
 
 ## Pendientes que requieren al usuario (no bloqueantes)

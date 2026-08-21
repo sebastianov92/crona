@@ -1,30 +1,30 @@
-# CatchApp — Especificación técnica completa
+# Crona — Especificación técnica completa
 
 > **Documento para Claude Code.** Lee este documento completo antes de escribir código.
 > Todas las decisiones de producto y arquitectura ya están tomadas — no preguntes por alternativas de stack, implementa lo especificado. Si encuentras una ambigüedad técnica real, resuélvela con la opción más simple y documéntala en `DECISIONS.md`.
 
 ---
 
-## 1. Qué es CatchApp
+## 1. Qué es Crona
 
-CatchApp es un sistema para **programar mensajes de WhatsApp** (texto, fotos y videos) que se envían automáticamente en una fecha y hora futuras, hacia **contactos individuales o grupos**, usando una instalación existente de **Evolution API v2** en un VPS del usuario.
+Crona es un sistema para **programar mensajes de WhatsApp** (texto, fotos y videos) que se envían automáticamente en una fecha y hora futuras, hacia **contactos individuales o grupos**, usando una instalación existente de **Evolution API v2** en un VPS del usuario.
 
 Componentes:
 
-1. **CatchApp Server** — backend en el VPS (junto a Evolution API, mismo Docker network). Es la **única fuente de verdad**: guarda los mensajes programados, ejecuta el scheduler que los envía, recibe webhooks de Evolution y notifica por ntfy. Los mensajes se envían aunque ninguna app esté abierta.
-2. **CatchApp para iOS y macOS** — una sola app SwiftUI multiplataforma, clientes delgados del backend. La sincronización Mac ↔ iPhone es automática porque ambos leen/escriben contra el mismo servidor (REST + WebSocket).
+1. **Crona Server** — backend en el VPS (junto a Evolution API, mismo Docker network). Es la **única fuente de verdad**: guarda los mensajes programados, ejecuta el scheduler que los envía, recibe webhooks de Evolution y notifica por ntfy. Los mensajes se envían aunque ninguna app esté abierta.
+2. **Crona para iOS y macOS** — una sola app SwiftUI multiplataforma, clientes delgados del backend. La sincronización Mac ↔ iPhone es automática porque ambos leen/escriben contra el mismo servidor (REST + WebSocket).
 3. **Evolution API v2** — ya instalada y corriendo en el VPS del usuario. NO se modifica; solo se consume su API REST y sus webhooks.
 
 ```
 ┌─────────────┐   ┌─────────────┐
-│  CatchApp   │   │  CatchApp   │
+│  Crona   │   │  Crona   │
 │    macOS    │   │     iOS     │
 └──────┬──────┘   └──────┬──────┘
        │  HTTPS (REST + WS)  │
        └─────────┬──────────┘
                  ▼
    ┌──────────────────────────┐        ┌──────────────┐
-   │   CatchApp Server (VPS)  │──POST─▶│  ntfy server │──▶ 📱 push
+   │   Crona Server (VPS)  │──POST─▶│  ntfy server │──▶ 📱 push
    │  API · Worker · Webhooks │        └──────────────┘
    └──────┬──────────▲────────┘
           │ REST     │ webhooks (red interna Docker)
@@ -36,7 +36,7 @@ Componentes:
           │
           ▼
    ┌──────────────┐
-   │  PostgreSQL  │  (el mismo de Evolution; base de datos separada `catchapp`)
+   │  PostgreSQL  │  (el mismo de Evolution; base de datos separada `crona`)
    └──────────────┘
 ```
 
@@ -50,13 +50,13 @@ Componentes:
 | Proyecto Xcode | Generado con **XcodeGen** (`project.yml`) para que Claude Code pueda crear/modificar el proyecto como texto |
 | Backend | **Node.js 20 + TypeScript + Fastify + Prisma + PostgreSQL** |
 | Scheduler | Worker de **polling cada 30 s** contra Postgres con `FOR UPDATE SKIP LOCKED`. **Sin Redis, sin cron por mensaje** |
-| Base de datos | Reutilizar el PostgreSQL de Evolution creando una **base separada `catchapp`**. Fallback: contenedor propio si no fuera accesible |
+| Base de datos | Reutilizar el PostgreSQL de Evolution creando una **base separada `crona`**. Fallback: contenedor propio si no fuera accesible |
 | Usuarios | **Multiusuario con login completo** (email + contraseña, JWT). Primer usuario registrado = ADMIN. Registro posterior solo con **código de invitación** |
 | Instancias | Cada usuario crea y vincula **sus propias instancias** de Evolution (QR). UI enfocada a una instancia activa; schema soporta varias |
 | Extras v1 | ✅ Mensajes **recurrentes** (diario/semanal/mensual) · ✅ Notificaciones de envío/fallo vía **ntfy** · ✅ **Historial** con estados entregado/leído |
 | Notificaciones iPhone | **ntfy** (self-hosted friendly). ⚠️ La app iOS se instala por **sideload con cuenta gratuita**: **PROHIBIDO** incluir la capability Push Notifications / entitlement `aps-environment` — el build fallaría al firmar con Personal Team |
 | Evolution API | **v2.x** — usar los formatos de body de v2 (planos), NO los de v1 (`textMessage`/`mediaMessage` anidados) |
-| HTTP sin TLS | **Soportado como caso normal**: tanto Evolution como el propio CatchApp Server pueden servirse por `http://` (escenario típico de self-hosting). Las apps incluyen la excepción ATS (9.1) y derivan `ws://`/`wss://` del esquema. HTTPS recomendado, no obligatorio |
+| HTTP sin TLS | **Soportado como caso normal**: tanto Evolution como el propio Crona Server pueden servirse por `http://` (escenario típico de self-hosting). Las apps incluyen la excepción ATS (9.1) y derivan `ws://`/`wss://` del esquema. HTTPS recomendado, no obligatorio |
 | Zona horaria | Todo en **UTC** en DB (`timestamptz`); cada mensaje guarda su `timezone` (default `America/Guayaquil`, sin DST) |
 | Idioma UI | Español |
 
@@ -65,10 +65,10 @@ Componentes:
 ## 3. Estructura del repositorio (monorepo)
 
 ```
-catchapp/
+crona/
 ├── SPEC.md                    # este documento
 ├── DECISIONS.md               # decisiones tomadas durante implementación
-├── docker-compose.yml         # catchapp-server (+ caddy opcional)
+├── docker-compose.yml         # crona-server (+ caddy opcional)
 ├── .env.example
 ├── server/
 │   ├── package.json
@@ -88,7 +88,7 @@ catchapp/
 │       │   └── crypto.ts      # AES-256-GCM para keys de Evolution
 │       └── ws/hub.ts          # broadcast por usuario
 └── apps/
-    └── CatchApp/
+    └── Crona/
         ├── project.yml        # XcodeGen: target multiplataforma iOS+macOS
         └── Sources/           # (ver sección 9)
 ```
@@ -115,7 +115,7 @@ model User {
   passwordHash  String                     // argon2id
   name          String
   role          Role     @default(USER)
-  ntfyTopic     String?                    // topic personal, ej. "catchapp-sebastian-x7k2"
+  ntfyTopic     String?                    // topic personal, ej. "crona-sebastian-x7k2"
   ntfyToken     String?                    // opcional si el server ntfy usa auth
   notifyOnSent  Boolean  @default(false)   // notificar también envíos exitosos
   createdAt     DateTime @default(now())
@@ -281,7 +281,7 @@ apikey: {GLOBAL_KEY}
   "readStatus": false,
   "syncFullHistory": false,
   "webhook": {
-    "url": "http://catchapp:3000/webhooks/evolution/{WEBHOOK_SECRET}",
+    "url": "http://crona:3000/webhooks/evolution/{WEBHOOK_SECRET}",
     "byEvents": false,
     "base64": false,
     "events": ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPDATE", "SEND_MESSAGE"]
@@ -291,7 +291,7 @@ apikey: {GLOBAL_KEY}
 
 Respuesta: incluye `hash` (la apikey de la instancia → cifrar y guardar en `Instance.tokenEnc`) y `qrcode.base64` (data-URI PNG para mostrar en la app).
 
-- La URL del webhook usa la **red interna de Docker** (`http://catchapp:3000/...`) — nunca necesita exponerse a internet.
+- La URL del webhook usa la **red interna de Docker** (`http://crona:3000/...`) — nunca necesita exponerse a internet.
 - Si el QR expira: `GET {base}/instance/connect/{instanceName}` devuelve uno nuevo (campos `base64` y/o `code`; manejar ambos). Evolution además emite `QRCODE_UPDATED` por webhook → reenviar por WebSocket a la app para refrescar el QR en vivo.
 - Estado: `GET {base}/instance/connectionState/{instanceName}` → `{ instance: { state: "open" | "connecting" | "close" } }`. `open` = CONNECTED.
 - Desvincular: `DELETE {base}/instance/logout/{instanceName}`; eliminar: `DELETE {base}/instance/delete/{instanceName}`.
@@ -332,9 +332,9 @@ apikey: {INSTANCE_KEY}
 Reglas críticas (errores reales de producción documentados por la comunidad):
 
 1. **Base64 PURO**: sin prefijo `data:image/jpeg;base64,` y sin saltos de línea — con prefijo devuelve **400**.
-2. **Archivos ≤ 3 MB** → enviar como base64. **> 3 MB (videos sobre todo)** → enviar como **URL**. CatchApp genera una **URL interna firmada de un solo uso** (`http://catchapp:3000/internal/media/{signedToken}`, TTL 15 min, solo válida en la red Docker) que Evolution puede descargar sin exponer archivos públicamente.
+2. **Archivos ≤ 3 MB** → enviar como base64. **> 3 MB (videos sobre todo)** → enviar como **URL**. Crona genera una **URL interna firmada de un solo uso** (`http://crona:3000/internal/media/{signedToken}`, TTL 15 min, solo válida en la red Docker) que Evolution puede descargar sin exponer archivos públicamente.
 3. Timeout HTTP del cliente Evolution para media: **180 s**.
-4. Límites de subida en CatchApp: imagen ≤ 16 MB, video ≤ 64 MB (`sharp` NO necesario; validar solo mimetype y tamaño). Advertir en la UI que videos > 16 MB pueden fallar en WhatsApp.
+4. Límites de subida en Crona: imagen ≤ 16 MB, video ≤ 64 MB (`sharp` NO necesario; validar solo mimetype y tamaño). Advertir en la UI que videos > 16 MB pueden fallar en WhatsApp.
 
 ### 5.4 Contactos y grupos (sincronización del cache `Recipient`)
 
@@ -348,7 +348,7 @@ Sincronizar: al conectar una instancia por primera vez y con el endpoint manual 
 
 Validar `:secret` contra `WEBHOOK_SECRET`. El payload trae `event`, `instance` y `data`. Los primeros días, guardar el JSON crudo en `WebhookEventRaw` para calibrar el mapeo.
 
-| Evento | Acción en CatchApp |
+| Evento | Acción en Crona |
 |---|---|
 | `connection.update` / `CONNECTION_UPDATE` | Actualizar `Instance.status` (`open`→CONNECTED, `close`→DISCONNECTED, `connecting`→CONNECTING). Si pasa a DISCONNECTED: **ntfy prioridad alta** ("Tu WhatsApp se desconectó — los mensajes programados fallarán") + broadcast WS |
 | `qrcode.updated` / `QRCODE_UPDATED` | Reenviar QR nuevo por WS al usuario dueño de la instancia (pantalla de vinculación en vivo) |
@@ -367,7 +367,7 @@ Nota de expectativas (documentar en la UI): "entregado" es confiable; "leído" d
 
 ---
 
-## 6. API REST de CatchApp (`server/src/routes/`)
+## 6. API REST de Crona (`server/src/routes/`)
 
 Todas las rutas (salvo auth y webhooks) requieren `Authorization: Bearer {accessJWT}`. Validación de bodies con **zod**. Errores JSON: `{ error: { code, message } }`.
 
@@ -500,21 +500,21 @@ for (const [i, msg] of claimed.entries()) {
 | Evento | Cuándo | Prioridad |
 |---|---|---|
 | ❌ Mensaje falló (3 intentos) | Siempre | `high` — "No se envió tu mensaje a {nombre}: {error}" |
-| 🔌 Instancia desconectada | Siempre | `high` — "WhatsApp ({instancia}) se desconectó. Ábrela en CatchApp y re-escanea el QR" |
+| 🔌 Instancia desconectada | Siempre | `high` — "WhatsApp ({instancia}) se desconectó. Ábrela en Crona y re-escanea el QR" |
 | ✅ Mensaje enviado | Solo si `notifyOnSent` | `default` — "Enviado a {nombre} · {hora local}" |
 
-Setup del usuario (documentar en el README y en la pantalla de Ajustes): instalar la app **ntfy** del App Store, suscribirse a su topic. Si el server ntfy es **self-hosted**, el `server.yml` de ntfy debe incluir `upstream-base-url: "https://ntfy.sh"` para que el push llegue a iOS vía APNs. El topic funciona como secreto: generarlo aleatorio (`catchapp-{nombre}-{6 chars}`).
+Setup del usuario (documentar en el README y en la pantalla de Ajustes): instalar la app **ntfy** del App Store, suscribirse a su topic. Si el server ntfy es **self-hosted**, el `server.yml` de ntfy debe incluir `upstream-base-url: "https://ntfy.sh"` para que el push llegue a iOS vía APNs. El topic funciona como secreto: generarlo aleatorio (`crona-{nombre}-{6 chars}`).
 
 ---
 
-## 9. Apps SwiftUI (iOS + macOS) — `apps/CatchApp/`
+## 9. Apps SwiftUI (iOS + macOS) — `apps/Crona/`
 
 ### 9.1 Proyecto
 
-- **XcodeGen** (`brew install xcodegen`): definir todo en `project.yml` — un target multiplataforma `CatchApp` con `destinations: [iOS, macOS]`, deployment iOS 17.0 / macOS 14.0, bundle id `com.sebastian.catchapp`. Claude Code edita `project.yml` y Sources; el usuario corre `xcodegen generate` y abre el `.xcodeproj`.
+- **XcodeGen** (`brew install xcodegen`): definir todo en `project.yml` — un target multiplataforma `Crona` con `destinations: [iOS, macOS]`, deployment iOS 17.0 / macOS 14.0, bundle id `com.sebastian.crona`. Claude Code edita `project.yml` y Sources; el usuario corre `xcodegen generate` y abre el `.xcodeproj`.
 - ⚠️ **Firma con Personal Team gratuito (sideload):** NO agregar capabilities. **Prohibido** `aps-environment`, Push Notifications, iCloud, App Groups — el build falla al firmar. El perfil expira a los **7 días** (redeploy desde Xcode); esto **no afecta los envíos** porque los hace el servidor.
 - Solo se necesita la capability por defecto de red saliente en macOS (`com.apple.security.network.client` en el sandbox).
-- **ATS (App Transport Security)**: como el servidor CatchApp puede ser `http://`, el `project.yml` debe generar el Info.plist con `NSAppTransportSecurity → NSAllowsArbitraryLoads: true` (en XcodeGen: bloque `info.properties` del target). Sin esto, iOS/macOS **bloquean silenciosamente** todo request cleartext y parece un error de red genérico.
+- **ATS (App Transport Security)**: como el servidor Crona puede ser `http://`, el `project.yml` debe generar el Info.plist con `NSAppTransportSecurity → NSAllowsArbitraryLoads: true` (en XcodeGen: bloque `info.properties` del target). Sin esto, iOS/macOS **bloquean silenciosamente** todo request cleartext y parece un error de red genérico.
 - `ServerSetupView` acepta URLs `http://` mostrando una advertencia suave ("conexión sin cifrar — úsala solo si confías en la red o vas por VPN"), y `WebSocketClient` usa `ws://` o `wss://` según el esquema del servidor configurado.
 
 ### 9.2 Arquitectura de la app
@@ -523,7 +523,7 @@ MVVM ligero con `@Observable` (Observation framework) + `async/await`:
 
 ```
 Sources/
-├── App/CatchAppApp.swift          # @main; en macOS agrega MenuBarExtra
+├── App/CronaApp.swift          # @main; en macOS agrega MenuBarExtra
 ├── Core/
 │   ├── APIClient.swift            # actor; URLSession, JSON, refresh automático de token en 401
 │   ├── Models.swift               # Codable espejo de la API (User, Instance, Recipient, ScheduledMessage, MessageLog…)
@@ -531,7 +531,7 @@ Sources/
 │   ├── WebSocketClient.swift      # URLSessionWebSocketTask, reconexión con backoff
 │   └── SessionStore.swift         # @Observable: sesión, instancia activa, cache en memoria
 ├── Features/
-│   ├── Onboarding/ServerSetupView.swift   # 1ª vez: URL del servidor CatchApp → /health
+│   ├── Onboarding/ServerSetupView.swift   # 1ª vez: URL del servidor Crona → /health
 │   ├── Auth/LoginView.swift · RegisterView.swift (con campo código de invitación)
 │   ├── Instances/InstanceListView · CreateInstanceView · QRLinkView (QR en vivo vía WS)
 │   ├── Schedule/
@@ -561,7 +561,7 @@ Sources/
 
 ### 9.4 macOS extra — Menu bar
 
-`MenuBarExtra("CatchApp", systemImage: "paperplane.circle")`: próximos 5 envíos + botón "Nuevo mensaje" + estado de la instancia. Mientras la app corre, el `WebSocketClient` dispara **notificaciones locales** (`UNUserNotificationCenter` — permitido sin cuenta paga) en enviado/fallido/desconexión. En iPhone las notificaciones llegan por **ntfy**.
+`MenuBarExtra("Crona", systemImage: "paperplane.circle")`: próximos 5 envíos + botón "Nuevo mensaje" + estado de la instancia. Mientras la app corre, el `WebSocketClient` dispara **notificaciones locales** (`UNUserNotificationCenter` — permitido sin cuenta paga) en enviado/fallido/desconexión. En iPhone las notificaciones llegan por **ntfy**.
 
 ### 9.5 Sincronización
 
@@ -575,9 +575,9 @@ Fuente de verdad = servidor. La app: fetch al aparecer cada pantalla + al volver
 
 ```yaml
 services:
-  catchapp:
+  crona:
     build: ./server
-    container_name: catchapp
+    container_name: crona
     restart: unless-stopped
     env_file: .env
     volumes:
@@ -605,34 +605,34 @@ volumes:
 `Caddyfile`:
 
 ```
-catchapp.TUDOMINIO.com {
-    reverse_proxy catchapp:3000
+crona.TUDOMINIO.com {
+    reverse_proxy crona:3000
 }
 ```
 
-**Opción B — solo HTTP (sin dominio ni TLS)**: omitir el servicio `caddy` y exponer el puerto directo en `catchapp`:
+**Opción B — solo HTTP (sin dominio ni TLS)**: omitir el servicio `caddy` y exponer el puerto directo en `crona`:
 
 ```yaml
     ports: ["3000:3000"]
 ```
 
-Las apps se conectan a `http://IP_DEL_VPS:3000` (la excepción ATS de 9.1 lo permite). ⚠️ Con HTTP los JWT y el contenido viajan en claro por internet: aceptable para arrancar, pero el README debe recomendar tres upgrades posibles — Caddy con dominio (TLS automático, 3 líneas), Cloudflare Tunnel apuntando a `catchapp:3000` (sin abrir puertos), o meter VPS + dispositivos en un tailnet (Tailscale) y conectarse por la IP privada.
+Las apps se conectan a `http://IP_DEL_VPS:3000` (la excepción ATS de 9.1 lo permite). ⚠️ Con HTTP los JWT y el contenido viajan en claro por internet: aceptable para arrancar, pero el README debe recomendar tres upgrades posibles — Caddy con dominio (TLS automático, 3 líneas), Cloudflare Tunnel apuntando a `crona:3000` (sin abrir puertos), o meter VPS + dispositivos en un tailnet (Tailscale) y conectarse por la IP privada.
 
 ### 10.2 `.env.example`
 
 ```bash
-DATABASE_URL=postgresql://user:pass@postgres:5432/catchapp   # host = servicio Postgres de Evolution
+DATABASE_URL=postgresql://user:pass@postgres:5432/crona   # host = servicio Postgres de Evolution
 JWT_SECRET=                    # openssl rand -hex 32
 ENCRYPTION_KEY=                # openssl rand -hex 32  (AES-256-GCM para keys de Evolution)
 WEBHOOK_SECRET=                # openssl rand -hex 24
 MEDIA_DIR=/data/media
-PUBLIC_URL=https://catchapp.TUDOMINIO.com   # u http://IP_DEL_VPS:3000 en despliegue Opción B
-INTERNAL_URL=http://catchapp:3000        # para URLs de media firmadas y webhook
+PUBLIC_URL=https://crona.TUDOMINIO.com   # u http://IP_DEL_VPS:3000 en despliegue Opción B
+INTERNAL_URL=http://crona:3000        # para URLs de media firmadas y webhook
 PORT=3000
 TZ=America/Guayaquil
 ```
 
-Primer arranque: `npx prisma migrate deploy`. Crear la base: `CREATE DATABASE catchapp;` en el Postgres existente (documentar el comando `docker exec` exacto en el README).
+Primer arranque: `npx prisma migrate deploy`. Crear la base: `CREATE DATABASE crona;` en el Postgres existente (documentar el comando `docker exec` exacto en el README).
 
 ### 10.3 Seguridad
 
@@ -675,7 +675,7 @@ Cada fase termina con la app/servidor **corriendo** y un commit. Probar con `cur
 5. Enviar a grupos usando el **JID completo `@g.us`** como `number`.
 6. Key **global** para `/instance/*`, key **de instancia** para `/message/*` — no mezclarlas.
 7. Hay versiones 2.x con un bug donde `sendText` responde **400 pero el mensaje sí sale** (error de Prisma interno de Evolution): si la respuesta de error contiene `key.id`, tratarla como éxito y loggear warning.
-8. Riesgo de ban (Baileys es no-oficial): mantener `delay` 1500–3000 ms, jitter entre mensajes del mismo tick, y no programar ráfagas masivas. CatchApp es uso personal — documentarlo.
+8. Riesgo de ban (Baileys es no-oficial): mantener `delay` 1500–3000 ms, jitter entre mensajes del mismo tick, y no programar ráfagas masivas. Crona es uso personal — documentarlo.
 9. El nombre de la red Docker de Evolution varía según su compose: verificar con `docker network ls` antes del primer deploy.
 10. Payloads de webhook varían levemente entre 2.x → handler tolerante + `WebhookEventRaw` los primeros días.
 11. **ATS**: si el servidor es `http://` y falta la excepción del 9.1, la app falla con "App Transport Security has blocked a cleartext HTTP connection" — el error solo se ve en la consola de Xcode; en la UI parece que "no hay internet".
@@ -706,7 +706,7 @@ C�digos de error: `INVALID_CREDENTIALS`, `INVITE_REQUIRED`, `INVITE_INVALID`, `T
 ```jsonc
 // User
 { "id": "uuid", "email": "s@x.com", "name": "Sebastián", "role": "ADMIN",
-  "ntfyTopic": "catchapp-seb-a8k2x1", "notifyOnSent": false, "createdAt": "…Z" }
+  "ntfyTopic": "crona-seb-a8k2x1", "notifyOnSent": false, "createdAt": "…Z" }
 
 // POST /auth/login y POST /auth/register → 200/201
 { "accessToken": "jwt", "refreshToken": "opaque", "user": { User } }
@@ -768,7 +768,7 @@ Media aceptado en `POST /media` (campo multipart `file`): `image/jpeg`, `image/p
 
 ```json
 {
-  "name": "catchapp-server",
+  "name": "crona-server",
   "private": true,
   "type": "module",
   "scripts": {
@@ -845,7 +845,7 @@ const Env = z.object({
   WEBHOOK_SECRET: z.string().min(16),
   MEDIA_DIR: z.string().default("/data/media"),
   PUBLIC_URL: z.string().min(1),
-  INTERNAL_URL: z.string().default("http://catchapp:3000"),
+  INTERNAL_URL: z.string().default("http://crona:3000"),
   PORT: z.coerce.number().default(3000),
 });
 export const config = Env.parse(process.env);
@@ -1055,31 +1055,31 @@ export function broadcast(userId: string, type: string, payload: unknown) {
 
 ## 18. App SwiftUI — configuración exacta y esqueletos
 
-### 18.1 `apps/CatchApp/project.yml` (XcodeGen)
+### 18.1 `apps/Crona/project.yml` (XcodeGen)
 
 ```yaml
-name: CatchApp
+name: Crona
 options:
   bundleIdPrefix: com.sebastian
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
 targets:
-  CatchApp:
+  Crona:
     type: application
     supportedDestinations: [iOS, macOS]
     sources: [Sources]
     info:
       path: Sources/Info.plist
       properties:
-        CFBundleDisplayName: CatchApp
+        CFBundleDisplayName: Crona
         NSAppTransportSecurity:            # servidor puede ser http:// (SPEC §2)
           NSAllowsArbitraryLoads: true
         UILaunchScreen: {}
         LSApplicationCategoryType: public.app-category.productivity
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sebastian.catchapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.sebastian.crona
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: Automatic
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Sources/macOS.entitlements
@@ -1171,7 +1171,7 @@ import Security
 import Foundation
 
 enum Keychain {
-    private static let service = "com.sebastian.catchapp"
+    private static let service = "com.sebastian.crona"
     static func set(_ value: String, for key: String) {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                 kSecAttrService as String: service, kSecAttrAccount as String: key]
@@ -1263,7 +1263,7 @@ enum Theme {
 | Chips de hora | `En 1 hora` · `Esta noche 8:00 PM` · `Mañana 9:00 AM` · `Elegir fecha…` |
 | Recurrencia | `No se repite` · `Todos los días` · `Semanal` · `Mensual` · `Hasta` |
 | Vacíos | `No tienes mensajes programados.\nToca + para crear el primero.` · `Aún no hay envíos en el historial.` · `No hay contactos. Toca "Sincronizar contactos".` |
-| Onboarding | `Dirección de tu servidor CatchApp` · `Conexión sin cifrar (http). Úsala solo si confías en la red o estás en una VPN.` |
+| Onboarding | `Dirección de tu servidor Crona` · `Conexión sin cifrar (http). Úsala solo si confías en la red o estás en una VPN.` |
 | Banner desconexión | `Tu WhatsApp está desconectado — los envíos fallarán. Re-escanea el QR.` |
 | QR | `Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo y escanea este código.` |
 | Confirmación | `Se enviará a {nombre} el {fecha} a las {hora}.` |
@@ -1276,7 +1276,7 @@ enum Theme {
 
 ```bash
 # 1) Base de datos en el Postgres existente de Evolution
-docker exec -it <contenedor_postgres> psql -U <usuario> -c "CREATE DATABASE catchapp;"
+docker exec -it <contenedor_postgres> psql -U <usuario> -c "CREATE DATABASE crona;"
 
 # 2) Nombre real de la red de Evolution → ponerlo en docker-compose.yml (networks.external)
 docker network ls
@@ -1288,7 +1288,7 @@ openssl rand -hex 32   # → ENCRYPTION_KEY
 openssl rand -hex 24   # → WEBHOOK_SECRET
 
 # 4) Levantar (migraciones corren solas en el CMD del contenedor)
-docker compose up -d --build && docker compose logs -f catchapp
+docker compose up -d --build && docker compose logs -f crona
 
 # 5) Registrar al admin (primer usuario = ADMIN, sin invitación)
 curl -s -X POST $URL/auth/register -H "Content-Type: application/json" \
@@ -1304,21 +1304,21 @@ curl -s -X POST $URL/admin/settings/test -H "Authorization: Bearer $TOKEN"   # �
 
 ```bash
 brew install xcodegen
-cd apps/CatchApp && xcodegen generate && open CatchApp.xcodeproj
+cd apps/Crona && xcodegen generate && open Crona.xcodeproj
 ```
 
 En Xcode: Signing & Capabilities → Team = tu **Personal Team** → Run en "My Mac" y luego en el iPhone conectado. En el iPhone: Ajustes → General → VPN y gestión de dispositivos → confiar en tu Apple ID. ⚠️ El perfil gratuito expira a los **7 días**: repetir Run desde Xcode (los envíos NO se detienen mientras tanto).
 
 ### 19.3 ntfy
 
-Instalar **ntfy** desde el App Store → suscribirse al topic que muestra CatchApp en Ajustes (se genera aleatorio: `catchapp-{nombre}-{6 chars}`). Si el servidor ntfy es self-hosted, su `server.yml` necesita `upstream-base-url: "https://ntfy.sh"` para que el push llegue a iOS vía APNs.
+Instalar **ntfy** desde el App Store → suscribirse al topic que muestra Crona en Ajustes (se genera aleatorio: `crona-{nombre}-{6 chars}`). Si el servidor ntfy es self-hosted, su `server.yml` necesita `upstream-base-url: "https://ntfy.sh"` para que el push llegue a iOS vía APNs.
 
 ---
 
 ## 20. `CLAUDE.md` (copiar este bloque tal cual a la raíz del repo)
 
 ```markdown
-# CLAUDE.md — Reglas de trabajo para CatchApp
+# CLAUDE.md — Reglas de trabajo para Crona
 
 - Lee SPEC.md COMPLETO antes de tocar código. Las decisiones de SPEC §2 son finales: no propongas alternativas.
 - Trabaja FASE POR FASE (SPEC §11). No avances de fase sin cumplir su criterio ✔; pega la evidencia (output de curl o captura) en DECISIONS.md.
@@ -1329,7 +1329,7 @@ Instalar **ntfy** desde el App Store → suscribirse al topic que muestra CatchA
 - Backend dev:      cd server && npm run dev
 - Migraciones:      cd server && npx prisma migrate dev --name <nombre>
 - Build backend:    cd server && npm run build
-- Proyecto Xcode:   cd apps/CatchApp && xcodegen generate
+- Proyecto Xcode:   cd apps/Crona && xcodegen generate
 
 ## Estilo
 - Server: TypeScript strict, ESM, sin `any` (salvo payloads crudos de Evolution), zod en todos los bodies.
