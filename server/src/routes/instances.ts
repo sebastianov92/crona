@@ -234,15 +234,15 @@ export function registerInstanceRoutes(app: FastifyInstance) {
       const id = typeof c?.id === "string" && c.id.includes("@") ? c.id : "";
       return rj || id;
     };
-    // Contactos sin pushName (nunca han chateado o no lo publican) NO se descartan:
-    // se muestran con su número como nombre — si no, "faltan contactos" en el picker.
+    // Nombre a mostrar: el GUARDADO en tu agenda (`name`, sincronizado desde tu WhatsApp) tiene
+    // prioridad sobre el `pushName` (el que el contacto se puso a sí mismo). Sin ninguno → el número.
     const contacts = rawContacts
       .map((c) => {
         const jid = pickJid(c);
-        const pushName = ((c?.pushName ?? c?.name ?? "") as string).trim();
+        const savedName = ((c?.name ?? c?.pushName ?? "") as string).trim();
         return {
           jid,
-          name: pushName || (jid.includes("@") ? `+${jid.split("@")[0]}` : ""),
+          name: savedName || (jid.includes("@") ? `+${jid.split("@")[0]}` : ""),
           pictureUrl: (c?.profilePicUrl ?? null) as string | null,
         };
       })
@@ -258,10 +258,10 @@ export function registerInstanceRoutes(app: FastifyInstance) {
     for (const c of rawChats) {
       const jid = pickJid(c);
       if (!jid.endsWith("@s.whatsapp.net") || known.has(jid)) continue;
-      const pushName = ((c?.pushName ?? c?.name ?? "") as string).trim();
+      const savedName = ((c?.name ?? c?.pushName ?? "") as string).trim();
       contacts.push({
         jid,
-        name: pushName || `+${jid.split("@")[0]}`,
+        name: savedName || `+${jid.split("@")[0]}`,
         pictureUrl: (c?.profilePicUrl ?? null) as string | null,
       });
       known.add(jid);
@@ -274,7 +274,7 @@ export function registerInstanceRoutes(app: FastifyInstance) {
       })),
       ...rawChats.map((c) => ({
         jid: pickJid(c),
-        name: (c?.pushName ?? c?.name ?? "") as string,
+        name: (c?.name ?? c?.pushName ?? "") as string,
         pictureUrl: (c?.profilePicUrl ?? null) as string | null,
       })),
     ]
